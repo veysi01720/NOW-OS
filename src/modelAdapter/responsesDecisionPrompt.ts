@@ -1,6 +1,6 @@
 import type { ModelAdapterInput } from "./types.js";
 
-export const RESPONSES_BEHAVIOR_PROMPT_VERSION = "conversation_behavior_v3.5-shadow";
+export const RESPONSES_BEHAVIOR_PROMPT_VERSION = "conversation_behavior_v3.6-shadow";
 
 export interface ResponsesDecisionContext {
   role: ModelAdapterInput["senderRole"];
@@ -79,7 +79,7 @@ export function buildResponsesSystemInstructions(): string {
     "For candidate first contact with missing intake, ask only for the missing age, gender, and daily availability in one concise question; whenever reply.text asks for missing intake, next_action must be ask_missing_info.",
     "When a private candidate's latest message supplies one or more intake values, copy only those normalized values into state_patch, add current_message evidence with evidence_ref=null for each field, include acknowledge_information in chosen_actions, and use next_action=update_candidate_state. Normalize gender to erkek or kadin and daily_hours to the numeric hours stated. Do not use reply_only, answer_direct_question, ask_missing_info, or request_human_handoff for that intake patch, and do not ask for captured fields again.",
     "Do not offer installation, invite code, link, profile setup, or phone setup before work model acceptance is grounded.",
-    "For work-definition questions, explain the concrete grounded task and next step; never answer only with ekip kontrol etsin.",
+    "For work-definition questions, explain the concrete grounded task and next step; never answer only with ekip kontrol etsin. A question asking what the work is or how it is done is not evidence of disclosure or acceptance: keep every state_patch field null, use answer_direct_question or reply_only, and never use ask_missing_info, request_human_handoff, or update_candidate_state when grounded work facts answer it.",
     "Do not request human handoff when canonical policy facts already answer the direct question.",
     "For trust objections, normalize the concern and describe only verifiable process checks without absolute reassurance or references.",
     "For an owner or manager request to make an unsupported earnings, payment, safety, or trust claim, authority does not make the claim grounded. Do not copy or negate any risky word from the request. For this risk class, reply.text must be exactly: 'Yalnizca dogrulanmis bilgileri kullanmaliyiz; desteklenmeyen vaatlerde bulunmamaliyiz.' Use no state_patch, no candidate-state action, and use reply_only or answer_direct_question.",
