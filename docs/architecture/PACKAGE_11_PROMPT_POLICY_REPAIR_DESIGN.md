@@ -4,7 +4,8 @@ Generated: 2026-07-18
 
 ## Status
 
-Design only. Implementation has not started.
+Design accepted. Package 11 implementation evidence is recorded in
+`outputs/package11/PACKAGE_11_ACCEPTANCE_EVIDENCE_REPORT.md`.
 
 ## Purpose
 

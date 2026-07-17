@@ -257,4 +257,29 @@ describe("Responses shadow service", () => {
     expect(shadow.snapshot().last_status).toBe("valid");
     expect(canonical.rawText).toContain("Canonical reply");
   });
+
+  it("keeps fallback manual-flag-only when the Responses shadow decision is invalid", async () => {
+    const adapter = new FakeAdapter(async () => '{"contract_version":"1.0","reply":"old contract"}');
+    const shadow = new ResponsesShadowService(adapter, {
+      enabled: true, mode: "internal", tenants: [], roles: ["owner"], timeoutMs: 1000,
+    }, recordingLogger([]));
+    const client = new FakeAssistantClient(['{"contract_version":"1.0","reply":"Canonical reply","internal_boss_note":""}']);
+    const service = new ModelExecutionService(client, new InMemoryThreadStore(), {
+      modelAdapterLayerEnabled: false,
+      modelAdapterCanaryMode: "off",
+      responsesShadowObserver: shadow,
+    });
+
+    const canonical = await service.execute(input());
+    await shadow.drain();
+
+    expect(canonical.rawText).toContain("Canonical reply");
+    expect(shadow.snapshot()).toMatchObject({
+      last_status: "invalid",
+      last_schema_valid: false,
+      observations_total: 1,
+    });
+    expect(client.runCalls).toHaveLength(1);
+    expect(adapter.calls).toHaveLength(1);
+  });
 });

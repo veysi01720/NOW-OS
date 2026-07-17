@@ -222,6 +222,12 @@ export interface ResponsesGoldenScenarioResult {
   reply_is_natural_turkish: boolean;
   no_generic_closer: boolean;
   no_invented_policy: boolean;
+  validator_answered_latest_message: boolean;
+  validator_did_not_repeat_known_info: boolean;
+  validator_no_generic_closer: boolean;
+  validator_no_invented_policy: boolean;
+  validator_reply_is_natural_turkish: boolean;
+  self_report_mismatch_codes: string[];
   correct_next_action: boolean;
   correct_role_boundary: boolean;
   actions_allowed: boolean;
@@ -250,7 +256,21 @@ export interface ResponsesGoldenReport {
   output_tokens_total: number;
   real_outbound_count: 0;
   raw_output_logged: false;
+  validator_authoritative: true;
+  self_report_mismatch_total: number;
   results: ResponsesGoldenScenarioResult[];
+}
+
+export interface ResponsesGoldenRepeatedReport {
+  runs_total: number;
+  target_pass_threshold: number;
+  target_pass_rate: number;
+  all_runs_meet_target: boolean;
+  unsafe_claim_count_total: number;
+  real_outbound_count: 0;
+  raw_output_logged: false;
+  validator_authoritative: true;
+  reports: ResponsesGoldenReport[];
 }
 
 function normalize(value: string): string {
@@ -339,6 +359,58 @@ function parse(rawText: string): unknown {
   try { return JSON.parse(rawText); } catch { return null; }
 }
 
+function hasNaturalTurkishReply(reply: string): boolean {
+  const normalized = normalize(reply);
+  return reply.trim().length > 0
+    && /[a-zA-ZğĞüÜşŞıİöÖçÇ]/u.test(reply)
+    && !/(as an ai|i cannot|how can i assist|yardimci olabilecegim baska)/u.test(normalized);
+}
+
+function deterministicQuality(input: {
+  replyPresent: boolean;
+  requiredTermsPresent: boolean;
+  forbiddenFound: boolean;
+  roleMatch: boolean;
+  actionsAllowed: boolean;
+  semanticOk: boolean;
+  reply: string;
+}): {
+  answered_latest_message: boolean;
+  did_not_repeat_known_info: boolean;
+  no_generic_closer: boolean;
+  no_invented_policy: boolean;
+  reply_is_natural_turkish: boolean;
+  correct_role_boundary: boolean;
+} {
+  const normalized = normalize(input.reply);
+  const genericCloser = /baska\s+(merak|bir\s+konu|yardimci)|yardimci\s+olabilecegim/u.test(normalized);
+  return {
+    answered_latest_message: input.replyPresent && input.requiredTermsPresent,
+    did_not_repeat_known_info: !input.forbiddenFound,
+    no_generic_closer: !genericCloser,
+    no_invented_policy: input.semanticOk && !input.forbiddenFound,
+    reply_is_natural_turkish: hasNaturalTurkishReply(input.reply),
+    correct_role_boundary: input.roleMatch && input.actionsAllowed,
+  };
+}
+
+function compareSelfReport(
+  signals: Partial<ConversationDecisionV3["quality_signals"]> | undefined,
+  computed: ReturnType<typeof deterministicQuality>,
+): string[] {
+  const comparisons: Array<[keyof ConversationDecisionV3["quality_signals"], boolean]> = [
+    ["answered_latest_message", computed.answered_latest_message],
+    ["did_not_repeat_known_info", computed.did_not_repeat_known_info],
+    ["no_generic_closer", computed.no_generic_closer],
+    ["no_invented_policy", computed.no_invented_policy],
+    ["reply_is_natural_turkish", computed.reply_is_natural_turkish],
+    ["correct_role_boundary", computed.correct_role_boundary],
+  ];
+  return comparisons
+    .filter(([key, expected]) => typeof signals?.[key] === "boolean" && signals[key] !== expected)
+    .map(([key]) => `SELF_REPORT_MISMATCH:${key}`);
+}
+
 export function evaluateResponsesGoldenScenario(
   scenario: ResponsesGoldenScenario,
   value: unknown,
@@ -383,10 +455,22 @@ export function evaluateResponsesGoldenScenario(
   if (transitionPrep !== null && !transitionPrep.valid) reasonCodes.push("TRANSITION_PREP_INVALID");
 
   const signals = decision?.quality_signals;
-  if (signals?.answered_latest_message !== true) reasonCodes.push("LATEST_MESSAGE_NOT_ANSWERED");
-  if (signals?.no_invented_policy !== true) reasonCodes.push("INVENTED_POLICY_SIGNAL");
-  if (signals?.correct_role_boundary !== true) reasonCodes.push("ROLE_BOUNDARY_SIGNAL");
-  if (signals?.reply_is_natural_turkish !== true) reasonCodes.push("LANGUAGE_QUALITY_SIGNAL");
+  const computedQuality = deterministicQuality({
+    replyPresent,
+    requiredTermsPresent,
+    forbiddenFound,
+    roleMatch,
+    actionsAllowed,
+    semanticOk: semantic.ok,
+    reply,
+  });
+  if (!computedQuality.answered_latest_message) reasonCodes.push("LATEST_MESSAGE_NOT_ANSWERED");
+  if (!computedQuality.did_not_repeat_known_info) reasonCodes.push("KNOWN_INFORMATION_REPEATED_OR_FORBIDDEN");
+  if (!computedQuality.no_generic_closer) reasonCodes.push("GENERIC_CLOSER_DETECTED");
+  if (!computedQuality.no_invented_policy) reasonCodes.push("INVENTED_POLICY_DETERMINISTIC");
+  if (!computedQuality.correct_role_boundary) reasonCodes.push("ROLE_BOUNDARY_DETERMINISTIC");
+  if (!computedQuality.reply_is_natural_turkish) reasonCodes.push("LANGUAGE_QUALITY_DETERMINISTIC");
+  const selfReportMismatchCodes = compareSelfReport(signals, computedQuality);
 
   return {
     id: scenario.id,
@@ -397,15 +481,21 @@ export function evaluateResponsesGoldenScenario(
     semantic_valid: semantic.ok,
     role_match: roleMatch,
     reply_present: replyPresent,
-    answered_latest_message: signals?.answered_latest_message === true,
+    answered_latest_message: computedQuality.answered_latest_message,
     used_relevant_state: signals?.used_relevant_state === true,
-    did_not_repeat_known_info: signals?.did_not_repeat_known_info === true,
+    did_not_repeat_known_info: computedQuality.did_not_repeat_known_info,
     asked_only_one_clear_question: signals?.asked_only_one_clear_question === true,
-    reply_is_natural_turkish: signals?.reply_is_natural_turkish === true,
-    no_generic_closer: signals?.no_generic_closer === true && !forbiddenFound,
-    no_invented_policy: signals?.no_invented_policy === true && !forbiddenFound,
+    reply_is_natural_turkish: computedQuality.reply_is_natural_turkish,
+    no_generic_closer: computedQuality.no_generic_closer,
+    no_invented_policy: computedQuality.no_invented_policy,
+    validator_answered_latest_message: computedQuality.answered_latest_message,
+    validator_did_not_repeat_known_info: computedQuality.did_not_repeat_known_info,
+    validator_no_generic_closer: computedQuality.no_generic_closer,
+    validator_no_invented_policy: computedQuality.no_invented_policy,
+    validator_reply_is_natural_turkish: computedQuality.reply_is_natural_turkish,
+    self_report_mismatch_codes: selfReportMismatchCodes,
     correct_next_action: correctNextAction,
-    correct_role_boundary: signals?.correct_role_boundary === true && roleMatch,
+    correct_role_boundary: computedQuality.correct_role_boundary,
     actions_allowed: actionsAllowed,
     transition_prep_valid: transitionPrep?.valid ?? false,
     transition_prep_kind: transitionPrep?.transition_kind ?? "not_run",
@@ -438,6 +528,7 @@ export async function runResponsesGoldenReplay(
   const valid = results.filter((result) => result.schema_valid).length;
   const rolePass = results.filter((result) => result.correct_role_boundary).length;
   const unsafe = results.filter((result) => result.reason_codes.includes("FORBIDDEN_CLAIM_OR_STYLE")).length;
+  const selfReportMismatchTotal = results.reduce((sum, result) => sum + result.self_report_mismatch_codes.length, 0);
   return {
     scenarios_total: total,
     scenarios_passed: passed,
@@ -452,6 +543,36 @@ export async function runResponsesGoldenReplay(
     output_tokens_total: results.reduce((sum, result) => sum + result.output_tokens, 0),
     real_outbound_count: 0,
     raw_output_logged: false,
+    validator_authoritative: true,
+    self_report_mismatch_total: selfReportMismatchTotal,
     results,
+  };
+}
+
+export async function runRepeatedResponsesGoldenReplay(
+  adapterFactory: (runIndex: number) => IModelAdapter,
+  options: {
+    runs: number;
+    scenarios?: ResponsesGoldenScenario[];
+    targetPassThreshold?: number;
+  },
+): Promise<ResponsesGoldenRepeatedReport> {
+  const reports: ResponsesGoldenReport[] = [];
+  for (let index = 0; index < options.runs; index += 1) {
+    reports.push(await runResponsesGoldenReplay(adapterFactory(index), options.scenarios ?? RESPONSES_GOLDEN_SCENARIOS));
+  }
+  const threshold = options.targetPassThreshold ?? 12;
+  return {
+    runs_total: options.runs,
+    target_pass_threshold: threshold,
+    target_pass_rate: (options.scenarios ?? RESPONSES_GOLDEN_SCENARIOS).length === 0
+      ? 0
+      : threshold / (options.scenarios ?? RESPONSES_GOLDEN_SCENARIOS).length,
+    all_runs_meet_target: reports.every((report) => report.scenarios_passed >= threshold && report.unsafe_claim_count === 0),
+    unsafe_claim_count_total: reports.reduce((sum, report) => sum + report.unsafe_claim_count, 0),
+    real_outbound_count: 0,
+    raw_output_logged: false,
+    validator_authoritative: true,
+    reports,
   };
 }

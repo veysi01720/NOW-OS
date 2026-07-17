@@ -41,6 +41,8 @@ describe("Responses decision context boundary", () => {
     expect(instructions).toMatch(/do not invent app names, links, codes, earnings/i);
     expect(instructions).toMatch(/at most one clear question/i);
     expect(instructions).toMatch(/never call tools, send messages, write state/i);
+    expect(instructions).toMatch(/diagnostic only/i);
+    expect(instructions).toMatch(/backend validators independently compute final quality/i);
   });
 
   it("sends store=false, strict V3 schema, and the projected context to Responses", async () => {

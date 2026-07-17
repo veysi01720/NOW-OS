@@ -1,18 +1,18 @@
 {
   "schema_version": "1.0",
-  "generated_at": "2026-07-17T21:12:25.211Z",
+  "generated_at": "2026-07-17T21:32:47.187Z",
   "workspace_id": "canonical-now-os",
   "workspace_role": "CANONICAL_PRODUCTION_SOURCE",
   "compose_project": "deploy_package",
   "service_name": "now_os_backend",
   "expected_command": "node dist/server.js",
-  "source_tree_hash": "c40de41cabdcc9a40f4072d06c5bb092aa59c5b866cdf1668ae37d4811258468",
+  "source_tree_hash": "4e3d26adbc4b33c2effe3df15e042f08085f4a5893f6d68017836682155b11c0",
   "package_lock_hash": "90e17cc0a3b6cfbee86758a5a573ae446f54d1973dd0c14c1c6b489542ef66ea",
-  "dist_tree_hash": "90494644609f2e86618b52f435f9e120f7368e35affac01b8107f10aeb66991f",
+  "dist_tree_hash": "0d4e07d5317e10f2477ca737fa6d7dc6f191db3f5e90e9ccb556ed21188e4e15",
   "workspace_identity_hash": "4db557418dcaad79bf29c01788f72ca2a36aee0aa18d338f4f8054de3b35c57b",
-  "test_result_reference": "tests-not-recorded",
-  "source_file_count": 257,
-  "dist_file_count": 206,
+  "test_result_reference": "package11-full-tests-514-pass",
+  "source_file_count": 259,
+  "dist_file_count": 207,
   "source_files": [
     {
       "path": ".dockerignore",
@@ -148,6 +148,11 @@
       "path": "docs/architecture/PACKAGE_10_CONTROLLED_STATE_TRANSITION_PREP_DESIGN.md",
       "sha256": "c94a8b837d4f55c9846c8cff52589c0cf9d979d367ef3d0c9f2d7a49a0968af0",
       "size": 8723
+    },
+    {
+      "path": "docs/architecture/PACKAGE_11_PROMPT_POLICY_REPAIR_DESIGN.md",
+      "sha256": "a53ee217a897f7529518df642de279b79cc74421883be695bea9a2052ffa2ccf",
+      "size": 6644
     },
     {
       "path": "docs/contracts/CANONICAL_DECISION_BOUNDARY_V1.md",
@@ -666,13 +671,13 @@
     },
     {
       "path": "src/modelAdapter/responsesDecisionPrompt.ts",
-      "sha256": "d6f803af504dc5c3dfbebceda9c93f6fcf6964c22723cebe3e9c653a297b17ea",
-      "size": 6036
+      "sha256": "0dc548a07cd4d618cdf0dd5fc90972e89fdf6455212bc3913e49a27452cfa679",
+      "size": 6121
     },
     {
       "path": "src/modelAdapter/responsesGoldenReplay.ts",
-      "sha256": "f4d6571fcb0ff53f7ac89aead9105e56b91b6415a9b5832bae49aacfb6c55bdf",
-      "size": 20010
+      "sha256": "8dd0c3716f5e0e5dc62ca82437b81ad135cc5f3348b35cfa54d2940c98a0c6ad",
+      "size": 24968
     },
     {
       "path": "src/modelAdapter/responsesShadowService.ts",
@@ -858,6 +863,11 @@
       "path": "src/tests/architecture/package08ContractCompletion.test.ts",
       "sha256": "5898248f2982553fc5d2f40cc11e99777d5c297d5a475c1fdca20df5179676f0",
       "size": 2184
+    },
+    {
+      "path": "src/tests/architecture/package11Planning.test.ts",
+      "sha256": "a2c4a74d77f49eab5b1252cf523a370c0945265a8e8b3e674f4b63bcb48b9dc0",
+      "size": 1077
     },
     {
       "path": "src/tests/assistantContextBudget.test.ts",
@@ -1101,18 +1111,18 @@
     },
     {
       "path": "src/tests/modelAdapter/responsesDecisionPrompt.test.ts",
-      "sha256": "a67fc1e3092ce2427c44a1b67718dc57fc79d6c090e0f6033de026f655b122e9",
-      "size": 3435
+      "sha256": "86ef5fe83e0fb559df979bffe6bc67f2bfebd8296f85e75f5e1806b906cce7f5",
+      "size": 3582
     },
     {
       "path": "src/tests/modelAdapter/responsesGoldenReplay.test.ts",
-      "sha256": "eedbea8ace95feee8272b3a49616b4dc9110fb6919674397bda6eb7a891f1756",
-      "size": 8014
+      "sha256": "eb1ab490a6cd08fa656833517da91f0e2a16c04e7f1e78d574045c7595066c39",
+      "size": 13542
     },
     {
       "path": "src/tests/modelAdapter/responsesShadowService.test.ts",
-      "sha256": "ed74d4214c453ee58e135d61cf763c0813e13b242b56f76f4947cec8e1b25d32",
-      "size": 11034
+      "sha256": "54103145ea67e6d999dde655c4c243d23f8e8113cca15cdca490bfeec98bcad9",
+      "size": 12123
     },
     {
       "path": "src/tests/modelExecutionEnv.test.ts",
@@ -1718,13 +1728,13 @@
     },
     {
       "path": "dist/modelAdapter/responsesDecisionPrompt.js",
-      "sha256": "bb7e113c5c71313cd7764933f0f15db622a1d5b56d715c3375a74be8065f53ee",
-      "size": 5432
+      "sha256": "23cb823edcc5a925c35ca6f433f9d0cd529afa490ac19f314754346c135a4ab7",
+      "size": 5517
     },
     {
       "path": "dist/modelAdapter/responsesGoldenReplay.js",
-      "sha256": "625e9e559c1378602fe8009bd356068af1af011259846efb7575c6c832641e12",
-      "size": 18616
+      "sha256": "9b16f17f6bb95f2382911b4d39b739355db7d33106e5eae5b2ffee08e1625356",
+      "size": 22337
     },
     {
       "path": "dist/modelAdapter/responsesShadowService.js",
@@ -1910,6 +1920,11 @@
       "path": "dist/tests/architecture/package08ContractCompletion.test.js",
       "sha256": "b5a2a4d4fa5f15c0fbd2819daa0dbabf222a3587a0d4bfa1eb162b1300258728",
       "size": 2288
+    },
+    {
+      "path": "dist/tests/architecture/package11Planning.test.js",
+      "sha256": "1b6fa6551dc88d1dafcdecea211320139c9d581c2772586c74d40b158adc55de",
+      "size": 1098
     },
     {
       "path": "dist/tests/assistantContextBudget.test.js",
@@ -2148,18 +2163,18 @@
     },
     {
       "path": "dist/tests/modelAdapter/responsesDecisionPrompt.test.js",
-      "sha256": "97b4aa5b6434ca9c333f1965c73c45aeed2ace484bcdead65df29fdf371810fb",
-      "size": 3548
+      "sha256": "ef1f6d3805a5aaf4c6cebdfcf23740610d2ce02509c61353c084c6d9da220fcc",
+      "size": 3703
     },
     {
       "path": "dist/tests/modelAdapter/responsesGoldenReplay.test.js",
-      "sha256": "e9e3ad7e078e9a475b9e18e494a4f021cc541455f709e587d6f6d6ca013503fa",
-      "size": 7890
+      "sha256": "e39d29ebd45cbe9921cb9aa80d626783a9e8827d861f1757a9750593d50f7440",
+      "size": 13718
     },
     {
       "path": "dist/tests/modelAdapter/responsesShadowService.test.js",
-      "sha256": "ab9f89c1dcb37c969dc8b18265ace8e2ef8666e30aa5e774457caa11abc34d21",
-      "size": 11594
+      "sha256": "b6c3ba42ec0bc6e7219fe6d64a7b7162dc0bd82e755c699158e19f0641c63765",
+      "size": 12778
     },
     {
       "path": "dist/tests/modelExecutionEnv.test.js",

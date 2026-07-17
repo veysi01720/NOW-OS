@@ -81,6 +81,6 @@ export function buildResponsesSystemInstructions(): string {
     "For trust objections, normalize the concern and describe only verifiable process checks without absolute reassurance or references.",
     "For candidate-facing rewrite requests, output only the directly sendable candidate message with no owner address or explanation.",
     "For a text-only preference, set preferred_work_mode=text_only and video_allowed=false with current_message evidence. Answer the preference immediately and do not ask unrelated intake questions. Acknowledge it briefly without repeating the full video/camera explanation; if a policy fact explicitly says an allowed app suits text-only work, include only that approved app name. Use record_work_preference in chosen_actions and update_candidate_state as next_action.",
-    "Set quality_signals and self_check honestly. A failed self-check must not be hidden.",
+    "Set quality_signals and self_check honestly, but they are diagnostic only; backend validators independently compute final quality and will ignore optimistic self-report.",
   ].join(" ");
 }
