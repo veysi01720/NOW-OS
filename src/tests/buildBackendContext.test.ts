@@ -2,6 +2,10 @@ import { buildBackendContext } from "../bridge/buildBackendContext.js";
 import { InMemoryStore } from "../storage/memoryStore.js";
 import { createTestEnv } from "./testDoubles.js";
 import type { NormalizedIncomingMessage } from "../bridge/normalizeEvolutionMessage.js";
+import { mkdtempSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { writeValidKnowledgeBankFixture } from "./fixtures/knowledgeBankFixture.js";
 
 function baseMessage(phoneNumber: string): NormalizedIncomingMessage {
   return {
@@ -101,5 +105,28 @@ describe("buildBackendContext", () => {
     const context = buildBackendContext(baseMessage("905333333333"), createTestEnv(), memoryStore);
 
     expect(context.memory.last_10_messages).toEqual(["user: Onceki mesaj"]);
+  });
+
+  it("adds structured app facts from the configured knowledge fixture without production data dependency", () => {
+    const previousKnowledgeDir = process.env.KNOWLEDGE_BANK_DIR;
+    const tempDir = mkdtempSync(join(tmpdir(), "nowos-context-facts-"));
+    try {
+      writeValidKnowledgeBankFixture(tempDir);
+      process.env.KNOWLEDGE_BANK_DIR = tempDir;
+
+      const context = buildBackendContext(
+        baseMessage("905333333333"),
+        createTestEnv(),
+        new InMemoryStore()
+      );
+
+      expect(context.structured_facts?.app_facts_source_status).toBe("loaded");
+      expect(context.structured_facts?.app_facts.some((fact) => fact.app === "Layla" && fact.ios_name === "NIVI")).toBe(true);
+      expect(context.structured_facts?.app_facts.some((fact) => fact.app === "Layla" && fact.capabilities.text_only === true)).toBe(true);
+    } finally {
+      if (previousKnowledgeDir === undefined) delete process.env.KNOWLEDGE_BANK_DIR;
+      else process.env.KNOWLEDGE_BANK_DIR = previousKnowledgeDir;
+      rmSync(tempDir, { recursive: true, force: true });
+    }
   });
 });

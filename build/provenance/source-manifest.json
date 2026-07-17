@@ -1,18 +1,18 @@
 {
   "schema_version": "1.0",
-  "generated_at": "2026-07-17T21:32:47.187Z",
+  "generated_at": "2026-07-17T22:02:24.963Z",
   "workspace_id": "canonical-now-os",
   "workspace_role": "CANONICAL_PRODUCTION_SOURCE",
   "compose_project": "deploy_package",
   "service_name": "now_os_backend",
   "expected_command": "node dist/server.js",
-  "source_tree_hash": "4e3d26adbc4b33c2effe3df15e042f08085f4a5893f6d68017836682155b11c0",
+  "source_tree_hash": "618d50ac0c2f7510b96c27e88f8a73f3ea120762c25867ff256d03a611b0db23",
   "package_lock_hash": "90e17cc0a3b6cfbee86758a5a573ae446f54d1973dd0c14c1c6b489542ef66ea",
-  "dist_tree_hash": "0d4e07d5317e10f2477ca737fa6d7dc6f191db3f5e90e9ccb556ed21188e4e15",
+  "dist_tree_hash": "47730b39b5b59227e31deec4fd6f9ce538dfc5492425e93df1fcc23e15cc529d",
   "workspace_identity_hash": "4db557418dcaad79bf29c01788f72ca2a36aee0aa18d338f4f8054de3b35c57b",
-  "test_result_reference": "package11-full-tests-514-pass",
-  "source_file_count": 259,
-  "dist_file_count": 207,
+  "test_result_reference": "package11b-519-pass",
+  "source_file_count": 263,
+  "dist_file_count": 210,
   "source_files": [
     {
       "path": ".dockerignore",
@@ -153,6 +153,11 @@
       "path": "docs/architecture/PACKAGE_11_PROMPT_POLICY_REPAIR_DESIGN.md",
       "sha256": "a53ee217a897f7529518df642de279b79cc74421883be695bea9a2052ffa2ccf",
       "size": 6644
+    },
+    {
+      "path": "docs/architecture/PACKAGE_11B_CONTEXT_SOURCE_HARDENING_DESIGN.md",
+      "sha256": "9ac8254a1983444b4e1d312a0ce7e37753b3d5daeb5c24d9dd2796605db0838c",
+      "size": 2801
     },
     {
       "path": "docs/contracts/CANONICAL_DECISION_BOUNDARY_V1.md",
@@ -356,8 +361,8 @@
     },
     {
       "path": "src/bridge/buildBackendContext.ts",
-      "sha256": "553ac514f7aa6477547f1052a0ca1a002abde6d320fe6543a6efda224d8a1b45",
-      "size": 7159
+      "sha256": "39c50ec7e9084c5f1124c0a977205ea20e4ee3bb51458ba512ba5c1afdf7be59",
+      "size": 7511
     },
     {
       "path": "src/bridge/bundleBuilder/bundleBuilder.ts",
@@ -491,8 +496,13 @@
     },
     {
       "path": "src/bridge/sourceIntegrity.ts",
-      "sha256": "509f68f8de0b90ccd88c541bd319ef0a9b0d197f69135e0320bfc8107557b521",
-      "size": 4897
+      "sha256": "85d8dd609c27b30029a1eb86da39e3d4ccd6a374469eba8dcf6f442bf05c1a06",
+      "size": 8633
+    },
+    {
+      "path": "src/bridge/structuredAppFacts.ts",
+      "sha256": "27e5346e9abffd28c84e5fc5583db8b33e93edf815bf4bcddbf85c8eaa514791",
+      "size": 4384
     },
     {
       "path": "src/bridge/whatsappVisualContextProcessor.ts",
@@ -566,8 +576,8 @@
     },
     {
       "path": "src/contracts/backendContextPayload.ts",
-      "sha256": "e472b6fbc80b2aadd990ef1394a71084e25a5fd469f2da527075a25e71aa5a01",
-      "size": 8664
+      "sha256": "dff9c9462ba7c4f7058e1fdbe8d90370d0a5c6be5e7e2a28822cb61a32bdc0df",
+      "size": 9235
     },
     {
       "path": "src/intelligence/candidate/CandidatePolicyResolver.ts",
@@ -865,6 +875,11 @@
       "size": 2184
     },
     {
+      "path": "src/tests/architecture/package11BContextSource.test.ts",
+      "sha256": "54c987b2c6555088732ab0bfb04201259e42e870cc2961e9ab31ab90fdb05d0a",
+      "size": 1804
+    },
+    {
       "path": "src/tests/architecture/package11Planning.test.ts",
       "sha256": "a2c4a74d77f49eab5b1252cf523a370c0945265a8e8b3e674f4b63bcb48b9dc0",
       "size": 1077
@@ -906,8 +921,8 @@
     },
     {
       "path": "src/tests/buildBackendContext.test.ts",
-      "sha256": "665cfa211090955ecbc0a6171ba2ead989a00704b0ead285dcd292b91bb7b01a",
-      "size": 3726
+      "sha256": "d8a9de06d629c3ee42f94e3f705d788b0bb573e1f15e1cd9f3986a29ebd9ea67",
+      "size": 5011
     },
     {
       "path": "src/tests/buildProvenance.test.ts",
@@ -1008,6 +1023,11 @@
       "path": "src/tests/fixtures/golden-bad-whatsapp-cases.json",
       "sha256": "972ff10becb6115984034d15b8aeb6dfa3fc4e7be18f7ce97ad96348e0ce149c",
       "size": 3834
+    },
+    {
+      "path": "src/tests/fixtures/knowledgeBankFixture.ts",
+      "sha256": "f979ba81f4e3a463e3b6413dc09831a02fc5801b456db36e27bf1c7d934073af",
+      "size": 5479
     },
     {
       "path": "src/tests/followUpQueue.test.ts",
@@ -1176,13 +1196,13 @@
     },
     {
       "path": "src/tests/reviewPublishDryRun.test.ts",
-      "sha256": "23ddf79aee9cd71444e90d5830de30fef71290b4339948806ec5dee6b36daf57",
-      "size": 10087
+      "sha256": "1785c084d4d4607e81b5ac99f7d8b98ce3846915a431695ed7991f0deb2cc1b8",
+      "size": 10268
     },
     {
       "path": "src/tests/reviewRoutes.test.ts",
-      "sha256": "863d4d2ba5999b476455ca10b12112803c4c91530e64ac06e21d2d75c436fe85",
-      "size": 11825
+      "sha256": "3c0e37c9a908e1e78133f744bd6cdb7c9d5ad6f8afe18d30324bfcf8f5e763a5",
+      "size": 12006
     },
     {
       "path": "src/tests/roleResolution.test.ts",
@@ -1201,8 +1221,8 @@
     },
     {
       "path": "src/tests/sourceIntegrity.test.ts",
-      "sha256": "8983bac52bd45b8a284e8fc1ae6f92a549b450336de2b1308a2171939b73c403",
-      "size": 5685
+      "sha256": "e931748d04db56d15a795ded3d44845baa849ed8ee6a738a93443d31c7458290",
+      "size": 5522
     },
     {
       "path": "src/tests/summarySanitizer.test.ts",
@@ -1418,8 +1438,8 @@
     },
     {
       "path": "dist/bridge/buildBackendContext.js",
-      "sha256": "9aeab7a773ac1dfd33a96234f7e834cdd68217fe051f9a54693d2dcfb7efbb94",
-      "size": 6634
+      "sha256": "96171215b46121bc0e19b25026a586f2940403b693f854050a802c1487e3e50c",
+      "size": 7044
     },
     {
       "path": "dist/bridge/bundleBuilder/bundleBuilder.js",
@@ -1548,8 +1568,13 @@
     },
     {
       "path": "dist/bridge/sourceIntegrity.js",
-      "sha256": "e935755974d21fee91638098c8ddd8328e906fcced49fd1106ed6b86745a1558",
-      "size": 4530
+      "sha256": "efe6b780cc21ea51b3ac44e1ad88c8ba1f2ee511701c8587df7c8ee0e7be451c",
+      "size": 8126
+    },
+    {
+      "path": "dist/bridge/structuredAppFacts.js",
+      "sha256": "f0077c68f0e7cc4cef8e0e30c509a11451de2e6057d99e94dcfb482a873e9bf3",
+      "size": 3767
     },
     {
       "path": "dist/bridge/whatsappVisualContextProcessor.js",
@@ -1922,6 +1947,11 @@
       "size": 2288
     },
     {
+      "path": "dist/tests/architecture/package11BContextSource.test.js",
+      "sha256": "8e0cdd2044d8f21f6e2d1608fa1605979b118bf0c16ebca9868b1f087c299cbf",
+      "size": 1859
+    },
+    {
       "path": "dist/tests/architecture/package11Planning.test.js",
       "sha256": "1b6fa6551dc88d1dafcdecea211320139c9d581c2772586c74d40b158adc55de",
       "size": 1098
@@ -1963,8 +1993,8 @@
     },
     {
       "path": "dist/tests/buildBackendContext.test.js",
-      "sha256": "23cef3c91eea85ca4f85179653b6cafa764c23f6774431e3e22acada37faaa2f",
-      "size": 3872
+      "sha256": "d8b0873db1d4b9f1b5878b6c549981dd57d6d8bcbe011dc5e1c23d35514606e7",
+      "size": 5240
     },
     {
       "path": "dist/tests/buildProvenance.test.js",
@@ -2060,6 +2090,11 @@
       "path": "dist/tests/evolutionWebhook.test.js",
       "sha256": "a889180d2d86c29ace328e0b53ecdb2b99042037a8867d829dec084d25f6c31c",
       "size": 12688
+    },
+    {
+      "path": "dist/tests/fixtures/knowledgeBankFixture.js",
+      "sha256": "21cb7acb0fb9dbdccb553b84ee78089a968df4fe209ad97b47d89f7c589b8abd",
+      "size": 6083
     },
     {
       "path": "dist/tests/followUpQueue.test.js",
@@ -2228,13 +2263,13 @@
     },
     {
       "path": "dist/tests/reviewPublishDryRun.test.js",
-      "sha256": "ce688fca1b85266f1f434fb2fce7c2408519bb7176c0223b478b477957f4d562",
-      "size": 10367
+      "sha256": "7f040d0ca20e3027dc893e26cfcddcd2dccb399bfbf9729b43354213f8c3e2f6",
+      "size": 10550
     },
     {
       "path": "dist/tests/reviewRoutes.test.js",
-      "sha256": "bf2fb022de27e77189e3f8f071578d730ce343c36159dc3e05ee4a3e73d99b36",
-      "size": 12438
+      "sha256": "20492c71e222e99dbf9d2b843c08645ce088f9fe96c6ffb8957ada29e959cd29",
+      "size": 12621
     },
     {
       "path": "dist/tests/roleResolution.test.js",
@@ -2253,8 +2288,8 @@
     },
     {
       "path": "dist/tests/sourceIntegrity.test.js",
-      "sha256": "d0d520e18d2be1d0cd0e478d5c0dc641e1439f642d1de88c1fd9ac4b380175ea",
-      "size": 6078
+      "sha256": "8f75c6c945b389fdc2b1431331ab13464f03a6709a1b6764e8a4903ff7cff4be",
+      "size": 5986
     },
     {
       "path": "dist/tests/summarySanitizer.test.js",

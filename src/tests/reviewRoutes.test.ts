@@ -9,6 +9,7 @@ import type { ZipIngestionJobRecord, ZipLearningCandidateRecord } from "../bridg
 import { REQUIRED_KNOWLEDGE_SOURCE_FILES } from "../bridge/sourceIntegrity.js";
 import { PersistentActionAuditStore } from "../store/actionAuditStore.js";
 import { createTestEnv } from "./testDoubles.js";
+import { validStructuredAppFactsJson } from "./fixtures/knowledgeBankFixture.js";
 
 describe("Phase 3B review routes", () => {
   let tempDir: string;
@@ -306,6 +307,7 @@ function writeValidKnowledgeBank(dir: string): void {
     ].join("\n"),
     "utf8",
   );
+  writeFileSync(resolve(dir, "app_facts_structured.json"), validStructuredAppFactsJson(), "utf8");
   writeFileSync(
     resolve(dir, "link_catalog.md"),
     "# Link Catalog\n\nGeneric store links are not allowed. Fake or tahmini links are forbidden. Link uydurmak yasak.\n",

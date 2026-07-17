@@ -6,6 +6,7 @@ import { createApprovedReviewsDryRun } from "../bridge/reviewPublishDryRun.js";
 import { ZipIngestionStore } from "../bridge/zipIngestion/store.js";
 import type { ZipLearningCandidateRecord } from "../bridge/zipIngestion/types.js";
 import { REQUIRED_KNOWLEDGE_SOURCE_FILES } from "../bridge/sourceIntegrity.js";
+import { validStructuredAppFactsJson } from "./fixtures/knowledgeBankFixture.js";
 
 describe("Phase 3C approved reviews dry-run bundle", () => {
   let tempDir: string;
@@ -180,6 +181,7 @@ function writeValidKnowledgeBank(dir: string): void {
     ].join("\n"),
     "utf8",
   );
+  writeFileSync(resolve(dir, "app_facts_structured.json"), validStructuredAppFactsJson(), "utf8");
   writeFileSync(
     resolve(dir, "app_routing_rules.md"),
     [

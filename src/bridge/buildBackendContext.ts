@@ -13,6 +13,7 @@ import { detectDailyReportIntent, buildDailyOwnerReport } from "./dailyOwnerRepo
 import type { DailyReportStore } from "../storage/types.js";
 import type { MaintenanceStore } from "../store/maintenanceStore.js";
 import { resolveAuthorityContext, type AuthorityContext } from "./authorityContext.js";
+import { loadStructuredAppFacts } from "./structuredAppFacts.js";
 
 export function getConversationKey(message: NormalizedIncomingMessage): string {
   return message.chat_type === "private" ? message.phone_number : message.remote_jid;
@@ -77,6 +78,15 @@ export function buildBackendContext(
     state,
     memory: memoryStore.get(conversationKey),
     versions: env.versions,
+    structured_facts: (() => {
+      const source = loadStructuredAppFacts();
+      return {
+        app_facts_source_status: source.source_status,
+        app_facts_source_hash: source.source_hash,
+        app_facts: source.app_facts,
+        errors: source.errors,
+      };
+    })(),
     ...(message.chat_type === "group" ? {
       group: {
         group_safe_mode: true

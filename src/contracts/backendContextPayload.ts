@@ -103,6 +103,27 @@ export interface LearningReviewContext {
   data_quality_notes: string[];
 }
 
+export interface StructuredFactsContext {
+  app_facts_source_status: "loaded" | "missing" | "invalid";
+  app_facts_source_hash: string | null;
+  app_facts: Array<{
+    app: string;
+    android_name: string;
+    ios_name: string;
+    invite_code: string | null;
+    agency_bind_code: string | null;
+    agency_code: string | null;
+    official_url: string | null;
+    status: string;
+    aliases: string[];
+    capabilities: {
+      text_only: boolean;
+      video_required: boolean | null;
+    };
+  }>;
+  errors: string[];
+}
+
 export interface OwnerReportSummary {
   generated_at: string;
   total_candidates: number;
@@ -287,6 +308,7 @@ export interface BackendContextPayloadV1 {
   knowledge_sync?: KnowledgeSyncContext;
   knowledge_publish?: KnowledgePublishContext;
   answer_plan?: any;
+  structured_facts?: StructuredFactsContext;
   behavior_context?: any;
   conversation_decision_v2?: unknown;
   conversation_decision_v2_instructions?: string;
