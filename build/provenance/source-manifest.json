@@ -1,18 +1,18 @@
 {
   "schema_version": "1.0",
-  "generated_at": "2026-07-17T22:02:24.963Z",
+  "generated_at": "2026-07-17T22:13:46.079Z",
   "workspace_id": "canonical-now-os",
   "workspace_role": "CANONICAL_PRODUCTION_SOURCE",
   "compose_project": "deploy_package",
   "service_name": "now_os_backend",
   "expected_command": "node dist/server.js",
-  "source_tree_hash": "618d50ac0c2f7510b96c27e88f8a73f3ea120762c25867ff256d03a611b0db23",
+  "source_tree_hash": "f70e8a1d7f158b14127d4848f8be4367fe20905a248d16065177a251e4d4a3f3",
   "package_lock_hash": "90e17cc0a3b6cfbee86758a5a573ae446f54d1973dd0c14c1c6b489542ef66ea",
-  "dist_tree_hash": "47730b39b5b59227e31deec4fd6f9ce538dfc5492425e93df1fcc23e15cc529d",
+  "dist_tree_hash": "ff196886c85e232f426d4f68ca73ca6efdfec7920ea92d226ada7f3eabc4665b",
   "workspace_identity_hash": "4db557418dcaad79bf29c01788f72ca2a36aee0aa18d338f4f8054de3b35c57b",
-  "test_result_reference": "package11b-519-pass",
-  "source_file_count": 263,
-  "dist_file_count": 210,
+  "test_result_reference": "package12-harness-522-pass",
+  "source_file_count": 267,
+  "dist_file_count": 212,
   "source_files": [
     {
       "path": ".dockerignore",
@@ -160,6 +160,11 @@
       "size": 2801
     },
     {
+      "path": "docs/architecture/PACKAGE_12_REAL_MODEL_QUALIFICATION_DESIGN.md",
+      "sha256": "25028f97fd96a6a3cee62e6913a256b85338e2d03925d13a9609e795ba7ffdc1",
+      "size": 1426
+    },
+    {
       "path": "docs/contracts/CANONICAL_DECISION_BOUNDARY_V1.md",
       "sha256": "12c2216c33c746164e8e0ebf0b6716d7fdfce4b1a9425a0ce29b0a30db13df09",
       "size": 1913
@@ -221,8 +226,8 @@
     },
     {
       "path": "package.json",
-      "sha256": "655c0acca91596e99155aba51830bb8164719fb04d74f49f08eafa457fbc7cb1",
-      "size": 1036
+      "sha256": "fd59c268de16117aaa2781dad520e5efcd35b2bf4ae5194335ae8d325a5f183a",
+      "size": 1109
     },
     {
       "path": "scripts/deploy-runtime-lock.mjs",
@@ -248,6 +253,11 @@
       "path": "scripts/responsesGoldenReplay.ts",
       "sha256": "f59d8579ad662baca70f8f09d825f9c23013062f1638e574486d404d71a099ce",
       "size": 1458
+    },
+    {
+      "path": "scripts/responsesModelQualification.ts",
+      "sha256": "22fcb27e407804e738de320a841335215ccde734e221359fa5cb4fbffa0ee969",
+      "size": 2982
     },
     {
       "path": "scripts/verify-build-provenance.mjs",
@@ -686,8 +696,13 @@
     },
     {
       "path": "src/modelAdapter/responsesGoldenReplay.ts",
-      "sha256": "8dd0c3716f5e0e5dc62ca82437b81ad135cc5f3348b35cfa54d2940c98a0c6ad",
-      "size": 24968
+      "sha256": "70b91770ffdca6ac68cfaf0cf22743e73b4c86f62e886447b7f9c0f7bfe9cb4b",
+      "size": 31754
+    },
+    {
+      "path": "src/modelAdapter/responsesModelQualification.ts",
+      "sha256": "845bd84117c051576bcf42ddfef2c6c9f40ae020ccda654f413f6421689a9437",
+      "size": 2989
     },
     {
       "path": "src/modelAdapter/responsesShadowService.ts",
@@ -1138,6 +1153,11 @@
       "path": "src/tests/modelAdapter/responsesGoldenReplay.test.ts",
       "sha256": "eb1ab490a6cd08fa656833517da91f0e2a16c04e7f1e78d574045c7595066c39",
       "size": 13542
+    },
+    {
+      "path": "src/tests/modelAdapter/responsesModelQualification.test.ts",
+      "sha256": "95c2c7316ff83add947c5d8df247e324f83f6535f77d3c8805a60eaaf957cbcc",
+      "size": 3212
     },
     {
       "path": "src/tests/modelAdapter/responsesShadowService.test.ts",
@@ -1758,8 +1778,13 @@
     },
     {
       "path": "dist/modelAdapter/responsesGoldenReplay.js",
-      "sha256": "9b16f17f6bb95f2382911b4d39b739355db7d33106e5eae5b2ffee08e1625356",
-      "size": 22337
+      "sha256": "3a2a7788f3cc91c783ee874932661f105853a24f0f59cd90206ae5e5ab79a286",
+      "size": 29585
+    },
+    {
+      "path": "dist/modelAdapter/responsesModelQualification.js",
+      "sha256": "cc339327038958aa5a24ad10b0bd2b86d6530c984462ce178c789d214631ac2e",
+      "size": 2076
     },
     {
       "path": "dist/modelAdapter/responsesShadowService.js",
@@ -2205,6 +2230,11 @@
       "path": "dist/tests/modelAdapter/responsesGoldenReplay.test.js",
       "sha256": "e39d29ebd45cbe9921cb9aa80d626783a9e8827d861f1757a9750593d50f7440",
       "size": 13718
+    },
+    {
+      "path": "dist/tests/modelAdapter/responsesModelQualification.test.js",
+      "sha256": "c36634e8f7c3d2964f02441026a53522bf243312a1e2f1e9175afab1adfc63b2",
+      "size": 3340
     },
     {
       "path": "dist/tests/modelAdapter/responsesShadowService.test.js",

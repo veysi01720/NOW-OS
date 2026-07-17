@@ -11,6 +11,7 @@
     "build": "tsc -p tsconfig.json",
     "provenance:generate": "node scripts/generate-build-provenance.mjs",
     "provenance:verify": "node scripts/verify-build-provenance.mjs",
+    "test:package12:real": "tsx scripts/responsesModelQualification.ts",
     "test": "vitest run",
     "test:watch": "vitest",
     "backup": "tsx scripts/backup.ts",
