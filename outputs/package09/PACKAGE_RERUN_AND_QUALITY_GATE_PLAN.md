@@ -218,3 +218,29 @@ Tests       485 passed (485)
 - Package 04B, Package 06, Package 07 re-runs are green.
 - Package 1/2/3 package-specific re-runs could not be performed because no standalone historical workspaces are present; current canonical source root build/test is green.
 - Package 06 quality gate will be addressed by Package 10, 11, and 12, not by relaxing thresholds.
+
+## 6. Addendum Intake Before Package 10
+
+Source addendum:
+
+```text
+C:\Users\lll\Downloads\now-os-responses-migration-addendum.md
+```
+
+Package 10 design document:
+
+```text
+C:\Users\lll\Documents\Codex\2026-07-04\i\work\package09_semantic_enforcement\docs\architecture\PACKAGE_10_CONTROLLED_STATE_TRANSITION_PREP_DESIGN.md
+```
+
+Decisions:
+
+- Ek 5 (`escalate_missing_info`) is included in Package 10 scope because it is a deterministic missing-info transition proposal concern.
+- Ek 2 (candidate-based concurrency lock) is included in Package 10 scope as a minimal candidate-scoped transition evaluation lock, not as queue/worker cutover.
+- Ek 6 (structured facts separation) is likely related to the Package 04 `app_facts.md` fixture failure at the architecture level. The immediate failure is a missing fixture/path issue; the deeper fix is structured, testable facts before later replay/cutover decisions.
+- Ek 1 is placed into Package 11/12 replay evaluation: validator-computed metrics must be authoritative over model self-report.
+- Ek 3 is placed into Package 11/12 adapter fallback documentation and tests.
+- Ek 4 is placed into Package 12 shadow/canary readiness after enough replay metrics exist.
+
+Package 10 acceptance report must include every addendum item in `uygulandi` /
+`uygulanmadi` / `sonraki_pakete_ertelendi` format with evidence and reason.
