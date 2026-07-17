@@ -1,0 +1,2318 @@
+{
+  "schema_version": "1.0",
+  "generated_at": "2026-07-17T16:12:50.261Z",
+  "workspace_id": "canonical-now-os",
+  "workspace_role": "CANONICAL_PRODUCTION_SOURCE",
+  "compose_project": "deploy_package",
+  "service_name": "now_os_backend",
+  "expected_command": "node dist/server.js",
+  "source_tree_hash": "b174142fda5d26da9f1cc3faf0a706445fd0ee7093712136a60dd095971485eb",
+  "package_lock_hash": "90e17cc0a3b6cfbee86758a5a573ae446f54d1973dd0c14c1c6b489542ef66ea",
+  "dist_tree_hash": "a5dbbe201b89e81dd646afbe8f941b4202f3c6516589e8efb2a3f855ef58fee2",
+  "workspace_identity_hash": "4db557418dcaad79bf29c01788f72ca2a36aee0aa18d338f4f8054de3b35c57b",
+  "test_result_reference": "tests-not-recorded",
+  "source_file_count": 254,
+  "dist_file_count": 204,
+  "source_files": [
+    {
+      "path": ".dockerignore",
+      "sha256": "8712f225071a0d9d316767f88307f6a1a6ee462899f37fb61437a2053e8b266e",
+      "size": 126
+    },
+    {
+      "path": "Dockerfile",
+      "sha256": "7d820b70a1d0b09448b2948d8e79fe5d9c70df1b7644b8a1d667066637f36ba3",
+      "size": 2007
+    },
+    {
+      "path": "docs/architecture/CANONICAL_RUNTIME_BASELINE.md",
+      "sha256": "4c44af60e1fada94ee5ea15a4f5e7739437c0daa48e6b6a357c1618b444d4d96",
+      "size": 8020
+    },
+    {
+      "path": "docs/architecture/PACKAGE_01_CANONICAL_RUNTIME_AUDIT_ACCEPTANCE.md",
+      "sha256": "704a32e027b33237d61f18afeb54cef1471a66a7c7725219ed196d8606eb7917",
+      "size": 5781
+    },
+    {
+      "path": "docs/architecture/PACKAGE_01_TO_04_HEALTH_REVIEW.md",
+      "sha256": "956df754010d059e918f9cdc92970cf1cfeda46597115452e71257eab5979b3d",
+      "size": 5194
+    },
+    {
+      "path": "docs/architecture/PACKAGE_01B_LOCAL_RUNTIME_QUARANTINE_ACCEPTANCE.md",
+      "sha256": "28305c428f3562564901e26c71d582d72bd561ed34e5f5cf65ef320393ad47de",
+      "size": 5705
+    },
+    {
+      "path": "docs/architecture/PACKAGE_02_ARCHITECTURE_OWNERSHIP_ACCEPTANCE.md",
+      "sha256": "bc160ed1e421f482ad2a2a9664677424900a6c1f4107b4cf4ef79bc0c7c06d9f",
+      "size": 1981
+    },
+    {
+      "path": "docs/architecture/PACKAGE_02_ARCHITECTURE_OWNERSHIP_SEAL.md",
+      "sha256": "31f8345c5c9f9107b55c27bf65404e9b788b82e892f820904066ae8b6146362b",
+      "size": 10660
+    },
+    {
+      "path": "docs/architecture/PACKAGE_02_ARCHITECTURE_REGRESSION_SPEC.md",
+      "sha256": "457d39743f622bb8b67901eb20a9b53d11b6aa91c0fd7695dd181115a4182845",
+      "size": 2165
+    },
+    {
+      "path": "docs/architecture/PACKAGE_02_COMPONENT_OWNERSHIP_MATRIX.md",
+      "sha256": "879e8421b1e9cf2f8cce3980870894412084e0e49bb46f081d8e4626f2237dc1",
+      "size": 4350
+    },
+    {
+      "path": "docs/architecture/PACKAGE_02_LEGACY_RETIREMENT_REGISTRY.md",
+      "sha256": "8d1aec7c02934ef3e2316992e99c8ab9809e68caaed78378d2a877537cb2f676",
+      "size": 2574
+    },
+    {
+      "path": "docs/architecture/PACKAGE_03_BUILD_PROVENANCE_SEAL.md",
+      "sha256": "de21c2a30812c25a5318e5d342bb6d53482d6182cc493377ea1501c8d9eb8abf",
+      "size": 2931
+    },
+    {
+      "path": "docs/architecture/PACKAGE_04_ACCEPTANCE_CRITERIA.md",
+      "sha256": "118a8e975a1a473696e5f62d45eb6f1e5c2163382118542c5d02252a2bb7551d",
+      "size": 1064
+    },
+    {
+      "path": "docs/architecture/PACKAGE_04_CANONICAL_MODEL_ADAPTER_CONTRACT.md",
+      "sha256": "1d43fde56f65105ce14bcb2bd77df85a52ef16b30039674e3cb2afaab335dbe7",
+      "size": 2181
+    },
+    {
+      "path": "docs/architecture/PACKAGE_04B_ACCEPTANCE_CRITERIA.md",
+      "sha256": "fb98470178c5f62a1a68bfaef68fa0e030e437e43efd144f78ffce42e842d090",
+      "size": 838
+    },
+    {
+      "path": "docs/architecture/PACKAGE_04B_MIGRATION_READINESS_HARDENING.md",
+      "sha256": "4c7919fca3aed6d307779a706ff7d0acaa27758b58e874e9a3d5df30fce73d45",
+      "size": 2382
+    },
+    {
+      "path": "docs/architecture/PACKAGE_05_ACCEPTANCE_CRITERIA.md",
+      "sha256": "ba9bbe66aa192f19cb6062510c17461caa6b8f81a4fb80572a2cf101b509d5d7",
+      "size": 1919
+    },
+    {
+      "path": "docs/architecture/PACKAGE_05_RESPONSES_SHADOW_INTEGRATION.md",
+      "sha256": "e9d7afbdf6e1d1833b99181720d3a7bd6a665328cc7a90a50eb5a7244d1dbd55",
+      "size": 3224
+    },
+    {
+      "path": "docs/architecture/PACKAGE_06_ACCEPTANCE_CRITERIA.md",
+      "sha256": "4f4dc9f014102be79d71e8065c8ea507b8dd221ef6f32de920df757101c98119",
+      "size": 2676
+    },
+    {
+      "path": "docs/architecture/PACKAGE_06_GOLDEN_REPLAY_QUALITY_MEASUREMENT.md",
+      "sha256": "150f29af01044b6ff216a92ee8c5018d6685666c20e7849e1b54dd3906004a96",
+      "size": 3936
+    },
+    {
+      "path": "docs/architecture/PACKAGE_07_ACCEPTANCE_CRITERIA.md",
+      "sha256": "18531da2581d1136f6e565615a358fc70eb659794ee2f8c525826a1dc4d51ef2",
+      "size": 1516
+    },
+    {
+      "path": "docs/architecture/PACKAGE_07_CROSS_PACKAGE_RECONCILIATION.md",
+      "sha256": "99ab368a65cddf037f09fb6874214811b7d1f694f8a5eff75bbecf340fb35fb7",
+      "size": 3958
+    },
+    {
+      "path": "docs/architecture/PACKAGE_08_ACCEPTANCE_CRITERIA.md",
+      "sha256": "079a3490d71c82e047a17a0a3e8e665593dc67bea4b23f0351c07c2b3e1edcf2",
+      "size": 1631
+    },
+    {
+      "path": "docs/architecture/PACKAGE_08_CONVERSATION_DECISION_V3_CONTRACT_COMPLETION.md",
+      "sha256": "e43b85f8578a0422885b7a89d23aef11ea8297249d8fefea9d7a9ecc04ced06f",
+      "size": 2958
+    },
+    {
+      "path": "docs/architecture/PACKAGE_09_ACCEPTANCE_CRITERIA.md",
+      "sha256": "74890127dc774603eb1e5cfcdd308f0a8d5ae4728695d83ee401bfc4cc50e69b",
+      "size": 2187
+    },
+    {
+      "path": "docs/architecture/PACKAGE_09_BACKEND_SEMANTIC_ENFORCEMENT.md",
+      "sha256": "20293b22bc1e9ef65f15295fa3bd07b1c56a800afa7c4d71ae659e73615b0939",
+      "size": 3166
+    },
+    {
+      "path": "docs/contracts/CANONICAL_DECISION_BOUNDARY_V1.md",
+      "sha256": "12c2216c33c746164e8e0ebf0b6716d7fdfce4b1a9425a0ce29b0a30db13df09",
+      "size": 1913
+    },
+    {
+      "path": "docs/design/RESPONSES_ADAPTER_DESIGN_V1.md",
+      "sha256": "a09927b23b682efdf6d0751b46fd4f32cf4068b0093ad5b03782e0be4c82bf86",
+      "size": 3066
+    },
+    {
+      "path": "docs/NOW_OS_ARCHITECTURE_SEAL_V1.md",
+      "sha256": "b9ebde0f9db8c22175b10848a142f5c69faf7681f2b0591487cf1c7f8f0d9129",
+      "size": 3098
+    },
+    {
+      "path": "docs/runbooks/BACKEND_IMAGE_ROLLBACK.md",
+      "sha256": "f9b24b7d19e3a62d3970d695c3ff44d53334acf1141775a6962acf0574740c17",
+      "size": 1347
+    },
+    {
+      "path": "docs/runbooks/BEHAVIOR_LIVE_CANARY_GATE.md",
+      "sha256": "3d9e539da4162533def8e06a8d5aed04d889c74ab3c74d7901c530890d0b7641",
+      "size": 1141
+    },
+    {
+      "path": "docs/runbooks/behavior_orchestrator_canary.md",
+      "sha256": "6442a38dd07385b58d04bf51207ee66f19a493a00c1cb91403b7132d6559e5f6",
+      "size": 1454
+    },
+    {
+      "path": "docs/runbooks/emergency_rollback.md",
+      "sha256": "a453d5446b8e6fcef0f2d462678d3a898436fbc14d8ad5aef02d8eb4a82dec79",
+      "size": 1181
+    },
+    {
+      "path": "docs/runbooks/LOCAL_RUNTIME_QUARANTINE_ROLLBACK.md",
+      "sha256": "0737a3971ec27ff4e4127783edc0d575a8c1865225308d54179be054e18fcccd",
+      "size": 1958
+    },
+    {
+      "path": "docs/runbooks/model_adapter_canary.md",
+      "sha256": "6c36cefeb9b7fce004cd415cdd1623cd920f992533ff98f4cf728c9336f0ebf7",
+      "size": 5071
+    },
+    {
+      "path": "docs/runbooks/PACKAGE_03_REPRODUCIBLE_BUILD_RUNBOOK.md",
+      "sha256": "2f7f7269244173557171a567ff0080fa9bc036835a0a031a4045b4ce61c98a48",
+      "size": 1867
+    },
+    {
+      "path": "docs/runbooks/reliability_queue_cutover.md",
+      "sha256": "bf59887fd1baa7c1b1a7ffbfd84ad0150c4f563ee66c89577e4e687d21c4a45e",
+      "size": 1628
+    },
+    {
+      "path": "package-lock.json",
+      "sha256": "90e17cc0a3b6cfbee86758a5a573ae446f54d1973dd0c14c1c6b489542ef66ea",
+      "size": 136797
+    },
+    {
+      "path": "package.json",
+      "sha256": "655c0acca91596e99155aba51830bb8164719fb04d74f49f08eafa457fbc7cb1",
+      "size": 1036
+    },
+    {
+      "path": "scripts/deploy-runtime-lock.mjs",
+      "sha256": "9e3880f6aa1eac16e431658fa34066a298ef057fd403a806f2d6cd86b4f8e326",
+      "size": 1423
+    },
+    {
+      "path": "scripts/generate-build-provenance.mjs",
+      "sha256": "219a9efc32b6fdd58d48fbdd3df757fa8912298c09906349a96900329fe6ff11",
+      "size": 1426
+    },
+    {
+      "path": "scripts/provenance-lib.mjs",
+      "sha256": "09c173f85b908f53c5cc2e12cda06e101543652c56e345d8d8d48f6540117dcb",
+      "size": 5033
+    },
+    {
+      "path": "scripts/responsesAdapterDryRun.ts",
+      "sha256": "3ba15731a8756f5364a96d08fc858fccc1c971b97d269bee103a7a3704062f94",
+      "size": 1990
+    },
+    {
+      "path": "scripts/responsesGoldenReplay.ts",
+      "sha256": "f59d8579ad662baca70f8f09d825f9c23013062f1638e574486d404d71a099ce",
+      "size": 1458
+    },
+    {
+      "path": "scripts/verify-build-provenance.mjs",
+      "sha256": "bab6e595bae0bc437616af5344e9d7fe0818fe575dda96f352291d5bc872f065",
+      "size": 1725
+    },
+    {
+      "path": "src/analytics/analyticsService.ts",
+      "sha256": "e169578899fefbb2c75a927d113b799a118a3ec3da97bde84db5125501ee8a52",
+      "size": 11586
+    },
+    {
+      "path": "src/analytics/analyticsTypes.ts",
+      "sha256": "994f894620c8a5e88f3021d9d5888199b14f8f2b77b0768b763232000fee49fb",
+      "size": 2658
+    },
+    {
+      "path": "src/assistant/assistantRun.ts",
+      "sha256": "94cf64e0dd963f51a1b3365ff5a0e66cb86090440f55b5321df37f1b57e0e81a",
+      "size": 4948
+    },
+    {
+      "path": "src/assistant/openaiAssistantClient.ts",
+      "sha256": "301ac749bee4d9a4d0b0b7be7add25ff3c512c41a10f0827405f62d98b56ca40",
+      "size": 3603
+    },
+    {
+      "path": "src/behavior/behaviorCanaryEligibility.ts",
+      "sha256": "b3a77fcdf65d544febca991f88e5745f4b3d1ed073cb2fc130af68d25fc5b5dc",
+      "size": 4007
+    },
+    {
+      "path": "src/behavior/behaviorCanaryObservation.ts",
+      "sha256": "48527dbdc055f56267eadfc716b9c1c57cb9b75026ff0335d0954cb735526f4f",
+      "size": 6133
+    },
+    {
+      "path": "src/behavior/behaviorProfile.ts",
+      "sha256": "d0db22af861d5472456c41115c1a6046c066ac35d04296bf31e9b1bcf469d1f1",
+      "size": 780
+    },
+    {
+      "path": "src/behavior/canaryContracts.ts",
+      "sha256": "2aaf5ab41b104a3d25136d119badc5517115ad22c531f3e0c6b544a5f8fb39b1",
+      "size": 1007
+    },
+    {
+      "path": "src/behavior/canaryExecutionGate.ts",
+      "sha256": "e187893050e35724a6ad7970137c8be27ed151d5b5e64aee5453b956f8ade687",
+      "size": 1911
+    },
+    {
+      "path": "src/behavior/CanaryGateEvaluator.ts",
+      "sha256": "91e677cc77e4be1290ed16df814644046e9d42f888ae54bebaceab47f696632f",
+      "size": 11377
+    },
+    {
+      "path": "src/behavior/CanaryObservationTracker.ts",
+      "sha256": "b1a4820abbc598316d8cdc333b882fce126f91669d9957d2b0c56f5be9987785",
+      "size": 3071
+    },
+    {
+      "path": "src/behavior/contextBuilder.ts",
+      "sha256": "278a9e3a32515e0ab220742c8885e9d1eacfc673003ffb6c69525040549751cd",
+      "size": 10154
+    },
+    {
+      "path": "src/behavior/conversationalQuality.ts",
+      "sha256": "0da3582d4e6cf6d3adc8f6cd20f15b90c834fd35243cc750864e9c39f727a03c",
+      "size": 12572
+    },
+    {
+      "path": "src/behavior/conversationStateService.ts",
+      "sha256": "4dec8ffb73909242f2db2491c918bf0d22fe7c72cc7463ac780d8f1d9d3f3fd7",
+      "size": 15268
+    },
+    {
+      "path": "src/behavior/goldenConversations.ts",
+      "sha256": "3017624565785217f4d6009ad55ff692ea789dc1b95f511521a1e38ab05c666a",
+      "size": 16909
+    },
+    {
+      "path": "src/behavior/qualityRewrite.ts",
+      "sha256": "44b924d0b06dbb712e80854a0b1241284e9aa930378b78ccf9f62abe8f9b15a4",
+      "size": 6207
+    },
+    {
+      "path": "src/behavior/responsePlanner.ts",
+      "sha256": "9d6d329e0a7aed2f48b804d68a9b48b53843814688d8e9218e1e9a0eb634b152",
+      "size": 4770
+    },
+    {
+      "path": "src/behavior/types.ts",
+      "sha256": "5b80961e0e26ab636741f372e2b7f6cc6c59b95151032af0be209130eb50fca6",
+      "size": 4279
+    },
+    {
+      "path": "src/bridge/answerPlan.ts",
+      "sha256": "bc7db43885efc3287aecfe5fa48113371441bd5bc90fe6a6237d2f4563296b52",
+      "size": 4995
+    },
+    {
+      "path": "src/bridge/approvedAppGuard.ts",
+      "sha256": "290cf9df0063b5f4e45fc8f08eb3b7e6510c995ba2f60aa9e6e49f00d828bdee",
+      "size": 1871
+    },
+    {
+      "path": "src/bridge/authorityContext.ts",
+      "sha256": "6eba1b007fa42e8d7108d0c6dc81233623b705be625bf8ece12de4274a8655e3",
+      "size": 1036
+    },
+    {
+      "path": "src/bridge/buildBackendContext.ts",
+      "sha256": "553ac514f7aa6477547f1052a0ca1a002abde6d320fe6543a6efda224d8a1b45",
+      "size": 7159
+    },
+    {
+      "path": "src/bridge/bundleBuilder/bundleBuilder.ts",
+      "sha256": "aee4ff9fd5a3175ba0a90edd3891877ccb2d5b1f59d77baf17ed84e350eda2d2",
+      "size": 1747
+    },
+    {
+      "path": "src/bridge/bundleBuilder/types.ts",
+      "sha256": "85f10ce8ba0b74408a35c45fd6d96fd93e8ad9e1ef3e714d16acfc9e2dfbab52",
+      "size": 784
+    },
+    {
+      "path": "src/bridge/candidateIntakeStateMachine.ts",
+      "sha256": "6bea7013a13ddf363b78e6f9ffbe3b58436714dbb06ec405d370bd0c649662d6",
+      "size": 17526
+    },
+    {
+      "path": "src/bridge/dailyOwnerReport.ts",
+      "sha256": "0b592ecf0a61e6d3a50de91bb75bd5b6e9ff1ba6f8080c1bf9161a601d8b219c",
+      "size": 8519
+    },
+    {
+      "path": "src/bridge/dashboard.html",
+      "sha256": "b633a587c652d02386c4f16f8c6f6aab7352d97f16367c3c40576214372dd628",
+      "size": 13
+    },
+    {
+      "path": "src/bridge/dashboardHtml.ts",
+      "sha256": "34ed920840232671c6a8f9b142beff4536be7ada18d3c8f4069b36c624932bba",
+      "size": 68913
+    },
+    {
+      "path": "src/bridge/dashboardRoutes.ts",
+      "sha256": "d3a7f126392254b67c19a20acf9c204a45e4916bd0a84cd6ff66b42d0dddfe75",
+      "size": 65281
+    },
+    {
+      "path": "src/bridge/evolutionWebhook.ts",
+      "sha256": "5d78e39535ffef28810182ab465f650fd841809d4fa1bd17fe9929c2c0b0081b",
+      "size": 3205
+    },
+    {
+      "path": "src/bridge/followUpQueue.ts",
+      "sha256": "46b451517ae6aac357eccfcfcb3a3f33cb2257d2612a1109545135f7dd7843de",
+      "size": 13098
+    },
+    {
+      "path": "src/bridge/handleIncomingMessage.ts",
+      "sha256": "558e91b376cdd8e61375c3ef15b90acf0a34748711e0d00d76eab8f1fac669bb",
+      "size": 43980
+    },
+    {
+      "path": "src/bridge/ingestion/classifier.ts",
+      "sha256": "7f83a9984c4f128f72351c037db7b23b798ddb1af45fdf8841acbf6be1fedbb8",
+      "size": 1565
+    },
+    {
+      "path": "src/bridge/ingestion/ingestPipeline.ts",
+      "sha256": "9696eb88c512e04543a274b1c5144a5ff02fc1f07636a4c25e5a3bec2040eb7b",
+      "size": 3271
+    },
+    {
+      "path": "src/bridge/ingestion/sanitizer.ts",
+      "sha256": "b526311ee2b3075d73bcae6945b40de41f879f9df82e8d133ca86d0d47364a1a",
+      "size": 1231
+    },
+    {
+      "path": "src/bridge/knowledgeBundle.ts",
+      "sha256": "8e3c1781b0449dd8ad60cb8d9f0563337bb9e7291b5632e0fd4d7d1eb12f67d0",
+      "size": 8582
+    },
+    {
+      "path": "src/bridge/knowledgePublish.ts",
+      "sha256": "aadda941a68f5f9147f2be4338c10fe7ce9430bab7d7620fd5c909dcfaaecfae",
+      "size": 12189
+    },
+    {
+      "path": "src/bridge/knowledgeSync.ts",
+      "sha256": "f941dd35e7316bd0ce677d06185fbf0c6dd1ecd1ede8a188547c96a8f6e1ae85",
+      "size": 15045
+    },
+    {
+      "path": "src/bridge/learningReview.ts",
+      "sha256": "bc1c24c1328d372f532d09ba0bc7f607634d8313cb3b534baac432080dff9cca",
+      "size": 5596
+    },
+    {
+      "path": "src/bridge/modelRoutingPolicy.ts",
+      "sha256": "45c9c5303c8f85dfc142e386d987377fcf91fbc9e3e4fb513a40238a141eee10",
+      "size": 694
+    },
+    {
+      "path": "src/bridge/modeRouter.ts",
+      "sha256": "2d5c4532b925299547d87013541ac26c086c1252799435785c1ae943c2dc0a19",
+      "size": 4429
+    },
+    {
+      "path": "src/bridge/normalizeEvolutionMessage.ts",
+      "sha256": "516d53c64013fe4d27307339906df7341b31a30b908906eca41a0411feb630bd",
+      "size": 12406
+    },
+    {
+      "path": "src/bridge/openaiFileSearchPublisher.ts",
+      "sha256": "cdb179ce476648e0a078e21e5f89e31aeb59fc57b87a67871dd0d133827d99ba",
+      "size": 6317
+    },
+    {
+      "path": "src/bridge/ownerCommands.ts",
+      "sha256": "4ac37519ff587b9fca3339c4abe747a7e09ff640da971525467ed889a4c1f9c2",
+      "size": 5355
+    },
+    {
+      "path": "src/bridge/ownerReport.ts",
+      "sha256": "9e308e67e4f2af9aa1455dc5f7f690a8ea1e1635f289191d56efd2c0f486d422",
+      "size": 10878
+    },
+    {
+      "path": "src/bridge/reviewPublishDryRun.ts",
+      "sha256": "a0629fb643e105faf5683b682e14fabc396f8553b25882dba7d1b3dd4feb1c2b",
+      "size": 12846
+    },
+    {
+      "path": "src/bridge/reviewRoutes.ts",
+      "sha256": "d82d93d6e35673340cc970c6a5991a9ddded051522cc500413356109eb245ac3",
+      "size": 12145
+    },
+    {
+      "path": "src/bridge/sendTextMessage.ts",
+      "sha256": "194a527d0492d6c865456c7c6c18398827c6639a1197e3e9b037980eaaeea332",
+      "size": 1520
+    },
+    {
+      "path": "src/bridge/sourceIntegrity.ts",
+      "sha256": "509f68f8de0b90ccd88c541bd319ef0a9b0d197f69135e0320bfc8107557b521",
+      "size": 4897
+    },
+    {
+      "path": "src/bridge/whatsappVisualContextProcessor.ts",
+      "sha256": "ae77ed1e430cf4cf8c989c646bee7ef606d4105f121221f421041430a266990d",
+      "size": 12753
+    },
+    {
+      "path": "src/bridge/zipIngestion/detection.ts",
+      "sha256": "7d263b1eb6cc2ccf762de97e82e8d685b91fca3fff01f33b730cc1edc8ac3805",
+      "size": 1964
+    },
+    {
+      "path": "src/bridge/zipIngestion/mediaDownloader.ts",
+      "sha256": "af7768424221e799939945c4fab5012f4a88794d8c137a6ffcd43004188c9a07",
+      "size": 2241
+    },
+    {
+      "path": "src/bridge/zipIngestion/pipeline.ts",
+      "sha256": "9f4bd61ef58cb41d65f56b38b3c465f4f32c884bd1e931ae05cb6b8c4daa37be",
+      "size": 16847
+    },
+    {
+      "path": "src/bridge/zipIngestion/store.ts",
+      "sha256": "e3d1e9bd9fb662dff030807600dd3c92f8e330f48847f13c3960405ada60c145",
+      "size": 3587
+    },
+    {
+      "path": "src/bridge/zipIngestion/types.ts",
+      "sha256": "bf03c691a6f568b87c5babd013702c1d88dfebbe80b7e2a8afa02b6c32c9b743",
+      "size": 3163
+    },
+    {
+      "path": "src/config/env.ts",
+      "sha256": "38ff1d480ebe251d050ace6d01c20f445e1f6fdd197ca5ead2b5625271b13cd4",
+      "size": 6853
+    },
+    {
+      "path": "src/config/envValidator.ts",
+      "sha256": "157261793eba29c5eca5437f35fb9f7cefaa069dbde9ab2b64ed185e07b6bdb5",
+      "size": 2342
+    },
+    {
+      "path": "src/config/roles.ts",
+      "sha256": "3c4c33a6e474aea63d778bc5cc152176ac52ce20f87fa7a6a83e87e317ddea12",
+      "size": 1490
+    },
+    {
+      "path": "src/config/versions.ts",
+      "sha256": "ba73101d04f90eae32bb1a0282f3b4395fd6e070f553f3eacc424501c417a26d",
+      "size": 420
+    },
+    {
+      "path": "src/connectors/importService.ts",
+      "sha256": "98bc1c750b956f278ecf5efa95ac8b0bc30f5355d808782399a400c2990f5e44",
+      "size": 3117
+    },
+    {
+      "path": "src/connectors/normalizeLayer.ts",
+      "sha256": "310410001700635f80f5e48d2e3242974744ae5c81972bad0817f338c43ec8ff",
+      "size": 8252
+    },
+    {
+      "path": "src/connectors/types.ts",
+      "sha256": "b9b47372cc2251dcae5cb21e57dc754b371b2e48fd20962eda18d648fd9b2110",
+      "size": 1704
+    },
+    {
+      "path": "src/contracts/assistantResponseContract.ts",
+      "sha256": "7df08e9ef203428cc3374a3391347b8b65b92528fab8d909f396fcbd902e9ff0",
+      "size": 4750
+    },
+    {
+      "path": "src/contracts/backendContextPayload.ts",
+      "sha256": "e472b6fbc80b2aadd990ef1394a71084e25a5fd469f2da527075a25e71aa5a01",
+      "size": 8664
+    },
+    {
+      "path": "src/intelligence/candidate/CandidatePolicyResolver.ts",
+      "sha256": "5fb3df6acdc9407f8b3b4ecad0e3a50f995c0e72aa7ee8db101756a69fe0ee49",
+      "size": 3807
+    },
+    {
+      "path": "src/intelligence/candidate/StatePatchValidator.ts",
+      "sha256": "703231bdd74d0ba28d538a97bb7e7690afc25b9e44e2a07c579bf7971e00a6c9",
+      "size": 2368
+    },
+    {
+      "path": "src/intelligence/conversation/AllowedActionResolver.ts",
+      "sha256": "4074fbf67492cf0bfcc93cd8f60c0d351420576092d053cc6f68f666d7e58867",
+      "size": 1974
+    },
+    {
+      "path": "src/intelligence/conversation/ConversationContextBuilder.ts",
+      "sha256": "fb71871d5d39e29430b622f5a8014d5b17126b7bf4e174fbf6a3e99367d27664",
+      "size": 4387
+    },
+    {
+      "path": "src/intelligence/conversation/ConversationDecisionEngine.ts",
+      "sha256": "a01e45e529f7e18166f3cb188548e58e075b49ae4126dabfcf326a339f6853be",
+      "size": 14760
+    },
+    {
+      "path": "src/intelligence/conversation/ConversationDecisionRepair.ts",
+      "sha256": "e6ada82e3ec542bc4024511d8488f633229209bf8e699edbd1b67c636b49eebb",
+      "size": 6020
+    },
+    {
+      "path": "src/intelligence/conversation/ConversationDecisionSchema.ts",
+      "sha256": "537580102e9508a64a2ca3c72c5053a3d1dd6eb68cec14b1271110a92de1e485",
+      "size": 3354
+    },
+    {
+      "path": "src/intelligence/conversation/ConversationDecisionV3Schema.ts",
+      "sha256": "9b9f31f28d36d1f1b97d8e3447e4f7ef667c2416226aea6f58b042f8f43f34a2",
+      "size": 12441
+    },
+    {
+      "path": "src/intelligence/conversation/ConversationDecisionV3SemanticValidator.ts",
+      "sha256": "4385d836c6665bda3a2f896b11b3d5c459021c5b473bf9a042becaa3a953a21e",
+      "size": 13334
+    },
+    {
+      "path": "src/intelligence/conversation/ConversationDecisionValidator.ts",
+      "sha256": "17dc6ec929346ffac2cc4b6849868fd96b7c627635be84527e6a1a84722c5cf9",
+      "size": 5019
+    },
+    {
+      "path": "src/intelligence/conversation/DecisionTraceRecorder.ts",
+      "sha256": "0de989aa96d543e4f605a0a5706b94fa7a2d5c66b69e64c2989f54885b402498",
+      "size": 1669
+    },
+    {
+      "path": "src/intelligence/quality/SemanticQualityGuard.ts",
+      "sha256": "a2f635ef3d030e81297cd86b1788223c7f4f7fce0adf5a4632545edef1ece72e",
+      "size": 6188
+    },
+    {
+      "path": "src/modelAdapter/AssistantAdapter.ts",
+      "sha256": "b5a67c82c08c21e165347ff3e5c665d59f4c04c5b0a5b74e3f3fa9588351b21a",
+      "size": 1925
+    },
+    {
+      "path": "src/modelAdapter/IModelAdapter.ts",
+      "sha256": "4c9e01936e4e2243ad1f12920b92719bf888f9f74b0ed4a32aba150246214216",
+      "size": 429
+    },
+    {
+      "path": "src/modelAdapter/modelAdapterFactory.ts",
+      "sha256": "76cd8354d0856ad3d9532ddd447fb7a3edae2f05a1d05929eee90cdfcffa86e1",
+      "size": 484
+    },
+    {
+      "path": "src/modelAdapter/modelAdapterSelection.ts",
+      "sha256": "1c7312d21f3168d7ee53eb08b520d6ef199572a30ddd6b3405554b2c58075f41",
+      "size": 2923
+    },
+    {
+      "path": "src/modelAdapter/modelExecutionErrors.ts",
+      "sha256": "2a75ee4afb52cb3b0a5c99ab91ed9be54593e0aa46f68661c7ba17d0dd5e400d",
+      "size": 3326
+    },
+    {
+      "path": "src/modelAdapter/modelExecutionService.ts",
+      "sha256": "3fba020b98a5ad6f9ccb123e3379161c80223882e66dde61e021dcab533aba9d",
+      "size": 13281
+    },
+    {
+      "path": "src/modelAdapter/ResponsesAdapter.ts",
+      "sha256": "aa25ff91fb82d3fd09df3179518b4204f4f209ac4c033ae6ff4d186a8c168f1a",
+      "size": 4725
+    },
+    {
+      "path": "src/modelAdapter/responsesDecisionPrompt.ts",
+      "sha256": "a22bb5bef02609815b0da6081c6489995f1f9ff649ac11370c88bb1b11cd99f7",
+      "size": 5926
+    },
+    {
+      "path": "src/modelAdapter/responsesGoldenReplay.ts",
+      "sha256": "34b1edc0bdc03f86b1654630cb61582e891cd8e39d6e083fe58d066fbefc0d28",
+      "size": 19288
+    },
+    {
+      "path": "src/modelAdapter/responsesShadowService.ts",
+      "sha256": "02afb3e9277ecc75d56cbf8dcaa6a27dacee6ea03c9daded89f067f149e2ef09",
+      "size": 8960
+    },
+    {
+      "path": "src/modelAdapter/types.ts",
+      "sha256": "26a0541ddfc23129935506b8f18311faf11716f1e4835e6450e862f762e680d3",
+      "size": 1577
+    },
+    {
+      "path": "src/observability/connectionHealthMonitor.ts",
+      "sha256": "6cc3dfc54f2ada0359b1397538a135064766f30dbdbe20fb19ce06a521629b95",
+      "size": 12142
+    },
+    {
+      "path": "src/observability/correlation.ts",
+      "sha256": "3957b676ac194d8b2a33a05badf157cef3870302a1cd1c66cd851d65624bdaf2",
+      "size": 126
+    },
+    {
+      "path": "src/observability/logger.ts",
+      "sha256": "8fdf58f53c9da4d133522344dfdb41ec46aa8b3bdb36b397de63d1de94eea0cc",
+      "size": 1087
+    },
+    {
+      "path": "src/observability/migrationReadiness.ts",
+      "sha256": "6e88211e999e62a072fc156bf34c2bc3da41754a3c879255d918869685b3e450",
+      "size": 1411
+    },
+    {
+      "path": "src/queue/userRunLock.ts",
+      "sha256": "e55e0502665021629abe02da471de816a148df5fc6baec34c1e0ff77a1d703e4",
+      "size": 649
+    },
+    {
+      "path": "src/reliability/inMemoryReliabilityQueueStore.ts",
+      "sha256": "a76b26cf469d92660dc08d869a898e87ae02674265de0dcf88f24d048c703677",
+      "size": 5378
+    },
+    {
+      "path": "src/reliability/postgresQueueSchema.ts",
+      "sha256": "565dee93b3043c1ec188edf331089608a948f6005033dc77a1bb2e6edfbc27a9",
+      "size": 2510
+    },
+    {
+      "path": "src/reliability/publishSnapshot.ts",
+      "sha256": "6fb65bc84093f0ee7addade513226b94b093bf0f2c100b1d19c0b5b233bf3edf",
+      "size": 748
+    },
+    {
+      "path": "src/reliability/queueModes.ts",
+      "sha256": "1465a0007067e01885acefb806c6296f0e9430657c0fda7eca514df831a54d55",
+      "size": 744
+    },
+    {
+      "path": "src/reliability/queueMonitoring.ts",
+      "sha256": "50c8cab7960e737f2beaa3302502fba05bc4f129619911a0d5d92b57d1367e31",
+      "size": 1257
+    },
+    {
+      "path": "src/reliability/queueTypes.ts",
+      "sha256": "dc6f0389b8a7d740daeeeac8449b7c7a2cd6a84dbcf13adff4429ae4bc9d6d59",
+      "size": 1753
+    },
+    {
+      "path": "src/reliability/queueWorker.ts",
+      "sha256": "0a3a0b49e23777b5c3f23a5f0775fccd035d025f5e9e848ac0524664046756c7",
+      "size": 3991
+    },
+    {
+      "path": "src/reliability/shadowQueue.ts",
+      "sha256": "dffe4c9a30cd718bd982f06721c85c667c7dff965eb669cbb0c9fd1befd88cf4",
+      "size": 3688
+    },
+    {
+      "path": "src/server.ts",
+      "sha256": "f8c98a314b368d22eae23d35da87bded708e46cdc60a471d1fae47edd74fa492",
+      "size": 14189
+    },
+    {
+      "path": "src/storage/ingestionJobStore.ts",
+      "sha256": "409a006e4b9cbdfd3082c7170fb66f0cea933a67bdb6d3448bb3794017cb1499",
+      "size": 2719
+    },
+    {
+      "path": "src/storage/ingestionStore.ts",
+      "sha256": "05bccdaa7b8ad05a171f14bedce8571a9ea126d6ece3ff38157f67e5c0ecd7e5",
+      "size": 8115
+    },
+    {
+      "path": "src/storage/ingestionTypes.ts",
+      "sha256": "94400f46ee2c097e088731efba2ca45b6a52c7ee5699b1dc8fa327a310167a10",
+      "size": 3340
+    },
+    {
+      "path": "src/storage/memoryStore.ts",
+      "sha256": "60a0a0f17ccdc44eac74b92238caaf926a1db09d5af62e34e4d7f4a8ad99e8d5",
+      "size": 1952
+    },
+    {
+      "path": "src/storage/messageDedupeStore.ts",
+      "sha256": "08d8a80f965ff82676f637487857c187bfefffeb8d0c5b418218364a9467c6b6",
+      "size": 819
+    },
+    {
+      "path": "src/storage/normalizedMessageStore.ts",
+      "sha256": "bdc355c7fac1485b30bf2b3b30415575256113536d6622a195afefaebd7ea12c",
+      "size": 2087
+    },
+    {
+      "path": "src/storage/persistentJsonStore.ts",
+      "sha256": "304d3ff6cbf34f5a00851d32eaa7f42f9129d00976ff8fb720be2e4a768c0138",
+      "size": 27975
+    },
+    {
+      "path": "src/storage/threadStore.ts",
+      "sha256": "3c2da3f88b3bd8d9de6ce4234ee48d61c631606450f1e7dcf0fa967e745a7847",
+      "size": 767
+    },
+    {
+      "path": "src/storage/types.ts",
+      "sha256": "8bc056d8de42e445636682ef9056f7d527aa24eb025be655189fd0e928736e00",
+      "size": 7216
+    },
+    {
+      "path": "src/storage/userStateTransitionBoundary.ts",
+      "sha256": "fd7efe52724ae4bcb74e1898ad84702f137867247d1bf6e1d28d78b341130238",
+      "size": 2220
+    },
+    {
+      "path": "src/store/actionAuditStore.ts",
+      "sha256": "b8634342ad6f31a007d9454c7fa33ae37ad2b790f9b2c4781cb8a91e41589ea8",
+      "size": 3415
+    },
+    {
+      "path": "src/store/maintenanceStore.ts",
+      "sha256": "9a9cdff1b12d5fa54223661f9b69d921e4abcc283cecac57f255ea4514d74b78",
+      "size": 1232
+    },
+    {
+      "path": "src/store/scheduledReportStore.ts",
+      "sha256": "0f99ed98fa667c8a124e1a54cfaa574b1c57614da115647e6b1045537a0920ec",
+      "size": 4583
+    },
+    {
+      "path": "src/store/socialLeadStore.ts",
+      "sha256": "b70e75a8d8cffd011bc17dd089fecdaa85e0a9805c6e4166bf3b97085ed57333",
+      "size": 6033
+    },
+    {
+      "path": "src/store/whatsappLearningStore.ts",
+      "sha256": "05ebab26f8e23fc890e92c68d60862d13d367bd1825c26f380472b2e75ec0b8c",
+      "size": 3228
+    },
+    {
+      "path": "src/store/whatsappVisualResearchStore.ts",
+      "sha256": "d3e6299e2ec584585bd762c06e5f0f0336676ce942e3b898fbd97be5ccbf10f6",
+      "size": 4557
+    },
+    {
+      "path": "src/tests/analyticsPerformanceDashboard.test.ts",
+      "sha256": "74e1ee31790fc08e61ace9286600700e26d18aeef4b1a699b4e383d7f1a3040e",
+      "size": 3501
+    },
+    {
+      "path": "src/tests/approvedAppGuard.test.ts",
+      "sha256": "2effabad842a09f915e3a2f362723c97196671f9ee4374ac7f7d3cb5840bfec0",
+      "size": 1681
+    },
+    {
+      "path": "src/tests/architecture/architectureSeal.test.ts",
+      "sha256": "22064d34d0647d6b37e7e751b036f248d96084b188776a1e687c842bff97e29c",
+      "size": 11008
+    },
+    {
+      "path": "src/tests/architecture/package07Reconciliation.test.ts",
+      "sha256": "41cbcae6c81daf2d65046776769345e89713d3b544c9a60ff6b4b5f3f3555037",
+      "size": 4137
+    },
+    {
+      "path": "src/tests/architecture/package08ContractCompletion.test.ts",
+      "sha256": "5898248f2982553fc5d2f40cc11e99777d5c297d5a475c1fdca20df5179676f0",
+      "size": 2184
+    },
+    {
+      "path": "src/tests/assistantContextBudget.test.ts",
+      "sha256": "08292ab11f079bccb35065df68089549a5fa95152edf7ff6cece2a7ec3c21762",
+      "size": 3172
+    },
+    {
+      "path": "src/tests/assistantResponseContract.test.ts",
+      "sha256": "3abe88e59583702f768ad35803e753542aafad67619e5cae77aff1df2e95d0d5",
+      "size": 2336
+    },
+    {
+      "path": "src/tests/behaviorCanaryEligibility.test.ts",
+      "sha256": "43f7a02bfc8570c71c90cbc15c3fd4304a788cf0342a5208baf841d4cc787604",
+      "size": 4506
+    },
+    {
+      "path": "src/tests/behaviorCanaryTakeover.test.ts",
+      "sha256": "d6b51740f6e9ee42148353fb5fdfa35e195a3f5214aa7b850d5c4055037891bf",
+      "size": 9559
+    },
+    {
+      "path": "src/tests/behaviorFeatureFlag.test.ts",
+      "sha256": "ce21cbd72ae4e3de00ecdcd73a10ae1c1194e1414015e2317865dd5758f71951",
+      "size": 18237
+    },
+    {
+      "path": "src/tests/behaviorInternalCanaryObservability.test.ts",
+      "sha256": "01bef0292d5b33d7430c2fad918bb93e912d0c97ab6b7a4f41d8443b19ec274b",
+      "size": 10930
+    },
+    {
+      "path": "src/tests/behaviorProfile.test.ts",
+      "sha256": "b84b60a9da51a0e5396e000518b80d6d7b40db3852d79ce351605d827898ff93",
+      "size": 1174
+    },
+    {
+      "path": "src/tests/buildBackendContext.test.ts",
+      "sha256": "665cfa211090955ecbc0a6171ba2ead989a00704b0ead285dcd292b91bb7b01a",
+      "size": 3726
+    },
+    {
+      "path": "src/tests/buildProvenance.test.ts",
+      "sha256": "04fafdd53e5be3f99c62fdafdff90ebdde27d457ff9f83c1dec0171d61b6d736",
+      "size": 4149
+    },
+    {
+      "path": "src/tests/candidateIntakeRegression.test.ts",
+      "sha256": "09935975c7ab9bf2edd3cec036b6d00c5cbda75fe87a9d21af5f057eff87b9ee",
+      "size": 4228
+    },
+    {
+      "path": "src/tests/candidateIntakeStateMachine.test.ts",
+      "sha256": "9042278c2f4d9525f2d78d14d36333d30eabc6283d4db3815595ba6ad132964a",
+      "size": 12307
+    },
+    {
+      "path": "src/tests/connectionDoctorRoute.test.ts",
+      "sha256": "24a37a468807c89d05d750e6115ceb80d9f1da64240d698156ace3fe00e97c1e",
+      "size": 7695
+    },
+    {
+      "path": "src/tests/connectionHealthMonitor.test.ts",
+      "sha256": "6ee5daa0a7af37a9f96fbb0d6d605067b3dc26119449ece75560c250a78910c7",
+      "size": 4494
+    },
+    {
+      "path": "src/tests/connectorDashboardSummary.test.ts",
+      "sha256": "99e29e0f8c9944182b5414be711a27f8eaedc5c7c2e5b0beabdc3a1998fce13d",
+      "size": 4625
+    },
+    {
+      "path": "src/tests/contextBudgetBehavior.test.ts",
+      "sha256": "737c487fb507702638192f981fe5cef1db577f8e8ce4c1302f7bf1787e8f4068",
+      "size": 3207
+    },
+    {
+      "path": "src/tests/contextBuilder.test.ts",
+      "sha256": "987a898697b1a79f5c8a9f745d668ac1d29aef822280b601b4290b9b7404ef76",
+      "size": 6428
+    },
+    {
+      "path": "src/tests/conversationalQualityContract.test.ts",
+      "sha256": "0f1647e71162ff194516678aaf06b8799397414cb9296d27ab975dc8d5558a55",
+      "size": 7055
+    },
+    {
+      "path": "src/tests/conversationDecisionV2.test.ts",
+      "sha256": "0700d56d00c22ca815150102927d324ac63529ee1eb2740e073312925e6093bb",
+      "size": 14631
+    },
+    {
+      "path": "src/tests/conversationDecisionV2Certification.test.ts",
+      "sha256": "30ec880d739093e3a4279bd825c36f0c5a09151000732545084a474cca537d1c",
+      "size": 28645
+    },
+    {
+      "path": "src/tests/conversationDecisionV3Schema.test.ts",
+      "sha256": "74ef994c8f96dd45350d491728d3e431fd9663d762769302962252d7b78a6faf",
+      "size": 6862
+    },
+    {
+      "path": "src/tests/conversationDecisionV3SemanticValidator.test.ts",
+      "sha256": "fef009dd7e086d562fdbdd39847c940638a043a8b2c8fe6d816f5d1ee2841fee",
+      "size": 9661
+    },
+    {
+      "path": "src/tests/conversationStateService.test.ts",
+      "sha256": "61eab076f373e1f1f0eb09dc0cd7a359dcdc236205688df518a85500cc714aeb",
+      "size": 7204
+    },
+    {
+      "path": "src/tests/dailyOwnerReport.test.ts",
+      "sha256": "14fa12d07f867860c4e0b957f7056997177eaf54c2824b219efef62b07256106",
+      "size": 3843
+    },
+    {
+      "path": "src/tests/dashboard.test.ts",
+      "sha256": "c50910df8e99717f993e1b9784e4a9336a57894de32dadc98c5eddc310300783",
+      "size": 4814
+    },
+    {
+      "path": "src/tests/dashboardActions.test.ts",
+      "sha256": "89496d94456caf834eab87718d4436440c3b168180168e3792977abc330cbd9d",
+      "size": 11262
+    },
+    {
+      "path": "src/tests/evolutionWebhook.test.ts",
+      "sha256": "345a084da8f5f547817937566c425a9a47b46fb8290c20c451beae73f8ca0404",
+      "size": 11768
+    },
+    {
+      "path": "src/tests/fixtures/golden-bad-whatsapp-cases.json",
+      "sha256": "972ff10becb6115984034d15b8aeb6dfa3fc4e7be18f7ce97ad96348e0ce149c",
+      "size": 3834
+    },
+    {
+      "path": "src/tests/followUpQueue.test.ts",
+      "sha256": "a6cb028d1f997281a4c8cffe0fd6e8d6e1e4eb53e51f87423d7efc5a99d97761",
+      "size": 9006
+    },
+    {
+      "path": "src/tests/goldenBadWhatsappCases.test.ts",
+      "sha256": "df90b8c1a84bc248861f8cef9058aa20f9e84f08e9d903319bf9b7c7f0eb393e",
+      "size": 2550
+    },
+    {
+      "path": "src/tests/goldenConversations.test.ts",
+      "sha256": "0c979ae1c710785f97ba3ac79976f4387fca14631de09dac8670edf2ef2eced9",
+      "size": 3045
+    },
+    {
+      "path": "src/tests/groupOperations.test.ts",
+      "sha256": "c6efebef2288b07986c0995e5d65c2d4f40d231699a5dadbde408fa65f4aefb4",
+      "size": 6810
+    },
+    {
+      "path": "src/tests/handleIncomingMessage.test.ts",
+      "sha256": "11bd02a5eea2968f2e36768f2d3742386771e322cc6c387a7704e6978e677afa",
+      "size": 20260
+    },
+    {
+      "path": "src/tests/ingestion.test.ts",
+      "sha256": "8867e52a9b268a376182c3104c811d5b15b4f9a7e4e136f19458cd8f97d97bc8",
+      "size": 5694
+    },
+    {
+      "path": "src/tests/ingestionLearningIntegration.test.ts",
+      "sha256": "13dd8bcd68a0d5bb6ba62e3a8116a175f1f82c09f46d2323542cffb9bfbd5714",
+      "size": 6127
+    },
+    {
+      "path": "src/tests/ingestionStore.test.ts",
+      "sha256": "429389f83785e7eab4b43f2490a639fdb7560f2130fffea95f19687327a29e59",
+      "size": 4190
+    },
+    {
+      "path": "src/tests/knowledgePublish.test.ts",
+      "sha256": "d5a24cefbd66d487f3003fe4d2ddb18439ddab1c9bf86e8bba5b9006c3958d01",
+      "size": 6687
+    },
+    {
+      "path": "src/tests/knowledgeSync.test.ts",
+      "sha256": "b87d68c34054a19d974b6c65bff0eee2be36a6d2eb086b271c82fd01c869383a",
+      "size": 5682
+    },
+    {
+      "path": "src/tests/learningReview.test.ts",
+      "sha256": "8384ec4bd614fe8dd241e47a6a8feb567e844ef04d3ab2560d331cd3d8628ef0",
+      "size": 8066
+    },
+    {
+      "path": "src/tests/migrationReadinessHardening.test.ts",
+      "sha256": "109c634f892a18d398b389de2e6194e48658c0bb935ac8ff7dc9e84ea78ddc1e",
+      "size": 8262
+    },
+    {
+      "path": "src/tests/modelAdapter/adapterReplayHarness.test.ts",
+      "sha256": "d7080f7a488950d19007896c91d3fd10ec9f533d67b79a179ddf767b95545363",
+      "size": 10678
+    },
+    {
+      "path": "src/tests/modelAdapter/adapterScopedFlag.test.ts",
+      "sha256": "b17d545a2ac6ca5343ea82949cbdf9b2faccdc434510d356c52915da1ac9d1ce",
+      "size": 3770
+    },
+    {
+      "path": "src/tests/modelAdapter/assistantAdapter.contract.test.ts",
+      "sha256": "b3876df3437c7a8af5955bd7a4d7b80d75d9ef8d90415d51aa879c2d86ee274f",
+      "size": 5650
+    },
+    {
+      "path": "src/tests/modelAdapter/modelAdapter.contractSuite.test.ts",
+      "sha256": "d3a13aa5dee82c2b84323f1aaefb760974bcdae0dd8571be7e8bb8541ff407b2",
+      "size": 11918
+    },
+    {
+      "path": "src/tests/modelAdapter/modelAdapterFactory.test.ts",
+      "sha256": "4f046dc9789f4faa322f3d6edc6ac7a16ca873aa9d2c361bef0aa75fb918e6d4",
+      "size": 1846
+    },
+    {
+      "path": "src/tests/modelAdapter/modelExecutionResilience.test.ts",
+      "sha256": "4c1f5f79e956c64aec5797d6786f875a54185a1fc2399e4e2b15246ee110fd1a",
+      "size": 3811
+    },
+    {
+      "path": "src/tests/modelAdapter/modelExecutionService.selection.test.ts",
+      "sha256": "19aaea1b0c69c38df3a35262fbc25196b6784e5e092c7df74de18d7c27338d24",
+      "size": 8646
+    },
+    {
+      "path": "src/tests/modelAdapter/responsesAdapter.contract.test.ts",
+      "sha256": "03c5d3c1417ae51bf3ee9f9a8a2a29b09de1342d34d750a05ea7722806cfb995",
+      "size": 7045
+    },
+    {
+      "path": "src/tests/modelAdapter/responsesDecisionPrompt.test.ts",
+      "sha256": "a67fc1e3092ce2427c44a1b67718dc57fc79d6c090e0f6033de026f655b122e9",
+      "size": 3435
+    },
+    {
+      "path": "src/tests/modelAdapter/responsesGoldenReplay.test.ts",
+      "sha256": "aeca54f24abe17c8ff61c183a0c6f3785412de766a159c9c93deffa56fa88b02",
+      "size": 6920
+    },
+    {
+      "path": "src/tests/modelAdapter/responsesShadowService.test.ts",
+      "sha256": "4665754a245b62521415fdae2a845f888f2f2f04431de67e6e89b858448c5b85",
+      "size": 11000
+    },
+    {
+      "path": "src/tests/modelExecutionEnv.test.ts",
+      "sha256": "94ca6bcfe4f2dbeb00726d602ce21d5d7f134aa76c78f9edbf802b3b3597c0a2",
+      "size": 4001
+    },
+    {
+      "path": "src/tests/normalizeEvolutionMessage.test.ts",
+      "sha256": "8996ff56594fa9f9c23b5cfadbd6fc6f8a0098e171812aff9ef7372e0d0fdf18",
+      "size": 5062
+    },
+    {
+      "path": "src/tests/openaiAssistantClient.test.ts",
+      "sha256": "d65747bc33846aacf82fa4a6825a6fda99f640d2a1c49db838543a895664b9b6",
+      "size": 1311
+    },
+    {
+      "path": "src/tests/ownerReport.test.ts",
+      "sha256": "7391d50f5c13f88230bf49523d8f8b148a30d1b16eaf468de874f0a04ed0ae1e",
+      "size": 5970
+    },
+    {
+      "path": "src/tests/persistentJsonStore.test.ts",
+      "sha256": "61fa59ac52129516625e87d8e11746e0c32edb0759685dd00dfa7dc0d26aac3a",
+      "size": 13218
+    },
+    {
+      "path": "src/tests/platformNormalize.test.ts",
+      "sha256": "e84c3425c600cef66c35807654c52182482b04bddc1fe92908254c11b9394d14",
+      "size": 6620
+    },
+    {
+      "path": "src/tests/productionHardening.test.ts",
+      "sha256": "0bdaaa198138b4261512a04b42f931c698b6a69fbbaf8be3e46f5afed365169b",
+      "size": 3442
+    },
+    {
+      "path": "src/tests/redaction.test.ts",
+      "sha256": "458f4c1acedb913430305fbe220cc9f1f0e35b24c4da64dcc044fd86c5abf8cc",
+      "size": 1417
+    },
+    {
+      "path": "src/tests/reliabilityQueue.test.ts",
+      "sha256": "ceb7e2945b3fb098fc3daf01517e1ae6ef45d7c937ca2cd8431970703932925a",
+      "size": 2986
+    },
+    {
+      "path": "src/tests/responsePlanner.test.ts",
+      "sha256": "18f880b8b00b3964f63694a31acdc18e19db0641f365d9dea7fc5f833d307448",
+      "size": 3034
+    },
+    {
+      "path": "src/tests/reviewPublishDryRun.test.ts",
+      "sha256": "23ddf79aee9cd71444e90d5830de30fef71290b4339948806ec5dee6b36daf57",
+      "size": 10087
+    },
+    {
+      "path": "src/tests/reviewRoutes.test.ts",
+      "sha256": "863d4d2ba5999b476455ca10b12112803c4c91530e64ac06e21d2d75c436fe85",
+      "size": 11825
+    },
+    {
+      "path": "src/tests/roleResolution.test.ts",
+      "sha256": "f91355c49df6b717e868d62014931b4ccc681dc1bc90648142a5080eebb6abf7",
+      "size": 1922
+    },
+    {
+      "path": "src/tests/scheduledDailyReports.test.ts",
+      "sha256": "b6c0d16d196cf6e037047aacf1dbde7d28aab902a312a8c7ff7866530ee218ae",
+      "size": 3368
+    },
+    {
+      "path": "src/tests/socialPlatformIntake.test.ts",
+      "sha256": "bf8702546954010695eccaf3a1532189c4796a8c86883ccc570e5574cbe92217",
+      "size": 3954
+    },
+    {
+      "path": "src/tests/sourceIntegrity.test.ts",
+      "sha256": "8983bac52bd45b8a284e8fc1ae6f92a549b450336de2b1308a2171939b73c403",
+      "size": 5685
+    },
+    {
+      "path": "src/tests/summarySanitizer.test.ts",
+      "sha256": "6a48658a0b0586a82ceba940e0515768fa4be8321de938af199dd5b896469605",
+      "size": 1198
+    },
+    {
+      "path": "src/tests/syntheticSpec021.ts",
+      "sha256": "6d9afa86f8c8eb203561aed2c31638bc58000b67d7294a94c52fb125dcadbc68",
+      "size": 2050
+    },
+    {
+      "path": "src/tests/syntheticSpec030C.ts",
+      "sha256": "742d589a1ee7fcea1307a856a691d7f7f8124686a3d62eb9e0ce0dee9f610d90",
+      "size": 4995
+    },
+    {
+      "path": "src/tests/syntheticSpec030CMixedResearch.ts",
+      "sha256": "5bbec9dad4485d759aeb877d26fe18f464a4e0db9edb35ccfe0604f2157a279c",
+      "size": 4014
+    },
+    {
+      "path": "src/tests/syntheticSpec030Recovery.ts",
+      "sha256": "ae8f42f9ef3448ccb6b9eda6b7746991c227adf808f1fe2baafa3167d302ef24",
+      "size": 2824
+    },
+    {
+      "path": "src/tests/testDoubles.ts",
+      "sha256": "60e8db77408233c3209c68bb0178dc95d1eac68cfa058a276f68f9a55f8d084a",
+      "size": 14996
+    },
+    {
+      "path": "src/tests/whatsappVisualResearch.test.ts",
+      "sha256": "57336741999a1ed176c1e2b087eec413f72720f7eef2e6886d1547ea3f3f2145",
+      "size": 5047
+    },
+    {
+      "path": "src/tests/workspaceLock.test.ts",
+      "sha256": "3baafaa6e0719ba0131a6b395b2a69d5442b8021de8dc78df4ab1772a53e058b",
+      "size": 3727
+    },
+    {
+      "path": "src/tests/zipIngestion.test.ts",
+      "sha256": "43dd204875a4ba86400d662117ff1fa19e196c3e43d66f263ff6567243ccc428",
+      "size": 13166
+    },
+    {
+      "path": "src/utils/backupHelper.ts",
+      "sha256": "e1130f00220652e2fe9b6957a27e2dba91a1b8a656f6ff09754704808aad402b",
+      "size": 2617
+    },
+    {
+      "path": "src/utils/contextBudget.ts",
+      "sha256": "f15d1138540e54c06df053076892c4ddb1df0a439eda555ef76d810d3f0cf572",
+      "size": 7327
+    },
+    {
+      "path": "src/utils/dailyReportScheduler.ts",
+      "sha256": "eadd1a6015c65275efe9f2463405f60fe143367f7a935ac0150c8baedcbe474b",
+      "size": 5634
+    },
+    {
+      "path": "src/utils/logger.ts",
+      "sha256": "25e8023dbd5e8f121ed778dd260b5bfb380c5d6b34eb9b6c7f07428ae0e4e273",
+      "size": 2661
+    },
+    {
+      "path": "src/utils/redaction.ts",
+      "sha256": "fba57e1bc7746c70749d154a5a907f648023e2a67c21105a0acb0966038e4f13",
+      "size": 2291
+    },
+    {
+      "path": "src/utils/testPathGuard.ts",
+      "sha256": "3a5a2e9d9c36c8e066769eb0404744533526de6aac49e47d8918c379c87c9dc8",
+      "size": 486
+    },
+    {
+      "path": "src/utils/timezoneScheduler.ts",
+      "sha256": "e3b9e795e57501a83a11f60ca39c70d3ce34d03e41f395fe14621e9f098ac8da",
+      "size": 3235
+    },
+    {
+      "path": "src/utils/whatsappLearningClassifier.ts",
+      "sha256": "995b38e07bf1724b8b42038899557d1200affb7fa3dbdac833c8c2be0202f463",
+      "size": 3534
+    },
+    {
+      "path": "src/workspace_preflight.ts",
+      "sha256": "5cb1b1f59981fb68ad87920de8de4c1855fb386e570a213e0054cc8188d954de",
+      "size": 2127
+    },
+    {
+      "path": "tsconfig.json",
+      "sha256": "bdd813fddcbafc88aaa3b65ddd98d220ed75a18299e5abf18f971729de69777a",
+      "size": 352
+    },
+    {
+      "path": "vitest.config.ts",
+      "sha256": "6ca1dd63b8f07dc684fd960d4b9ecf33135d5c255bd45a4580eccf5f561b6fdc",
+      "size": 231
+    },
+    {
+      "path": "workspace.identity.json",
+      "sha256": "4db557418dcaad79bf29c01788f72ca2a36aee0aa18d338f4f8054de3b35c57b",
+      "size": 423
+    }
+  ],
+  "dist_files": [
+    {
+      "path": "dist/analytics/analyticsService.js",
+      "sha256": "857d3a69274b8a6461a5701a61e2d20014bf164423a86cdc27d107749e936e4c",
+      "size": 12598
+    },
+    {
+      "path": "dist/analytics/analyticsTypes.js",
+      "sha256": "8e609bb71c20b858c77f0e9f90bb1319db8477b13f9f965f1a1e18524bf50881",
+      "size": 11
+    },
+    {
+      "path": "dist/assistant/assistantRun.js",
+      "sha256": "7bbcb3007ce04785cefa672e9dd203c4a1c467133e4ee86ad6e0f7c722f21eea",
+      "size": 4377
+    },
+    {
+      "path": "dist/assistant/openaiAssistantClient.js",
+      "sha256": "1f7427c060efb147b902c7ec075a0828ec2bed18109b2b84b29964bdfdd758a3",
+      "size": 2664
+    },
+    {
+      "path": "dist/behavior/behaviorCanaryEligibility.js",
+      "sha256": "eb9c1f833d873bb27c984f8bc1ee77495c052a32a6da755233579b0c54bc2a7a",
+      "size": 3292
+    },
+    {
+      "path": "dist/behavior/behaviorCanaryObservation.js",
+      "sha256": "a8aeb438e751f56885d4e56935dfd1594e7a7a165a0e4264b88d3359416b150c",
+      "size": 3583
+    },
+    {
+      "path": "dist/behavior/behaviorProfile.js",
+      "sha256": "073266e1f74f902437c6220a13258d7c7c3a6da827e430e36b6e9132eb8ef244",
+      "size": 751
+    },
+    {
+      "path": "dist/behavior/canaryContracts.js",
+      "sha256": "8e609bb71c20b858c77f0e9f90bb1319db8477b13f9f965f1a1e18524bf50881",
+      "size": 11
+    },
+    {
+      "path": "dist/behavior/canaryExecutionGate.js",
+      "sha256": "9a291cc017704cdefb240994ad614449f0936760152192be402acbed4844e694",
+      "size": 982
+    },
+    {
+      "path": "dist/behavior/CanaryGateEvaluator.js",
+      "sha256": "1a5a53a1647965ab86e73da2a720bb33713a92803347ecab424f4db6da020138",
+      "size": 11181
+    },
+    {
+      "path": "dist/behavior/CanaryObservationTracker.js",
+      "sha256": "ac24063fd41476448953723d7af24f58e2ef28b257eda8679dae6588c14af376",
+      "size": 2753
+    },
+    {
+      "path": "dist/behavior/contextBuilder.js",
+      "sha256": "31beede12601607a7641c537a2b7da4db4de8128d3ff1455706163cf558011cd",
+      "size": 10147
+    },
+    {
+      "path": "dist/behavior/conversationalQuality.js",
+      "sha256": "2762c3395d64ff105c3d57b69cde8769968ea10f8d9cbb845c85e8fc78046f6b",
+      "size": 12090
+    },
+    {
+      "path": "dist/behavior/conversationStateService.js",
+      "sha256": "157af4f202bfdd09a6ab9fb9c9736e654ea1dbdd0cf64d8a1d0c2aac2dd893e7",
+      "size": 14514
+    },
+    {
+      "path": "dist/behavior/goldenConversations.js",
+      "sha256": "dad4ca4518434b286aa23d896aef3020a7ea5cc23f1f55df67584bc1405eabd7",
+      "size": 14686
+    },
+    {
+      "path": "dist/behavior/qualityRewrite.js",
+      "sha256": "94a65e15387335153d604d608b69c2ee1f34f01af05702575176afeff06878f3",
+      "size": 6047
+    },
+    {
+      "path": "dist/behavior/responsePlanner.js",
+      "sha256": "c49cb1327beb017bb047c0030db02caa308f7bf363722fe9761e26e8e6f9f6ef",
+      "size": 4704
+    },
+    {
+      "path": "dist/behavior/types.js",
+      "sha256": "8e609bb71c20b858c77f0e9f90bb1319db8477b13f9f965f1a1e18524bf50881",
+      "size": 11
+    },
+    {
+      "path": "dist/bridge/answerPlan.js",
+      "sha256": "9ebc2789d17657313427e028fda8b9dd8405099f0d8e5a3600c9dcacb65fda23",
+      "size": 4433
+    },
+    {
+      "path": "dist/bridge/approvedAppGuard.js",
+      "sha256": "51fa07e4361378933e3c5f77352057502272d83b1319ca81cdce3554b5e4c997",
+      "size": 1472
+    },
+    {
+      "path": "dist/bridge/authorityContext.js",
+      "sha256": "c5c12cb26144a9fa0449ece46683af96d25d502b995cd6020d754c52f1b62a91",
+      "size": 594
+    },
+    {
+      "path": "dist/bridge/buildBackendContext.js",
+      "sha256": "9aeab7a773ac1dfd33a96234f7e834cdd68217fe051f9a54693d2dcfb7efbb94",
+      "size": 6634
+    },
+    {
+      "path": "dist/bridge/bundleBuilder/bundleBuilder.js",
+      "sha256": "a5f66eaba9fcc50a0e3b9605719fc0e25c4dacfe2d9b7e5c6ba22c7ac70abf96",
+      "size": 1778
+    },
+    {
+      "path": "dist/bridge/bundleBuilder/types.js",
+      "sha256": "8e609bb71c20b858c77f0e9f90bb1319db8477b13f9f965f1a1e18524bf50881",
+      "size": 11
+    },
+    {
+      "path": "dist/bridge/candidateIntakeStateMachine.js",
+      "sha256": "16a0f1271c0cf2c96f8def92195a0b1120e2d42d3764dc58f2336c239af7de3a",
+      "size": 16714
+    },
+    {
+      "path": "dist/bridge/dailyOwnerReport.js",
+      "sha256": "172984b9d2f72067c9c52de8fbf690041926c9ed651bd2679f8eecadb17645f8",
+      "size": 8281
+    },
+    {
+      "path": "dist/bridge/dashboardHtml.js",
+      "sha256": "34ed920840232671c6a8f9b142beff4536be7ada18d3c8f4069b36c624932bba",
+      "size": 68913
+    },
+    {
+      "path": "dist/bridge/dashboardRoutes.js",
+      "sha256": "372c830c00498e66b9fa3016e27d52f87829d7c04349100712f46331607fbf63",
+      "size": 68330
+    },
+    {
+      "path": "dist/bridge/evolutionWebhook.js",
+      "sha256": "14d715a2d4167dac1f528f6c42c77c3738f31994884512d67c120174b077f1d0",
+      "size": 2995
+    },
+    {
+      "path": "dist/bridge/followUpQueue.js",
+      "sha256": "a87dfb2e98d210b7123f8884617ef124b0b5284bba9477918f7091376085aa9d",
+      "size": 12682
+    },
+    {
+      "path": "dist/bridge/handleIncomingMessage.js",
+      "sha256": "3c2bf130662e8a01c41c849f90d7e9e06554a134accc093127dc9e0164dd6e40",
+      "size": 45985
+    },
+    {
+      "path": "dist/bridge/ingestion/classifier.js",
+      "sha256": "f6d762e9e24a25e6eeced16e590a4af35e0d2f62e2faebf602499ff87ff44bd6",
+      "size": 1507
+    },
+    {
+      "path": "dist/bridge/ingestion/ingestPipeline.js",
+      "sha256": "a19ef1c88db7d5a8e8ee16438c886172eb0d902129ba8be2a09bd221a74a363e",
+      "size": 2825
+    },
+    {
+      "path": "dist/bridge/ingestion/sanitizer.js",
+      "sha256": "17cdb95e647cdfb88e5373b3aede54a755f3c81945e3768de174fdc4d24a7c50",
+      "size": 1258
+    },
+    {
+      "path": "dist/bridge/knowledgeBundle.js",
+      "sha256": "ed6d7efacd8c2409bf57d0070acd68d8862a0a20bbab7bc7344a68ab02139b4e",
+      "size": 8870
+    },
+    {
+      "path": "dist/bridge/knowledgePublish.js",
+      "sha256": "9720b0fd890e9e9b378e4f49c8c800dc91b6e4c2baae5e6b3dcd6a923a2009f6",
+      "size": 12005
+    },
+    {
+      "path": "dist/bridge/knowledgeSync.js",
+      "sha256": "32ed7a93497b39a49891e0d77a7d01d00a491f21e1091e72ae050552257aec08",
+      "size": 15023
+    },
+    {
+      "path": "dist/bridge/learningReview.js",
+      "sha256": "903ac6be8c1b5b0b500c4640687f8a34cf7f92f8b6c260af5828eb9b0db577d6",
+      "size": 5829
+    },
+    {
+      "path": "dist/bridge/modelRoutingPolicy.js",
+      "sha256": "aac841a7d202e761ed68b8405d47bcc419a95d3dd9abce5deb85f8c7c07345ff",
+      "size": 356
+    },
+    {
+      "path": "dist/bridge/modeRouter.js",
+      "sha256": "eb24ffc3f2a2949e38bacc7386f88d95270b7e21442ee3adbb70518a67e8ee43",
+      "size": 3782
+    },
+    {
+      "path": "dist/bridge/normalizeEvolutionMessage.js",
+      "sha256": "8351059cd49ee3a4dff4c3722d5aaa7ee7073274453b9bd4a51c90a8dd045fff",
+      "size": 10644
+    },
+    {
+      "path": "dist/bridge/openaiFileSearchPublisher.js",
+      "sha256": "f4549750431d94d81398baaafb2009aca7339c3210e246aa785375291400333e",
+      "size": 6161
+    },
+    {
+      "path": "dist/bridge/ownerCommands.js",
+      "sha256": "3f9c33775c1e0819b43d91e6c38aebcf6c3434c10576232e65a7be0221825379",
+      "size": 4808
+    },
+    {
+      "path": "dist/bridge/ownerReport.js",
+      "sha256": "55f70aeecb06b5aa050c1e87a1164a08e77cf30e949c51e571bf9db96272ecfc",
+      "size": 10746
+    },
+    {
+      "path": "dist/bridge/reviewPublishDryRun.js",
+      "sha256": "afc4a530eb841f7abde90db4d3119e15ce0e3076559dba5460e0f7d6abb6b098",
+      "size": 11173
+    },
+    {
+      "path": "dist/bridge/reviewRoutes.js",
+      "sha256": "658a186df63e754b6a38bd7af176f151785a04741ef186522dfcd41d2e411cc8",
+      "size": 12295
+    },
+    {
+      "path": "dist/bridge/sendTextMessage.js",
+      "sha256": "ebddbc50ef487576831b9252f20db0ee697307b2d7189e74e1697ae6ab7ff14d",
+      "size": 1062
+    },
+    {
+      "path": "dist/bridge/sourceIntegrity.js",
+      "sha256": "e935755974d21fee91638098c8ddd8328e906fcced49fd1106ed6b86745a1558",
+      "size": 4530
+    },
+    {
+      "path": "dist/bridge/whatsappVisualContextProcessor.js",
+      "sha256": "01c86f738e3a048d974ef9e4c88e023da86ca6e472c5fba9f5be703a16eb0e8f",
+      "size": 14359
+    },
+    {
+      "path": "dist/bridge/zipIngestion/detection.js",
+      "sha256": "304b5db6798d3dea03bce65d282aec42ca5649e122d073a1504ef8771a9be516",
+      "size": 1514
+    },
+    {
+      "path": "dist/bridge/zipIngestion/mediaDownloader.js",
+      "sha256": "e279a74d475cf3893b152dcf0346c3f29cd1bb71af6a8778ae20fde5704dfbee",
+      "size": 2086
+    },
+    {
+      "path": "dist/bridge/zipIngestion/pipeline.js",
+      "sha256": "5379e4d2d47f15ced473d78748a5e81e2dc1a96d1b75d79b0e58600ab4efee91",
+      "size": 16947
+    },
+    {
+      "path": "dist/bridge/zipIngestion/store.js",
+      "sha256": "28122b8900d8529aa632ee8509c80ae1ae6fe7eec2920f16eb8a3926fcd750ca",
+      "size": 3171
+    },
+    {
+      "path": "dist/bridge/zipIngestion/types.js",
+      "sha256": "8e609bb71c20b858c77f0e9f90bb1319db8477b13f9f965f1a1e18524bf50881",
+      "size": 11
+    },
+    {
+      "path": "dist/config/env.js",
+      "sha256": "ba95d45e2d680e08ffe99db3e6b7e41df180c29672d18797858c089afa3eeac8",
+      "size": 5392
+    },
+    {
+      "path": "dist/config/envValidator.js",
+      "sha256": "b9bdd8ea32e03edddad92e0006b2da255a44eda6800b8940e8fec3c0c0235dea",
+      "size": 2092
+    },
+    {
+      "path": "dist/config/roles.js",
+      "sha256": "6156aa842e6d0656f1f8f1a0c0f10f8dd8aa3b3a0b7407ca89c447a6244ca927",
+      "size": 1216
+    },
+    {
+      "path": "dist/config/versions.js",
+      "sha256": "c34af92dd1c784043eb26eba78055de5224e503a1aefbf9de70fca90bb933095",
+      "size": 114
+    },
+    {
+      "path": "dist/connectors/importService.js",
+      "sha256": "4a8a6c8344b9340b6d92d20812657e52a4d85ed8bfa35749c33cb744fa0495cf",
+      "size": 2802
+    },
+    {
+      "path": "dist/connectors/normalizeLayer.js",
+      "sha256": "284978cd6a6d26fce7193ca74924b9647d5162751e0247757fe9c7422664f9c5",
+      "size": 8031
+    },
+    {
+      "path": "dist/connectors/types.js",
+      "sha256": "8e609bb71c20b858c77f0e9f90bb1319db8477b13f9f965f1a1e18524bf50881",
+      "size": 11
+    },
+    {
+      "path": "dist/contracts/assistantResponseContract.js",
+      "sha256": "736522f7b73331f5805de3a7415081aec5f9d67bcf8f81b93a9f08f21d4842d2",
+      "size": 3856
+    },
+    {
+      "path": "dist/contracts/backendContextPayload.js",
+      "sha256": "8e609bb71c20b858c77f0e9f90bb1319db8477b13f9f965f1a1e18524bf50881",
+      "size": 11
+    },
+    {
+      "path": "dist/intelligence/candidate/CandidatePolicyResolver.js",
+      "sha256": "6ab0fe8af0f283725932552593a84ee1746da4c652a754a1aae4f0efd6d43a86",
+      "size": 3638
+    },
+    {
+      "path": "dist/intelligence/candidate/StatePatchValidator.js",
+      "sha256": "07499976367251b7669fe3362a996905a8d23169ec8f3cceb4235e1a57365ee6",
+      "size": 2131
+    },
+    {
+      "path": "dist/intelligence/conversation/AllowedActionResolver.js",
+      "sha256": "9d8ad63c264147745b72ab6ee57771c48930a8ef5787f7349181d16931413617",
+      "size": 1831
+    },
+    {
+      "path": "dist/intelligence/conversation/ConversationContextBuilder.js",
+      "sha256": "4f2273c211d56dd042d7a3b14a0ac48a095fdbd085c7ef3c0e94479b8c54b572",
+      "size": 4111
+    },
+    {
+      "path": "dist/intelligence/conversation/ConversationDecisionEngine.js",
+      "sha256": "ef9a34420a3a402fa1b003e7890c71313a7d5b26de7da2f69e1656133f06ea5b",
+      "size": 14402
+    },
+    {
+      "path": "dist/intelligence/conversation/ConversationDecisionRepair.js",
+      "sha256": "2566dc76988191c43a2dc678266e0c27ad4215adaf3849b0a82d5aad2d70aafc",
+      "size": 5766
+    },
+    {
+      "path": "dist/intelligence/conversation/ConversationDecisionSchema.js",
+      "sha256": "8e609bb71c20b858c77f0e9f90bb1319db8477b13f9f965f1a1e18524bf50881",
+      "size": 11
+    },
+    {
+      "path": "dist/intelligence/conversation/ConversationDecisionV3Schema.js",
+      "sha256": "9d741c6f0a6b74013965ef9613f9e4668b59d774d12d5d3790b22a11fb29eed5",
+      "size": 11164
+    },
+    {
+      "path": "dist/intelligence/conversation/ConversationDecisionV3SemanticValidator.js",
+      "sha256": "d5152c4f95d99fed20c772e081ff6f107a2f9e4660e0741eb1eab4f853763990",
+      "size": 12067
+    },
+    {
+      "path": "dist/intelligence/conversation/ConversationDecisionValidator.js",
+      "sha256": "4242c0fc3b4824229601a3ded0fa1e46571d6e426a8444ba5a06616d4e94620e",
+      "size": 4966
+    },
+    {
+      "path": "dist/intelligence/conversation/DecisionTraceRecorder.js",
+      "sha256": "59cfdd6087db64f2234d27047624036a03c6692611bcff505d5dc92b63895dae",
+      "size": 1241
+    },
+    {
+      "path": "dist/intelligence/quality/SemanticQualityGuard.js",
+      "sha256": "8b43d21da6bbb1bf4db9721630cb9c5e32242b3d863296bc0d0517af077a1a10",
+      "size": 5909
+    },
+    {
+      "path": "dist/modelAdapter/AssistantAdapter.js",
+      "sha256": "d51990fd1582f04b3482d89dfadf5c97db64a42ab81b8ccf9424ce17f766813e",
+      "size": 1676
+    },
+    {
+      "path": "dist/modelAdapter/IModelAdapter.js",
+      "sha256": "8e609bb71c20b858c77f0e9f90bb1319db8477b13f9f965f1a1e18524bf50881",
+      "size": 11
+    },
+    {
+      "path": "dist/modelAdapter/modelAdapterFactory.js",
+      "sha256": "c14855bde8daf68688f325803ec5e649468198340a3e2013e32318defd8f1cc3",
+      "size": 179
+    },
+    {
+      "path": "dist/modelAdapter/modelAdapterSelection.js",
+      "sha256": "874c891a0819a963f6d906d33d122e3954031ba097c433d1ec7fed3fc0775330",
+      "size": 1958
+    },
+    {
+      "path": "dist/modelAdapter/modelExecutionErrors.js",
+      "sha256": "b9fb13411e0853a983d6332e4f2d069a0a0feef52700ef36eb4ba744e09b5fd3",
+      "size": 3084
+    },
+    {
+      "path": "dist/modelAdapter/modelExecutionService.js",
+      "sha256": "3a90e212723847d7251be04f53e29fbeeb5bce2375d842822ab5f1431c5ada5c",
+      "size": 11626
+    },
+    {
+      "path": "dist/modelAdapter/ResponsesAdapter.js",
+      "sha256": "172bd2684b01b5e3eab255f7c415850203d1b56c76d02de66eecb68e9010ad0e",
+      "size": 4230
+    },
+    {
+      "path": "dist/modelAdapter/responsesDecisionPrompt.js",
+      "sha256": "d8f1846a1578245fdf46838e209298860415d2cb5e7d7ee9d625441eab00c260",
+      "size": 5322
+    },
+    {
+      "path": "dist/modelAdapter/responsesGoldenReplay.js",
+      "sha256": "2e22e953c4488a005bb4b4498908c5a129f6d49a5137cd518530854c12f13ce1",
+      "size": 17981
+    },
+    {
+      "path": "dist/modelAdapter/responsesShadowService.js",
+      "sha256": "d028577707bf9f13caa21442a17b5ff4f6aee7334a8e0528d535c01dbcb62d50",
+      "size": 7662
+    },
+    {
+      "path": "dist/modelAdapter/types.js",
+      "sha256": "8e609bb71c20b858c77f0e9f90bb1319db8477b13f9f965f1a1e18524bf50881",
+      "size": 11
+    },
+    {
+      "path": "dist/observability/connectionHealthMonitor.js",
+      "sha256": "4bb12a0f555f9a212b46e306224cd2f62732f56996b3b7f9b5abb0360dd50561",
+      "size": 10490
+    },
+    {
+      "path": "dist/observability/correlation.js",
+      "sha256": "721d9f70ec5eb729ca9b35a58cf026bf8f0d89d279e98688a736f9fb09c60404",
+      "size": 119
+    },
+    {
+      "path": "dist/observability/logger.js",
+      "sha256": "d89b3ff3e021fe66195e5416fd8dc3f0752aa732b2728b5d4dea69a399ce039e",
+      "size": 547
+    },
+    {
+      "path": "dist/observability/migrationReadiness.js",
+      "sha256": "5358976b2fef3e6710e1c24574335ad3f4e5a684ac6e9d43da696f817b6e07f5",
+      "size": 1064
+    },
+    {
+      "path": "dist/queue/userRunLock.js",
+      "sha256": "f92f0eb67b1174e263e5017ed570b0ce643b5612d59ce55ab3f70f056ae63a21",
+      "size": 634
+    },
+    {
+      "path": "dist/reliability/inMemoryReliabilityQueueStore.js",
+      "sha256": "17ced713007933872e7dc9e50b2cf243a05343799e9112f9f79c6496e4c65509",
+      "size": 5205
+    },
+    {
+      "path": "dist/reliability/postgresQueueSchema.js",
+      "sha256": "eebc005c52873e52561de0bad56646854487736ac11834d0c253629dd24cf078",
+      "size": 2503
+    },
+    {
+      "path": "dist/reliability/publishSnapshot.js",
+      "sha256": "fc1ae213bbd843a9796d76a0e44e507dfa70f224dee6e0354e90edb105ee0caf",
+      "size": 532
+    },
+    {
+      "path": "dist/reliability/queueModes.js",
+      "sha256": "9a716cd7706f6261ef78555ca58e9fdc0486a923b2617fdc7cb47c808464d46f",
+      "size": 372
+    },
+    {
+      "path": "dist/reliability/queueMonitoring.js",
+      "sha256": "a160389f984851d4bec0cd6f940db3dd941a746c7c9b7c1f23b080fe0ba1cc9b",
+      "size": 970
+    },
+    {
+      "path": "dist/reliability/queueTypes.js",
+      "sha256": "8e609bb71c20b858c77f0e9f90bb1319db8477b13f9f965f1a1e18524bf50881",
+      "size": 11
+    },
+    {
+      "path": "dist/reliability/queueWorker.js",
+      "sha256": "5ce16396bba58934fd5b7a7c9dacf32bac92f54b2b30441023cb5893c63e90af",
+      "size": 2964
+    },
+    {
+      "path": "dist/reliability/shadowQueue.js",
+      "sha256": "c41d277103763f4ea5ae5c226c65708a63ff094e5fe8e4bc9e5c6df119accde5",
+      "size": 3279
+    },
+    {
+      "path": "dist/server.js",
+      "sha256": "ed10b16e3e4f2961a8e60e49afb1d24381c1204fff7138ceb830f97c21132abf",
+      "size": 15417
+    },
+    {
+      "path": "dist/storage/ingestionJobStore.js",
+      "sha256": "22447f969c796dd0f51d89073047f8d7347a303b6a3cd0c4d5f77a29e0540230",
+      "size": 2702
+    },
+    {
+      "path": "dist/storage/ingestionStore.js",
+      "sha256": "1129a33d88e6f89b302fcad6ecc03abec755e754b226a6cec5ca0cd657a1a298",
+      "size": 7663
+    },
+    {
+      "path": "dist/storage/ingestionTypes.js",
+      "sha256": "8e609bb71c20b858c77f0e9f90bb1319db8477b13f9f965f1a1e18524bf50881",
+      "size": 11
+    },
+    {
+      "path": "dist/storage/memoryStore.js",
+      "sha256": "9c05697b8a288838b459f59e767a752b7fb8a4a7fb091ade07ffd32abf875e6a",
+      "size": 1527
+    },
+    {
+      "path": "dist/storage/messageDedupeStore.js",
+      "sha256": "b950ae10987e5c58cfa42721fc9773b97bc9aff7a9ae19a0864a064d5a219126",
+      "size": 564
+    },
+    {
+      "path": "dist/storage/normalizedMessageStore.js",
+      "sha256": "72b8802a198d60bb5cb13df6e9d63d795b54d713b597ec0dfebbe6683f8ccea8",
+      "size": 1791
+    },
+    {
+      "path": "dist/storage/persistentJsonStore.js",
+      "sha256": "b818018798d27100a5996a2fabbb907cd3b16b132a5c8d564862ce2e9101bb88",
+      "size": 26035
+    },
+    {
+      "path": "dist/storage/threadStore.js",
+      "sha256": "5fce064a98131b57f2f91d0cc53ea26806c4a073e3f8e571914739ae8e4f0e34",
+      "size": 461
+    },
+    {
+      "path": "dist/storage/types.js",
+      "sha256": "be94dcd34d849da3e14b816c231f65e2d26d3648f892537ccb61f2e57ab9b963",
+      "size": 545
+    },
+    {
+      "path": "dist/storage/userStateTransitionBoundary.js",
+      "sha256": "01ca1696f46f7ca888923615f1cda8ac8b0798e7feab0261b6f109b75abace77",
+      "size": 1574
+    },
+    {
+      "path": "dist/store/actionAuditStore.js",
+      "sha256": "3c9062c201ad2c6b3170e1e276b151ce1a2c432b33f613c9351981da8d0d86e5",
+      "size": 2168
+    },
+    {
+      "path": "dist/store/maintenanceStore.js",
+      "sha256": "8ae8b0e608b035ac2c596b88950f8415d6a0e0a6d90fbfee49dd32df51473957",
+      "size": 1033
+    },
+    {
+      "path": "dist/store/scheduledReportStore.js",
+      "sha256": "fe08982d4f64fa10d048a237e4ff9b3605d5570245cb7c7fa3035700d868f44c",
+      "size": 3472
+    },
+    {
+      "path": "dist/store/socialLeadStore.js",
+      "sha256": "8e02b904469fded713b2cc57417bec1a3335689904dc674dbe42aedaffc9cbc0",
+      "size": 5076
+    },
+    {
+      "path": "dist/store/whatsappLearningStore.js",
+      "sha256": "a0cb44bc78e9404fbb65c282f68ec70fae038c0c717136b82c0b5f6aea742534",
+      "size": 2154
+    },
+    {
+      "path": "dist/store/whatsappVisualResearchStore.js",
+      "sha256": "26f7d5fbdb0d87c581d2dae1441d671298c2e69df3f52f0e500d5c4617006df7",
+      "size": 3173
+    },
+    {
+      "path": "dist/tests/analyticsPerformanceDashboard.test.js",
+      "sha256": "88ecff626b8ef63273f3a6b2d3ab7beaabdd0b70db31f8c205458f8da552b527",
+      "size": 3950
+    },
+    {
+      "path": "dist/tests/approvedAppGuard.test.js",
+      "sha256": "ccf71e3405cc1373dfe4933b5a5b1470893eba429720211285c2146de0473021",
+      "size": 1618
+    },
+    {
+      "path": "dist/tests/architecture/architectureSeal.test.js",
+      "sha256": "8bf63f22ac9cde2df251061663c29cda4b3bacf08f97b65939907c4d79ef5848",
+      "size": 11667
+    },
+    {
+      "path": "dist/tests/architecture/package07Reconciliation.test.js",
+      "sha256": "ae9cc2cc68d160264cc5206ed991eee546b019d9a32f89e90b3185d946e2094c",
+      "size": 4398
+    },
+    {
+      "path": "dist/tests/architecture/package08ContractCompletion.test.js",
+      "sha256": "b5a2a4d4fa5f15c0fbd2819daa0dbabf222a3587a0d4bfa1eb162b1300258728",
+      "size": 2288
+    },
+    {
+      "path": "dist/tests/assistantContextBudget.test.js",
+      "sha256": "874a1b3210c137383dc56144bf625206e95b240a73118f612561f47a19e90450",
+      "size": 3234
+    },
+    {
+      "path": "dist/tests/assistantResponseContract.test.js",
+      "sha256": "bf3eb791781c4ae0d4e6fc6176201321b70f56e8142349c3f3bb0a6ed04a4cf5",
+      "size": 2525
+    },
+    {
+      "path": "dist/tests/behaviorCanaryEligibility.test.js",
+      "sha256": "8950debae14237ee8de7a4b75aea7a390a6f7f491b84f56435dc3a9fc6d0bc71",
+      "size": 4979
+    },
+    {
+      "path": "dist/tests/behaviorCanaryTakeover.test.js",
+      "sha256": "9d73b8fcc457279cce526f783a79eb4d2499e5d4366fdcd15b6b12050bc2410e",
+      "size": 9788
+    },
+    {
+      "path": "dist/tests/behaviorFeatureFlag.test.js",
+      "sha256": "9b3c77be646c3826397162e802a2220e3538e73004d9c37cd868564d4fa3dd95",
+      "size": 19697
+    },
+    {
+      "path": "dist/tests/behaviorInternalCanaryObservability.test.js",
+      "sha256": "3870fe26bf5a2b707b70518f3b6cbe2523dee60a8b40f7c3469886ad1fcfc88c",
+      "size": 11585
+    },
+    {
+      "path": "dist/tests/behaviorProfile.test.js",
+      "sha256": "0797fd5792df2e7f5f1a0162f053029dc9fd63d4e75ffbfd2f45f0cce987a122",
+      "size": 1268
+    },
+    {
+      "path": "dist/tests/buildBackendContext.test.js",
+      "sha256": "23cef3c91eea85ca4f85179653b6cafa764c23f6774431e3e22acada37faaa2f",
+      "size": 3872
+    },
+    {
+      "path": "dist/tests/buildProvenance.test.js",
+      "sha256": "ab1c1522dc098efdd062ae38dee22217bda5c5527fd31607824d212062319a53",
+      "size": 4260
+    },
+    {
+      "path": "dist/tests/candidateIntakeRegression.test.js",
+      "sha256": "44ac01ffef0b552203a4ddb257bc9ac5dfb3deb80611ea17eeeba04db5b8ec58",
+      "size": 4109
+    },
+    {
+      "path": "dist/tests/candidateIntakeStateMachine.test.js",
+      "sha256": "daa676f1e20f373932d606641f8cd954169f545071dbbad3064762af9831853e",
+      "size": 12216
+    },
+    {
+      "path": "dist/tests/connectionDoctorRoute.test.js",
+      "sha256": "09cb9cda9858c0b596bb52071a441cbe79a1b18897508364be4e0963337bac85",
+      "size": 8576
+    },
+    {
+      "path": "dist/tests/connectionHealthMonitor.test.js",
+      "sha256": "f219ee75ec89b1480bfdbcf52497143b7a45a4ba5ba57403d5a89c1bebfbccab",
+      "size": 4837
+    },
+    {
+      "path": "dist/tests/connectorDashboardSummary.test.js",
+      "sha256": "d126b01dc7f596c881528118032e3c564084866e80a33fe6e7d1989a5c86991c",
+      "size": 4865
+    },
+    {
+      "path": "dist/tests/contextBudgetBehavior.test.js",
+      "sha256": "d75199077d378b9ac69c8de75b074fd51ae74dc4731b3fce62df5ce20398751c",
+      "size": 3442
+    },
+    {
+      "path": "dist/tests/contextBuilder.test.js",
+      "sha256": "8570e6a76bb78a3af4ed7228a83ba49c443f8cf916f725ef4d0ae95ea5e9c3f8",
+      "size": 6804
+    },
+    {
+      "path": "dist/tests/conversationalQualityContract.test.js",
+      "sha256": "8a1af585a8c492c36435f08e94156cb20a2453d7bd4c4769203204c8b015a77a",
+      "size": 7158
+    },
+    {
+      "path": "dist/tests/conversationDecisionV2.test.js",
+      "sha256": "32139085d087e319a12ffcfd48baa3e8b3db7ecd8221acbef14d775ccdd79342",
+      "size": 15735
+    },
+    {
+      "path": "dist/tests/conversationDecisionV2Certification.test.js",
+      "sha256": "ec3b4d4a80a2d75c6cc0bae4c5dc7ce0e462b9780b16026a5244c4cb9f0e55b4",
+      "size": 28354
+    },
+    {
+      "path": "dist/tests/conversationDecisionV3Schema.test.js",
+      "sha256": "28e3d355b159e3a04e03a9f958b70bcc68af2130e30099f1f001328ff182e7ce",
+      "size": 7317
+    },
+    {
+      "path": "dist/tests/conversationDecisionV3SemanticValidator.test.js",
+      "sha256": "9ca8908af931e3a42eb0be5156cac8f55d08449f08953494dd8ef3529254649d",
+      "size": 9644
+    },
+    {
+      "path": "dist/tests/conversationStateService.test.js",
+      "sha256": "039f06d2f09ede6be3d1ade3810ddc9613af66e65a05748a769a54173a66137d",
+      "size": 7196
+    },
+    {
+      "path": "dist/tests/dailyOwnerReport.test.js",
+      "sha256": "a7b1545539debdb0a840717e16727ef2fcdb78d1b481220dd0b166f03e648871",
+      "size": 3969
+    },
+    {
+      "path": "dist/tests/dashboard.test.js",
+      "sha256": "1092f03b5ad0942761c9caa267cc8470da396adef90b7f64b67bc85e39815ff1",
+      "size": 4881
+    },
+    {
+      "path": "dist/tests/dashboardActions.test.js",
+      "sha256": "f08610f517977b9339675f23080e3f4dc07ff48930336fac1c953bc5b815c57c",
+      "size": 12142
+    },
+    {
+      "path": "dist/tests/evolutionWebhook.test.js",
+      "sha256": "a889180d2d86c29ace328e0b53ecdb2b99042037a8867d829dec084d25f6c31c",
+      "size": 12688
+    },
+    {
+      "path": "dist/tests/followUpQueue.test.js",
+      "sha256": "a1e6e96254240f33f62ef42dd8e54b0d58e86c31b656024f7c02e3ed72f51a3d",
+      "size": 8973
+    },
+    {
+      "path": "dist/tests/goldenBadWhatsappCases.test.js",
+      "sha256": "5b6879825bf7e923148a7fc3237c5e1c7580f12e9a1d11c245e25f75b158b1e7",
+      "size": 2299
+    },
+    {
+      "path": "dist/tests/goldenConversations.test.js",
+      "sha256": "8b69dfb564dc8535ee09159e5b841c5119a73363c33b1f505c8e75376e6136e4",
+      "size": 3326
+    },
+    {
+      "path": "dist/tests/groupOperations.test.js",
+      "sha256": "46177012e01dcdd3b8b1208541e78a27c7778851d15e6ea835204e226df86eea",
+      "size": 6537
+    },
+    {
+      "path": "dist/tests/handleIncomingMessage.test.js",
+      "sha256": "b6cebeaef7d4e0b0561367d1398c2d8136b78e4b649c544c301ac84dc322ba3f",
+      "size": 21167
+    },
+    {
+      "path": "dist/tests/ingestion.test.js",
+      "sha256": "d9dfc23395a4560f05ad6e0ac7b3c9674e81c99afcfe46419c20a50d9a4e2536",
+      "size": 5978
+    },
+    {
+      "path": "dist/tests/ingestionLearningIntegration.test.js",
+      "sha256": "5724b75559306d26d171c1dbc5f56f725bbd9bcb37720e7b592b9f2c816c9e25",
+      "size": 6498
+    },
+    {
+      "path": "dist/tests/ingestionStore.test.js",
+      "sha256": "1464135d1d9e4331530bfd098ba6c1bc25cbae1d1aea374f084062a38bee0de0",
+      "size": 4503
+    },
+    {
+      "path": "dist/tests/knowledgePublish.test.js",
+      "sha256": "4717a431d9901d6d8a2b9187dd915abb1cb2e94b8dde577e7602ecf39d53f0da",
+      "size": 7085
+    },
+    {
+      "path": "dist/tests/knowledgeSync.test.js",
+      "sha256": "b69a08a20e69b4d2cf8bd5c45889b3f2f3a418e8da9bde910be6230ad70c8a1e",
+      "size": 6082
+    },
+    {
+      "path": "dist/tests/learningReview.test.js",
+      "sha256": "daab1988a81af6c03a43ac5cb4771c79d1bbd2c8a8a893aee38c4581d65fed16",
+      "size": 8224
+    },
+    {
+      "path": "dist/tests/migrationReadinessHardening.test.js",
+      "sha256": "f48e3e448238cc5b561f556150a9fe6f0dd3741a6b711089d42ba056155ba3b2",
+      "size": 8855
+    },
+    {
+      "path": "dist/tests/modelAdapter/adapterReplayHarness.test.js",
+      "sha256": "4decf62421cdb6b442635489980f65e1e8c358048bd5ffbc19cf557a793c4a47",
+      "size": 10978
+    },
+    {
+      "path": "dist/tests/modelAdapter/adapterScopedFlag.test.js",
+      "sha256": "3b7d825df3afa645050f52e0dd8dfe66e1d2d054118f9dc8ce719a7066e8c361",
+      "size": 4142
+    },
+    {
+      "path": "dist/tests/modelAdapter/assistantAdapter.contract.test.js",
+      "sha256": "1b31890f37f5c72571443625752ab42bfc9a1981f8fd49b9b015392f8eb8abac",
+      "size": 5912
+    },
+    {
+      "path": "dist/tests/modelAdapter/modelAdapter.contractSuite.test.js",
+      "sha256": "096802e033b8d739862f63361391371b2d1e4f2973d177f65047127478297248",
+      "size": 12332
+    },
+    {
+      "path": "dist/tests/modelAdapter/modelAdapterFactory.test.js",
+      "sha256": "c9c12372592fef0b651949880bb450fff9608f0d21a74871e6fbfef4a98885c3",
+      "size": 1950
+    },
+    {
+      "path": "dist/tests/modelAdapter/modelExecutionResilience.test.js",
+      "sha256": "c7e522c2b71ec84067db17882ba38efc84a62c2ca4136fb7c032a7a783e6a908",
+      "size": 3351
+    },
+    {
+      "path": "dist/tests/modelAdapter/modelExecutionService.selection.test.js",
+      "sha256": "4ec88e555ec6b635530201990b63163992db41032b0d6a8453baafd0356a1fc7",
+      "size": 9129
+    },
+    {
+      "path": "dist/tests/modelAdapter/responsesAdapter.contract.test.js",
+      "sha256": "070ff512ec12d6b211e9a361dec40abe6b926fdc9c8aa4cb9074ae715e62e2d9",
+      "size": 7691
+    },
+    {
+      "path": "dist/tests/modelAdapter/responsesDecisionPrompt.test.js",
+      "sha256": "97b4aa5b6434ca9c333f1965c73c45aeed2ace484bcdead65df29fdf371810fb",
+      "size": 3548
+    },
+    {
+      "path": "dist/tests/modelAdapter/responsesGoldenReplay.test.js",
+      "sha256": "85d8d2cd6e618adad5b02eaab86ebf9ee29316dc2bf458fb4f82593cb2fc831b",
+      "size": 6720
+    },
+    {
+      "path": "dist/tests/modelAdapter/responsesShadowService.test.js",
+      "sha256": "88f8f9f81560676f557559f5dae50abae4114a3a3cd149e63610907b24cd01a2",
+      "size": 11560
+    },
+    {
+      "path": "dist/tests/modelExecutionEnv.test.js",
+      "sha256": "8a18b3eafc358778e22b02f77d1a7160fe1e790f395b3df604534f771c2d7328",
+      "size": 4372
+    },
+    {
+      "path": "dist/tests/normalizeEvolutionMessage.test.js",
+      "sha256": "01c752af6f616fe170fa1c3f0f81db8ea51ccda6e633d8585ac2f1cc24737ee8",
+      "size": 6022
+    },
+    {
+      "path": "dist/tests/openaiAssistantClient.test.js",
+      "sha256": "d5edb2a4d681f677551ef39b4bc7b07af7e901a94a0acc421487222ed39a3a89",
+      "size": 1433
+    },
+    {
+      "path": "dist/tests/ownerReport.test.js",
+      "sha256": "85305ef18bef6ec78555038758a1350c8c7e1e13886b5983e1f64016cf26c1c7",
+      "size": 5916
+    },
+    {
+      "path": "dist/tests/persistentJsonStore.test.js",
+      "sha256": "9666019569e236478be2567112b02ff21909ccb976c52beafbf0ccaa55d191b3",
+      "size": 14581
+    },
+    {
+      "path": "dist/tests/platformNormalize.test.js",
+      "sha256": "84c975b35ed4b8f09ddd58536d9d3b704a351f00940facf77de9babdc68b3d8d",
+      "size": 7376
+    },
+    {
+      "path": "dist/tests/productionHardening.test.js",
+      "sha256": "b7418a6d4781f23b0492d033e733628b46456d34f7b4498efdbc573c57137e65",
+      "size": 3559
+    },
+    {
+      "path": "dist/tests/redaction.test.js",
+      "sha256": "792e5a89be1924acd518c0978fbb574ae002b4db7ed39c5055d3229a71baf8c1",
+      "size": 1506
+    },
+    {
+      "path": "dist/tests/reliabilityQueue.test.js",
+      "sha256": "3280743d8da837d07d5911ba08db1110a33712b852ba45e6270addd3235bd215",
+      "size": 3172
+    },
+    {
+      "path": "dist/tests/responsePlanner.test.js",
+      "sha256": "cb47ff8d7d5296b983c70b699f4acac38fdca47cf1df42a3239285c1dcf7d8fd",
+      "size": 3158
+    },
+    {
+      "path": "dist/tests/reviewPublishDryRun.test.js",
+      "sha256": "ce688fca1b85266f1f434fb2fce7c2408519bb7176c0223b478b477957f4d562",
+      "size": 10367
+    },
+    {
+      "path": "dist/tests/reviewRoutes.test.js",
+      "sha256": "bf2fb022de27e77189e3f8f071578d730ce343c36159dc3e05ee4a3e73d99b36",
+      "size": 12438
+    },
+    {
+      "path": "dist/tests/roleResolution.test.js",
+      "sha256": "d71f699adaa42829f5f4792e63f49e3d727f54f1f541deb0409ff93c437059f2",
+      "size": 2057
+    },
+    {
+      "path": "dist/tests/scheduledDailyReports.test.js",
+      "sha256": "69ac02da1a0efd01ae009c882c0a14a5cd8f523b2612990739410c6becd38667",
+      "size": 3324
+    },
+    {
+      "path": "dist/tests/socialPlatformIntake.test.js",
+      "sha256": "e0c27ae2874dfd0d842a74106c8b6d8f9c29301d4642e54ab9f7c092a1ec1404",
+      "size": 4324
+    },
+    {
+      "path": "dist/tests/sourceIntegrity.test.js",
+      "sha256": "d0d520e18d2be1d0cd0e478d5c0dc641e1439f642d1de88c1fd9ac4b380175ea",
+      "size": 6078
+    },
+    {
+      "path": "dist/tests/summarySanitizer.test.js",
+      "sha256": "9f2fde7dbcb1ad00683b17e61aed8f991e192e951372befa82baf1b1001ef5a9",
+      "size": 1227
+    },
+    {
+      "path": "dist/tests/syntheticSpec021.js",
+      "sha256": "b31b24409111c233a339445dc118db8654cf7b7c8223fc904839eee66e215972",
+      "size": 2109
+    },
+    {
+      "path": "dist/tests/syntheticSpec030C.js",
+      "sha256": "9e2ebecd0f1fd69384db8f242fdd7243ebb36211c5cc889c5827d6e843a72c8a",
+      "size": 5222
+    },
+    {
+      "path": "dist/tests/syntheticSpec030CMixedResearch.js",
+      "sha256": "c409d03d608e7640b64ac7bd716f1fe895b7beb3d003790f489df0b407e0f747",
+      "size": 4232
+    },
+    {
+      "path": "dist/tests/syntheticSpec030Recovery.js",
+      "sha256": "55874f4a9c9794cc0866805c5e6d822b7be2ad0174b06bacfcfe3eb908a865cf",
+      "size": 2922
+    },
+    {
+      "path": "dist/tests/testDoubles.js",
+      "sha256": "0c9df0f3d5130c148a5ec9dc385689820051c7689bbaf77b489da724fa6a37e6",
+      "size": 14340
+    },
+    {
+      "path": "dist/tests/whatsappVisualResearch.test.js",
+      "sha256": "f6220dc387a0282b24e3566a1fa36fcfa27085b5ef7e5b3dcf5bd553e11bf17c",
+      "size": 5207
+    },
+    {
+      "path": "dist/tests/workspaceLock.test.js",
+      "sha256": "85e3fbbb7936351d3d4d26e4dfb4abba68cc2269f390b1188a34c75977ca7dc8",
+      "size": 3947
+    },
+    {
+      "path": "dist/tests/zipIngestion.test.js",
+      "sha256": "ab7a3e09141ffba16b7a9f00ea3333151fba1cfaf4a50a90598358fd56c49ed8",
+      "size": 14707
+    },
+    {
+      "path": "dist/utils/backupHelper.js",
+      "sha256": "a6004ff8f7af252b73c193835ede0872c9d4f320db5aa130e753a11a151d4420",
+      "size": 2728
+    },
+    {
+      "path": "dist/utils/contextBudget.js",
+      "sha256": "0ea1835c11ca38520561a91a4b8e3cbc6293ea369e00e380ffc8e008bff35ca4",
+      "size": 7408
+    },
+    {
+      "path": "dist/utils/dailyReportScheduler.js",
+      "sha256": "dbb4f393c3baa13a9348f7d6b6ebf9294a12995fdd304658d77bc5a6ebba50d5",
+      "size": 5760
+    },
+    {
+      "path": "dist/utils/logger.js",
+      "sha256": "378363addffbccb60ad020d0ff8f4126ff2167744b41ff5c280e22d9aeeec98e",
+      "size": 2637
+    },
+    {
+      "path": "dist/utils/redaction.js",
+      "sha256": "be7ac391faab4513fb70de14f7a51aa4b5027803d92d25902035fc277242ff31",
+      "size": 2405
+    },
+    {
+      "path": "dist/utils/testPathGuard.js",
+      "sha256": "29a6af65030e2e31b3a96a113bc70c19b4e32e2c11666e59db134cd332783a26",
+      "size": 483
+    },
+    {
+      "path": "dist/utils/timezoneScheduler.js",
+      "sha256": "436edec2306fdb731b2b98f0249432f2175ee48d8452f3011de4f00e92e7fb54",
+      "size": 2998
+    },
+    {
+      "path": "dist/utils/whatsappLearningClassifier.js",
+      "sha256": "d8de0328278d3d9a140f381b2a7544f1227e800e28151e7c6f2b74f4027a3efc",
+      "size": 3588
+    },
+    {
+      "path": "dist/workspace_preflight.js",
+      "sha256": "9b7ed0c422a2bc1b7e559650fa0d20694dc76f13c190980cea1df5c36757c025",
+      "size": 2267
+    }
+  ],
+  "exclusions": [
+    ".env",
+    "data",
+    "backups",
+    "node_modules",
+    "dist-from-source-hash",
+    "build/provenance"
+  ]
+}

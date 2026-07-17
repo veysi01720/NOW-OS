@@ -1,0 +1,14 @@
+node_modules/
+.env
+.git/
+backups/
+logs/
+temp/
+raw uploads/
+WhatsApp raw zips/
+screenshots/
+coverage/
+*.zip
+*.heic
+*.mp4
+*.jpg

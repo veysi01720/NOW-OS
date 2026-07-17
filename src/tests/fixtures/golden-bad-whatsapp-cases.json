@@ -1,0 +1,72 @@
+[
+  {
+    "scenario_id": "bad_wp_first_contact_repeated_intake",
+    "role": "candidate",
+    "state": "candidate_intake_partial",
+    "user_message_masked": "27 erkek 4",
+    "bad_bot_reply_masked": "Yaşını, cinsiyetini ve günlük kaç saat ayırabileceğini yazar mısın?",
+    "expected_good_reply": "Bilgilerini aldım. Şimdi çalışma modelini netleştirip uygun adıma geçelim.",
+    "why_bad": "Already supplied age, gender, and daily hours were ignored.",
+    "expected_intent": "candidate_intake_update",
+    "expected_next_action": "update_candidate_state",
+    "missing_fields": [],
+    "forbidden_reply_patterns": ["yaşını", "cinsiyetini", "günlük kaç saat"],
+    "should_send_whatsapp_reply": true
+  },
+  {
+    "scenario_id": "bad_wp_unsupported_reference_owner_advice",
+    "role": "owner",
+    "state": "owner_answer_mode",
+    "user_message_masked": "Aday güvenemediğini söylüyor, ne diyelim?",
+    "bad_bot_reply_masked": "Referans paylaşabileceğinizi belirtebilirsiniz.",
+    "expected_good_reply": "Süreci açık anlat, adayın sorularını yanıtla ve karar vermek için acele etmesine gerek olmadığını söyle.",
+    "why_bad": "Reference sharing was offered without grounded permission or verified context.",
+    "expected_intent": "handle_trust_objection",
+    "expected_next_action": "answer_direct_question",
+    "missing_fields": [],
+    "forbidden_reply_patterns": ["referans paylaş", "referans gösterebilirim", "daha önce başlayanlardan referans"],
+    "should_send_whatsapp_reply": true
+  },
+  {
+    "scenario_id": "bad_wp_candidate_facing_reference_offer",
+    "role": "owner",
+    "state": "candidate_message_rewrite",
+    "user_message_masked": "Bunu adaya göndereceğim şekilde tek mesaj yaz.",
+    "bad_bot_reply_masked": "Dilersen daha önce başlayanlardan referans da paylaşabilirim.",
+    "expected_good_reply": "Süreci sana adım adım anlatacağım. Aklına takılan her şeyi rahatça sorabilirsin; önce detayları inceleyip sonra karar verebilirsin.",
+    "why_bad": "Candidate-facing message included an unsupported reference offer.",
+    "expected_intent": "candidate_facing_rewrite",
+    "expected_next_action": "reply_only",
+    "missing_fields": [],
+    "forbidden_reply_patterns": ["referans", "garanti", "kesin güven", "sorun yaşamazsınız"],
+    "should_send_whatsapp_reply": true
+  },
+  {
+    "scenario_id": "bad_wp_repeated_owner_address",
+    "role": "owner",
+    "state": "owner_answer_mode",
+    "user_message_masked": "Üç mesajlık owner yönlendirme oturumu",
+    "bad_bot_reply_masked": "Şef, tamam. Şef, şöyle ilerleyelim.",
+    "expected_good_reply": "Tamam, şöyle ilerleyelim.",
+    "why_bad": "Owner address was repeated and made the answer unnatural.",
+    "expected_intent": "owner_guidance",
+    "expected_next_action": "reply_only",
+    "missing_fields": [],
+    "forbidden_reply_patterns": ["Şef,.*Şef", "Patron,.*Patron"],
+    "should_send_whatsapp_reply": true
+  },
+  {
+    "scenario_id": "bad_wp_text_only_unnecessary_restatement",
+    "role": "owner",
+    "state": "text_only_preference_known",
+    "user_message_masked": "Görüntülüyü istemiyor, sadece mesajlaşma üzerinden ilerleyelim.",
+    "bad_bot_reply_masked": "Görüntülü zorunlu değil, tamamen metin tabanlı çalışabilir; kamera açmadan ilerleyebilir.",
+    "expected_good_reply": "Tamam, bu adayla yalnızca mesajlaşma üzerinden ilerleyelim. Layla uygun.",
+    "why_bad": "The reply repeated known context instead of acknowledging the updated preference briefly.",
+    "expected_intent": "change_preference",
+    "expected_next_action": "update_candidate_state",
+    "missing_fields": [],
+    "forbidden_reply_patterns": ["görüntülü zorunlu değil", "tamamen metin tabanlı çalışabilir"],
+    "should_send_whatsapp_reply": true
+  }
+]

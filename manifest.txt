@@ -1,0 +1,20 @@
+MIGRATION MANIFEST
+
+Data Files Included:
+audit_log.json
+backups
+docs
+ingestion.json
+knowledge_bank
+now-os-store.json
+runtime.lock
+social_leads.json
+temp_test.zip
+test-now-os-store.json
+test-wvr.json
+test_maintenance.json
+test_spec025b
+whatsapp_learning_messages.json
+whatsapp_visual_research.json
+
+Exclusions Applied: .env, logs, secrets

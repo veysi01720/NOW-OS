@@ -1,0 +1,12 @@
+{
+  "workspace_id": "canonical-now-os",
+  "workspace_role": "CANONICAL_PRODUCTION_SOURCE",
+  "production_target": "VPS now_os_backend",
+  "compose_project": "deploy_package",
+  "service_name": "now_os_backend",
+  "expected_command": "node dist/server.js",
+  "webhook_path": "/webhooks/evolution",
+  "evolution_instance": "nowakademi_bot",
+  "source_root": "/root/deploy_package/now_os_backend",
+  "schema_version": "1.0"
+}
