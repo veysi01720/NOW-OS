@@ -38,6 +38,8 @@ describe("Responses decision context boundary", () => {
     expect(instructions).toMatch(/backend owns authorization, state transitions, persistence, validation, and outbound delivery/i);
     expect(instructions).toMatch(/state_patch fields may change only/i);
     expect(instructions).toMatch(/chosen_actions must contain only exact backend domain action IDs/i);
+    expect(instructions).toMatch(/exact intersection of intended actions and decision_context.allowed_actions/i);
+    expect(instructions).toMatch(/use an empty chosen_actions array/i);
     expect(instructions).toMatch(/next_action is a separate orchestration outcome/i);
     expect(instructions).toMatch(/state_patch_evidence/i);
     expect(instructions).toMatch(/use next_action=update_candidate_state/i);
