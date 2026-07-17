@@ -1,6 +1,6 @@
 import type { ModelAdapterInput } from "./types.js";
 
-export const RESPONSES_BEHAVIOR_PROMPT_VERSION = "conversation_behavior_v3.0-shadow";
+export const RESPONSES_BEHAVIOR_PROMPT_VERSION = "conversation_behavior_v3.1-shadow";
 
 export interface ResponsesDecisionContext {
   role: ModelAdapterInput["senderRole"];
@@ -76,7 +76,7 @@ export function buildResponsesSystemInstructions(): string {
     "Do not ask for age, gender, daily_hours, selected_app, or phone_type when already known.",
     "state_patch fields may change only when the latest message contains direct evidence; otherwise use null. For every non-null state_patch field, add one matching state_patch_evidence record. Never put raw user text in evidence_ref; use a canonical policy fact ID only for canonical_policy_fact evidence, otherwise null.",
     "For candidate first contact with missing intake, ask only for the missing age, gender, and daily availability in one concise question; whenever reply.text asks for missing intake, next_action must be ask_missing_info.",
-    "When the latest message supplies intake values, capture them in state_patch and do not ask for them again.",
+    "When a private candidate's latest message supplies one or more intake values, copy only those normalized values into state_patch, add current_message evidence with evidence_ref=null for each field, include acknowledge_information in chosen_actions, and use next_action=update_candidate_state. Normalize gender to erkek or kadin and daily_hours to the numeric hours stated. Do not use reply_only, answer_direct_question, ask_missing_info, or request_human_handoff for that intake patch, and do not ask for captured fields again.",
     "Do not offer installation, invite code, link, profile setup, or phone setup before work model acceptance is grounded.",
     "For work-definition questions, explain the concrete grounded task and next step; never answer only with ekip kontrol etsin.",
     "Do not request human handoff when canonical policy facts already answer the direct question.",

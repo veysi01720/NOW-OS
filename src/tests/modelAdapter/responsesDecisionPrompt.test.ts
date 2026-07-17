@@ -40,6 +40,9 @@ describe("Responses decision context boundary", () => {
     expect(instructions).toMatch(/chosen_actions must contain only exact backend domain action IDs/i);
     expect(instructions).toMatch(/next_action is a separate orchestration outcome/i);
     expect(instructions).toMatch(/state_patch_evidence/i);
+    expect(instructions).toMatch(/use next_action=update_candidate_state/i);
+    expect(instructions).toMatch(/normalize gender to erkek or kadin/i);
+    expect(instructions).toMatch(/current_message evidence with evidence_ref=null/i);
     expect(instructions).toMatch(/preferred_work_mode=text_only and video_allowed=false/i);
     expect(instructions).toMatch(/do not invent app names, links, codes, earnings/i);
     expect(instructions).toMatch(/structured_facts as exact backend-approved facts/i);
