@@ -1,5 +1,9 @@
 # Package 12B Stage 8 - Final Action Consistency
 
+> Superseded: the unclassified result in this document was re-run after
+> scenario-level provider/parse diagnostics were added. See
+> `PACKAGE_12B_STAGE8_CLASSIFIED_RERUN_REPORT.md` for the authoritative result.
+
 Date: 2026-07-18
 
 ## Isolated Change
@@ -33,7 +37,5 @@ scenario-level failures, so they cannot be safely reclassified or discarded.
 
 ## Decision
 
-The safety objective passed in all three runs, but the required quality target
-did not. Package 12B remains `NOT_ELIGIBLE`; no owner model-selection review,
-canary, deploy, or production configuration change is authorized by this run.
-
+This historical unclassified run did not establish whether its null decisions
+were provider or model failures. It is not the final eligibility decision.

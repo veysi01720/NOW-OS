@@ -1,14 +1,14 @@
 {
   "schema_version": "1.0",
-  "generated_at": "2026-07-17T23:33:43.959Z",
+  "generated_at": "2026-07-17T23:50:09.653Z",
   "workspace_id": "canonical-now-os",
   "workspace_role": "CANONICAL_PRODUCTION_SOURCE",
   "compose_project": "deploy_package",
   "service_name": "now_os_backend",
   "expected_command": "node dist/server.js",
-  "source_tree_hash": "721d48a79d56dc657210bf11103931223c6a5d0ada70e1ed03b830fe088051ae",
+  "source_tree_hash": "f98dccde95d727c36e8809040e0fbbbf21ffc20fb95b13d17106146031e0fc68",
   "package_lock_hash": "90e17cc0a3b6cfbee86758a5a573ae446f54d1973dd0c14c1c6b489542ef66ea",
-  "dist_tree_hash": "ca1af3ee158361d30cf33cdb4268c20ef349214f67d8820e03fb7fb891f1d44c",
+  "dist_tree_hash": "a2b0c153e06d8a8b1b42b23ab2eaa39d615981d01571231da2b636da770df39a",
   "workspace_identity_hash": "4db557418dcaad79bf29c01788f72ca2a36aee0aa18d338f4f8054de3b35c57b",
   "test_result_reference": "tests-not-recorded",
   "source_file_count": 267,
@@ -696,8 +696,8 @@
     },
     {
       "path": "src/modelAdapter/responsesGoldenReplay.ts",
-      "sha256": "524aeaa09283f2c87fd6cea8ccb7bf71e04dfbcaec3d54105e8185348988fca5",
-      "size": 31771
+      "sha256": "a660b84f0700e50c79f557d9dcc69ff0d64e2b76a5bca77219b8e91dcee6dbc2",
+      "size": 40371
     },
     {
       "path": "src/modelAdapter/responsesModelQualification.ts",
@@ -1151,13 +1151,13 @@
     },
     {
       "path": "src/tests/modelAdapter/responsesGoldenReplay.test.ts",
-      "sha256": "eb1ab490a6cd08fa656833517da91f0e2a16c04e7f1e78d574045c7595066c39",
-      "size": 13542
+      "sha256": "deeff9713c369b19c0d96df42b76aa2f76e9032104894ea95812a07a0aa5391d",
+      "size": 18320
     },
     {
       "path": "src/tests/modelAdapter/responsesModelQualification.test.ts",
-      "sha256": "95c2c7316ff83add947c5d8df247e324f83f6535f77d3c8805a60eaaf957cbcc",
-      "size": 3212
+      "sha256": "e866b6d1bc5a2816ee84aca8f098ab77f9844015981825f22ab80aed460207ba",
+      "size": 3527
     },
     {
       "path": "src/tests/modelAdapter/responsesShadowService.test.ts",
@@ -1778,8 +1778,8 @@
     },
     {
       "path": "dist/modelAdapter/responsesGoldenReplay.js",
-      "sha256": "7b13fb3c6378ec3eae0beaf0cae67cf1d8574fe3e723c7f2e5e7ff441260c0cd",
-      "size": 29582
+      "sha256": "ddde401f03c308b9dc1aa5c53e95464fa318dd5d14244d1c3606387994546715",
+      "size": 36254
     },
     {
       "path": "dist/modelAdapter/responsesModelQualification.js",
@@ -2228,13 +2228,13 @@
     },
     {
       "path": "dist/tests/modelAdapter/responsesGoldenReplay.test.js",
-      "sha256": "e39d29ebd45cbe9921cb9aa80d626783a9e8827d861f1757a9750593d50f7440",
-      "size": 13718
+      "sha256": "75672e209aacf6a4ee7d49ddfddb0a665528268b982ae1a4206da906664c1b4b",
+      "size": 18801
     },
     {
       "path": "dist/tests/modelAdapter/responsesModelQualification.test.js",
-      "sha256": "c36634e8f7c3d2964f02441026a53522bf243312a1e2f1e9175afab1adfc63b2",
-      "size": 3340
+      "sha256": "6569f58da8f6435ff3caaf167a385140e6e2e963937715cf191b17f40e8d95a1",
+      "size": 3703
     },
     {
       "path": "dist/tests/modelAdapter/responsesShadowService.test.js",

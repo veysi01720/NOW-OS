@@ -47,18 +47,34 @@ closed: job-definition state-patch discipline and final action intersection.
 - Secrets printed: NO
 - Raw model output logged: NO
 
+## Superseding Classified Stage 8 Re-run
+
+After scenario-level diagnostics and one retry for explicitly transient
+provider errors were added, Stage 8 was repeated without changing the model or
+decision prompt:
+
+| Run | Score | Unsafe | Rate limits recovered | Final model failures |
+|---|---:|---:|---:|---:|
+| 1 | 13/13 | 0 | 0 | 0 |
+| 2 | 13/13 | 0 | 3 | 0 |
+| 3 | 12/13 | 0 | 5 | 1 quality rejection |
+
+The prior empty/null decisions cannot be retroactively classified, but the
+classified rerun demonstrates that this API workload encounters retryable rate
+limits. Every observed rate limit in the official rerun recovered on the one
+allowed retry. The only final model failure was `p6_text_only` in run 3 with
+`MODEL_QUALITY_REJECTED`; no provider, parse, schema, or semantic failure
+remained after retries.
+
 ## Final Decision
 
 ```text
-PACKAGE_12B_STATUS=NOT_ELIGIBLE
-TARGET_3X_12_OF_13=NO
+PACKAGE_12B_STATUS=ELIGIBLE_FOR_OWNER_REVIEW
+TARGET_3X_12_OF_13=YES
 ZERO_SAFETY_VIOLATIONS_IN_FINAL_SET=YES
-OWNER_MODEL_SELECTION_REVIEW_READY=NO
+OWNER_MODEL_SELECTION_REVIEW_READY=YES
 ```
 
-The final blocker is quality/reliability variance, including four invalid or
-empty scenario decisions in the third final run. A subsequent package must
-first expose scenario-level provider/parse failure classification rather than
-masking all adapter failures as null decisions, then rerun a fresh non-cherry-
-picked three-run qualification set.
+This status authorizes owner review only. It does not change the configured
+model, enable canary traffic, deploy code, or open Package 12C automatically.
 

@@ -8,6 +8,7 @@ import {
 } from "../../intelligence/conversation/ConversationDecisionV3Schema.js";
 import {
   RESPONSES_GOLDEN_SCENARIOS,
+  classifyResponsesGoldenProviderError,
   evaluateResponsesGoldenScenario,
   runRepeatedResponsesGoldenReplay,
   runResponsesGoldenReplay,
@@ -344,5 +345,89 @@ describe("Responses golden replay", () => {
     expect(report.raw_output_logged).toBe(false);
     expect(report.real_outbound_count).toBe(0);
     expect(report.results[0].reason_codes.length).toBeGreaterThan(0);
+    expect(report.results[0].execution_classification).toBe("PROVIDER_UNKNOWN_ERROR");
+    expect(report.results[0].provider_error_code).toBe("UNKNOWN_PROVIDER_ERROR");
+    expect(report.provider_failure_count).toBe(1);
+  });
+
+  it("classifies sanitized provider failures without storing provider messages", () => {
+    const timeout = Object.assign(new Error("secret timeout body"), { name: "APIConnectionTimeoutError" });
+    const rateLimit = Object.assign(new Error("secret rate body"), { status: 429, code: "rate_limit_exceeded" });
+    const server = Object.assign(new Error("secret server body"), { status: 503 });
+    const connection = Object.assign(new Error("secret connection body"), { name: "APIConnectionError" });
+
+    expect(classifyResponsesGoldenProviderError(timeout)).toMatchObject({ classification: "PROVIDER_TIMEOUT", retryable: true });
+    expect(classifyResponsesGoldenProviderError(rateLimit)).toMatchObject({ classification: "PROVIDER_RATE_LIMIT", provider_http_status: 429, retryable: true });
+    expect(classifyResponsesGoldenProviderError(server)).toMatchObject({ classification: "PROVIDER_HTTP_ERROR", provider_http_status: 503, retryable: true });
+    expect(classifyResponsesGoldenProviderError(connection)).toMatchObject({ classification: "PROVIDER_CONNECTION_ERROR", retryable: true });
+    expect(JSON.stringify([
+      classifyResponsesGoldenProviderError(timeout),
+      classifyResponsesGoldenProviderError(rateLimit),
+      classifyResponsesGoldenProviderError(server),
+      classifyResponsesGoldenProviderError(connection),
+    ])).not.toContain("secret");
+  });
+
+  it("separates empty, malformed, schema, and semantic model failures", async () => {
+    const scenario = RESPONSES_GOLDEN_SCENARIOS[0];
+    const rawAdapter = (rawText: string): IModelAdapter => ({
+      name: "RawFixtureAdapter",
+      provider: "fixture",
+      async run() { return { normalizedResponse: null, rawText, rawProviderResponseStored: false }; },
+      async health() { return { ok: true, provider: "fixture", supportsResponseContractVersion: "1.0" }; },
+      getIdentity() { return { adapter_name: "RawFixtureAdapter", provider: "fixture", model: "fixture" }; },
+    });
+
+    const empty = await runResponsesGoldenReplay(rawAdapter(""), [scenario]);
+    const malformed = await runResponsesGoldenReplay(rawAdapter("not-json"), [scenario]);
+    const schema = await runResponsesGoldenReplay(rawAdapter("{}"), [scenario]);
+    const semantic = await runResponsesGoldenReplay(
+      rawAdapter(JSON.stringify(decision({ role: "owner", chosenActions: scenario.allowedActions }))),
+      [scenario],
+    );
+
+    expect(empty.results[0].execution_classification).toBe("EMPTY_PROVIDER_OUTPUT");
+    expect(malformed.results[0].execution_classification).toBe("MALFORMED_JSON_RESPONSE");
+    expect(schema.results[0].execution_classification).toBe("MODEL_SCHEMA_REJECTED");
+    expect(semantic.results[0].execution_classification).toBe("MODEL_SEMANTIC_REJECTED");
+    expect(empty.parse_failure_count).toBe(1);
+    expect(malformed.parse_failure_count).toBe(1);
+    expect(schema.model_schema_rejection_count).toBe(1);
+    expect(semantic.model_semantic_rejection_count).toBe(1);
+  });
+
+  it("retries one transient provider failure and records recovery without outbound", async () => {
+    let attempts = 0;
+    const adapter: IModelAdapter = {
+      name: "RetryFixtureAdapter",
+      provider: "fixture",
+      async run(input) {
+        attempts += 1;
+        if (attempts === 1) throw Object.assign(new Error("secret rate body"), { status: 429 });
+        return {
+          normalizedResponse: null,
+          rawText: JSON.stringify(scenarioDecision(input)),
+          rawProviderResponseStored: false,
+        };
+      },
+      async health() { return { ok: true, provider: "fixture", supportsResponseContractVersion: "1.0" }; },
+      getIdentity() { return { adapter_name: "RetryFixtureAdapter", provider: "fixture", model: "fixture" }; },
+    };
+
+    const report = await runResponsesGoldenReplay(adapter, [RESPONSES_GOLDEN_SCENARIOS[0]], { maxTransientRetries: 1 });
+
+    expect(attempts).toBe(2);
+    expect(report.scenarios_passed).toBe(1);
+    expect(report.transient_failures_recovered).toBe(1);
+    expect(report.transient_failure_attempt_count).toBe(1);
+    expect(report.transient_failure_classification_counts).toEqual({ PROVIDER_RATE_LIMIT: 1 });
+    expect(report.results[0]).toMatchObject({
+      execution_classification: "SUCCESS_VALIDATED_MODEL_OUTPUT",
+      attempt_count: 2,
+      retry_recovered: true,
+      attempt_failure_classifications: ["PROVIDER_RATE_LIMIT"],
+    });
+    expect(report.real_outbound_count).toBe(0);
+    expect(JSON.stringify(report)).not.toContain("secret rate body");
   });
 });
