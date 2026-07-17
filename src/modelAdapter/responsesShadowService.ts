@@ -5,6 +5,8 @@ import {
   buildConversationDecisionV3SemanticContext,
   validateConversationDecisionV3Semantics,
 } from "../intelligence/conversation/ConversationDecisionV3SemanticValidator.js";
+import { prepareConversationDecisionV3Transition } from "../intelligence/conversation/ConversationDecisionV3TransitionPreparation.js";
+import type { ConversationDecisionV3 } from "../intelligence/conversation/ConversationDecisionV3Schema.js";
 import type { Logger } from "../observability/logger.js";
 
 export type ResponsesShadowMode = "off" | "internal" | "tenant_allowlist";
@@ -30,6 +32,7 @@ export interface ResponsesShadowSnapshot {
   last_observed_at: string | null;
   last_schema_valid: boolean | null;
   last_semantic_valid: boolean | null;
+  last_transition_prep_valid: boolean | null;
   last_role_match: boolean | null;
   last_reply_present: boolean | null;
   last_latency_ms: number | null;
@@ -107,6 +110,7 @@ export class ResponsesShadowService implements ResponsesShadowObserver {
       last_observed_at: null,
       last_schema_valid: null,
       last_semantic_valid: null,
+      last_transition_prep_valid: null,
       last_role_match: null,
       last_reply_present: null,
       last_latency_ms: null,
@@ -151,12 +155,16 @@ export class ResponsesShadowService implements ResponsesShadowObserver {
     try {
       const output = await Promise.race([this.adapter.run(sanitizeInput(input)), timeout]);
       const parsed = parseJson(output.rawText);
+      const semanticContext = buildConversationDecisionV3SemanticContext(input);
       const validation = parsed.parseError
         ? { ok: false, shape_valid: false, reason_codes: ["INVALID_JSON"] }
         : validateConversationDecisionV3Semantics(
           parsed.value,
-          buildConversationDecisionV3SemanticContext(input),
+          semanticContext,
         );
+      const transitionPrep = validation.shape_valid
+        ? prepareConversationDecisionV3Transition(parsed.value as ConversationDecisionV3, semanticContext)
+        : null;
       const role = typeof parsed.value === "object" && parsed.value !== null
         ? (parsed.value as { role?: unknown }).role
         : undefined;
@@ -169,6 +177,7 @@ export class ResponsesShadowService implements ResponsesShadowObserver {
       this.record(valid ? "valid" : "invalid", valid ? "validated" : validation.reason_codes[0] ?? (roleMatch ? "EMPTY_REPLY" : "ROLE_MISMATCH"), {
         schemaValid: validation.shape_valid,
         semanticValid: validation.shape_valid ? validation.ok : false,
+        transitionPrepValid: transitionPrep?.valid ?? null,
         roleMatch,
         replyPresent,
         latencyMs: Date.now() - startedAt,
@@ -180,6 +189,7 @@ export class ResponsesShadowService implements ResponsesShadowObserver {
       this.record(timedOut ? "timeout" : "provider_error", timedOut ? "deadline_exceeded" : "provider_failure", {
         schemaValid: null,
         semanticValid: null,
+        transitionPrepValid: null,
         roleMatch: null,
         replyPresent: null,
         latencyMs: Date.now() - startedAt,
@@ -197,6 +207,7 @@ export class ResponsesShadowService implements ResponsesShadowObserver {
     details: {
       schemaValid: boolean | null;
       semanticValid: boolean | null;
+      transitionPrepValid: boolean | null;
       roleMatch: boolean | null;
       replyPresent: boolean | null;
       latencyMs: number;
@@ -212,6 +223,7 @@ export class ResponsesShadowService implements ResponsesShadowObserver {
       last_observed_at: this.now().toISOString(),
       last_schema_valid: details.schemaValid,
       last_semantic_valid: details.semanticValid,
+      last_transition_prep_valid: details.transitionPrepValid,
       last_role_match: details.roleMatch,
       last_reply_present: details.replyPresent,
       last_latency_ms: details.latencyMs,
@@ -230,6 +242,7 @@ export class ResponsesShadowService implements ResponsesShadowObserver {
       reason,
       schema_valid: details.schemaValid,
       semantic_valid: details.semanticValid,
+      transition_prep_valid: details.transitionPrepValid,
       role_match: details.roleMatch,
       reply_present: details.replyPresent,
       latency_ms: details.latencyMs,

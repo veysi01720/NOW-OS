@@ -31,6 +31,7 @@ export const CONVERSATION_DECISION_V3_NEXT_ACTIONS = [
   "owner_report",
   "manager_summary",
   "request_human_handoff",
+  "escalate_missing_info",
   "no_reply",
   "escalate",
 ] as const;

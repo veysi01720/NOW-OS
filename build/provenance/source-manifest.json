@@ -1,18 +1,18 @@
 {
   "schema_version": "1.0",
-  "generated_at": "2026-07-17T16:12:50.261Z",
+  "generated_at": "2026-07-17T21:12:25.211Z",
   "workspace_id": "canonical-now-os",
   "workspace_role": "CANONICAL_PRODUCTION_SOURCE",
   "compose_project": "deploy_package",
   "service_name": "now_os_backend",
   "expected_command": "node dist/server.js",
-  "source_tree_hash": "b174142fda5d26da9f1cc3faf0a706445fd0ee7093712136a60dd095971485eb",
+  "source_tree_hash": "c40de41cabdcc9a40f4072d06c5bb092aa59c5b866cdf1668ae37d4811258468",
   "package_lock_hash": "90e17cc0a3b6cfbee86758a5a573ae446f54d1973dd0c14c1c6b489542ef66ea",
-  "dist_tree_hash": "a5dbbe201b89e81dd646afbe8f941b4202f3c6516589e8efb2a3f855ef58fee2",
+  "dist_tree_hash": "90494644609f2e86618b52f435f9e120f7368e35affac01b8107f10aeb66991f",
   "workspace_identity_hash": "4db557418dcaad79bf29c01788f72ca2a36aee0aa18d338f4f8054de3b35c57b",
   "test_result_reference": "tests-not-recorded",
-  "source_file_count": 254,
-  "dist_file_count": 204,
+  "source_file_count": 257,
+  "dist_file_count": 206,
   "source_files": [
     {
       "path": ".dockerignore",
@@ -143,6 +143,11 @@
       "path": "docs/architecture/PACKAGE_09_BACKEND_SEMANTIC_ENFORCEMENT.md",
       "sha256": "20293b22bc1e9ef65f15295fa3bd07b1c56a800afa7c4d71ae659e73615b0939",
       "size": 3166
+    },
+    {
+      "path": "docs/architecture/PACKAGE_10_CONTROLLED_STATE_TRANSITION_PREP_DESIGN.md",
+      "sha256": "c94a8b837d4f55c9846c8cff52589c0cf9d979d367ef3d0c9f2d7a49a0968af0",
+      "size": 8723
     },
     {
       "path": "docs/contracts/CANONICAL_DECISION_BOUNDARY_V1.md",
@@ -596,13 +601,18 @@
     },
     {
       "path": "src/intelligence/conversation/ConversationDecisionV3Schema.ts",
-      "sha256": "9b9f31f28d36d1f1b97d8e3447e4f7ef667c2416226aea6f58b042f8f43f34a2",
-      "size": 12441
+      "sha256": "39232be081eb29c3b1f0af7fd5a30dcfe8fb580390392b594ef01b32ce635329",
+      "size": 12468
     },
     {
       "path": "src/intelligence/conversation/ConversationDecisionV3SemanticValidator.ts",
-      "sha256": "4385d836c6665bda3a2f896b11b3d5c459021c5b473bf9a042becaa3a953a21e",
-      "size": 13334
+      "sha256": "da87c740efa77c886e2fbb61b034a6c8146f3d6548586ac2efa849ac9c23485c",
+      "size": 13584
+    },
+    {
+      "path": "src/intelligence/conversation/ConversationDecisionV3TransitionPreparation.ts",
+      "sha256": "bd733fc16b9a7c66cc4d483a644ce380eff65e78d9fbf0fb73a80e0867bfe745",
+      "size": 8656
     },
     {
       "path": "src/intelligence/conversation/ConversationDecisionValidator.ts",
@@ -656,18 +666,18 @@
     },
     {
       "path": "src/modelAdapter/responsesDecisionPrompt.ts",
-      "sha256": "a22bb5bef02609815b0da6081c6489995f1f9ff649ac11370c88bb1b11cd99f7",
-      "size": 5926
+      "sha256": "d6f803af504dc5c3dfbebceda9c93f6fcf6964c22723cebe3e9c653a297b17ea",
+      "size": 6036
     },
     {
       "path": "src/modelAdapter/responsesGoldenReplay.ts",
-      "sha256": "34b1edc0bdc03f86b1654630cb61582e891cd8e39d6e083fe58d066fbefc0d28",
-      "size": 19288
+      "sha256": "f4d6571fcb0ff53f7ac89aead9105e56b91b6415a9b5832bae49aacfb6c55bdf",
+      "size": 20010
     },
     {
       "path": "src/modelAdapter/responsesShadowService.ts",
-      "sha256": "02afb3e9277ecc75d56cbf8dcaa6a27dacee6ea03c9daded89f067f149e2ef09",
-      "size": 8960
+      "sha256": "f8b672d6c35dffb624233b66c5eec56d0ba0b3e501ee248a19971c3a041e0105",
+      "size": 9770
     },
     {
       "path": "src/modelAdapter/types.ts",
@@ -741,8 +751,8 @@
     },
     {
       "path": "src/server.ts",
-      "sha256": "f8c98a314b368d22eae23d35da87bded708e46cdc60a471d1fae47edd74fa492",
-      "size": 14189
+      "sha256": "625740a4e958ccf8df8feda32b7c7073b5dced37b64eb3f411a6864be69c5044",
+      "size": 14225
     },
     {
       "path": "src/storage/ingestionJobStore.ts",
@@ -906,8 +916,8 @@
     },
     {
       "path": "src/tests/connectionDoctorRoute.test.ts",
-      "sha256": "24a37a468807c89d05d750e6115ceb80d9f1da64240d698156ace3fe00e97c1e",
-      "size": 7695
+      "sha256": "0e970e408f59fdb4514d3677146c2318861f5f66c824723d926a93fafee53528",
+      "size": 7737
     },
     {
       "path": "src/tests/connectionHealthMonitor.test.ts",
@@ -946,13 +956,18 @@
     },
     {
       "path": "src/tests/conversationDecisionV3Schema.test.ts",
-      "sha256": "74ef994c8f96dd45350d491728d3e431fd9663d762769302962252d7b78a6faf",
-      "size": 6862
+      "sha256": "92ebdc74c4620ed4642d61b538bfa416d9b9142dcc4c33b73ea24a0ca959c84e",
+      "size": 7267
     },
     {
       "path": "src/tests/conversationDecisionV3SemanticValidator.test.ts",
-      "sha256": "fef009dd7e086d562fdbdd39847c940638a043a8b2c8fe6d816f5d1ee2841fee",
-      "size": 9661
+      "sha256": "2d0a5b0040fdf54772e0f3127356502456615f22dc0d925aa139a4cc18d50b53",
+      "size": 10721
+    },
+    {
+      "path": "src/tests/conversationDecisionV3TransitionPreparation.test.ts",
+      "sha256": "dc8763d9b4c955bcb4b64113d4e43c8c56ad9a09ec9d6de862cf679ab0cb616c",
+      "size": 8166
     },
     {
       "path": "src/tests/conversationStateService.test.ts",
@@ -1091,13 +1106,13 @@
     },
     {
       "path": "src/tests/modelAdapter/responsesGoldenReplay.test.ts",
-      "sha256": "aeca54f24abe17c8ff61c183a0c6f3785412de766a159c9c93deffa56fa88b02",
-      "size": 6920
+      "sha256": "eedbea8ace95feee8272b3a49616b4dc9110fb6919674397bda6eb7a891f1756",
+      "size": 8014
     },
     {
       "path": "src/tests/modelAdapter/responsesShadowService.test.ts",
-      "sha256": "4665754a245b62521415fdae2a845f888f2f2f04431de67e6e89b858448c5b85",
-      "size": 11000
+      "sha256": "ed74d4214c453ee58e135d61cf763c0813e13b242b56f76f4947cec8e1b25d32",
+      "size": 11034
     },
     {
       "path": "src/tests/modelExecutionEnv.test.ts",
@@ -1638,13 +1653,18 @@
     },
     {
       "path": "dist/intelligence/conversation/ConversationDecisionV3Schema.js",
-      "sha256": "9d741c6f0a6b74013965ef9613f9e4668b59d774d12d5d3790b22a11fb29eed5",
-      "size": 11164
+      "sha256": "255d0726edcc4155a34c75e28470f80f633a945ffdb6362e182fad22b9d4824a",
+      "size": 11193
     },
     {
       "path": "dist/intelligence/conversation/ConversationDecisionV3SemanticValidator.js",
-      "sha256": "d5152c4f95d99fed20c772e081ff6f107a2f9e4660e0741eb1eab4f853763990",
-      "size": 12067
+      "sha256": "6658bae4110f3b1a02a7e2cc1baa362316226ac2ddda96a9fd740e4a9e4861fc",
+      "size": 12335
+    },
+    {
+      "path": "dist/intelligence/conversation/ConversationDecisionV3TransitionPreparation.js",
+      "sha256": "54d40d4ee3db5deb9e7cbe19da82e43b69bf477d3a23c224fa1189e58861c232",
+      "size": 7346
     },
     {
       "path": "dist/intelligence/conversation/ConversationDecisionValidator.js",
@@ -1698,18 +1718,18 @@
     },
     {
       "path": "dist/modelAdapter/responsesDecisionPrompt.js",
-      "sha256": "d8f1846a1578245fdf46838e209298860415d2cb5e7d7ee9d625441eab00c260",
-      "size": 5322
+      "sha256": "bb7e113c5c71313cd7764933f0f15db622a1d5b56d715c3375a74be8065f53ee",
+      "size": 5432
     },
     {
       "path": "dist/modelAdapter/responsesGoldenReplay.js",
-      "sha256": "2e22e953c4488a005bb4b4498908c5a129f6d49a5137cd518530854c12f13ce1",
-      "size": 17981
+      "sha256": "625e9e559c1378602fe8009bd356068af1af011259846efb7575c6c832641e12",
+      "size": 18616
     },
     {
       "path": "dist/modelAdapter/responsesShadowService.js",
-      "sha256": "d028577707bf9f13caa21442a17b5ff4f6aee7334a8e0528d535c01dbcb62d50",
-      "size": 7662
+      "sha256": "f0d75ff4de49c9404b3b0105e3d15182814c6aa31519d7617bbe3f65423ba5a9",
+      "size": 8311
     },
     {
       "path": "dist/modelAdapter/types.js",
@@ -1783,8 +1803,8 @@
     },
     {
       "path": "dist/server.js",
-      "sha256": "ed10b16e3e4f2961a8e60e49afb1d24381c1204fff7138ceb830f97c21132abf",
-      "size": 15417
+      "sha256": "6bbd92357a2a2e14b06e9dee44fd0163f80aa4bbd78951f540bd8b2c2e044a2e",
+      "size": 15455
     },
     {
       "path": "dist/storage/ingestionJobStore.js",
@@ -1948,8 +1968,8 @@
     },
     {
       "path": "dist/tests/connectionDoctorRoute.test.js",
-      "sha256": "09cb9cda9858c0b596bb52071a441cbe79a1b18897508364be4e0963337bac85",
-      "size": 8576
+      "sha256": "b57176c197d83ad03d136195723deb8550a8343166db7a53ef984e21998bf11d",
+      "size": 8626
     },
     {
       "path": "dist/tests/connectionHealthMonitor.test.js",
@@ -1988,13 +2008,18 @@
     },
     {
       "path": "dist/tests/conversationDecisionV3Schema.test.js",
-      "sha256": "28e3d355b159e3a04e03a9f958b70bcc68af2130e30099f1f001328ff182e7ce",
-      "size": 7317
+      "sha256": "b6363e9f5cea1e795c208e90301273dfb73686ddc614157533236a61e7bc0870",
+      "size": 7760
     },
     {
       "path": "dist/tests/conversationDecisionV3SemanticValidator.test.js",
-      "sha256": "9ca8908af931e3a42eb0be5156cac8f55d08449f08953494dd8ef3529254649d",
-      "size": 9644
+      "sha256": "dddfa41f7954a1d0731f63f66cebad82ce8d28204aef1721ff5e1b576cb14585",
+      "size": 10793
+    },
+    {
+      "path": "dist/tests/conversationDecisionV3TransitionPreparation.test.js",
+      "sha256": "881741dc3f553e62dfeab5c959f6af4f9a1c87eeca455c2e9dfa47da0afe432c",
+      "size": 7951
     },
     {
       "path": "dist/tests/conversationStateService.test.js",
@@ -2128,13 +2153,13 @@
     },
     {
       "path": "dist/tests/modelAdapter/responsesGoldenReplay.test.js",
-      "sha256": "85d8d2cd6e618adad5b02eaab86ebf9ee29316dc2bf458fb4f82593cb2fc831b",
-      "size": 6720
+      "sha256": "e9e3ad7e078e9a475b9e18e494a4f021cc541455f709e587d6f6d6ca013503fa",
+      "size": 7890
     },
     {
       "path": "dist/tests/modelAdapter/responsesShadowService.test.js",
-      "sha256": "88f8f9f81560676f557559f5dae50abae4114a3a3cd149e63610907b24cd01a2",
-      "size": 11560
+      "sha256": "ab9f89c1dcb37c969dc8b18265ace8e2ef8666e30aa5e774457caa11abc34d21",
+      "size": 11594
     },
     {
       "path": "dist/tests/modelExecutionEnv.test.js",

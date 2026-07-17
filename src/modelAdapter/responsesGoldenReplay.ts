@@ -11,6 +11,7 @@ import {
   buildConversationDecisionV3SemanticContext,
   validateConversationDecisionV3Semantics,
 } from "../intelligence/conversation/ConversationDecisionV3SemanticValidator.js";
+import { prepareConversationDecisionV3Transition } from "../intelligence/conversation/ConversationDecisionV3TransitionPreparation.js";
 
 export interface ResponsesGoldenScenario {
   id: string;
@@ -224,6 +225,9 @@ export interface ResponsesGoldenScenarioResult {
   correct_next_action: boolean;
   correct_role_boundary: boolean;
   actions_allowed: boolean;
+  transition_prep_valid: boolean;
+  transition_prep_kind: string;
+  transition_prep_reason_codes: string[];
   actual_next_action: string | null;
   missing_required_group_indexes: number[];
   forbidden_term_indexes: number[];
@@ -342,10 +346,8 @@ export function evaluateResponsesGoldenScenario(
   usage: { inputTokens?: number; outputTokens?: number } | undefined,
 ): ResponsesGoldenScenarioResult {
   const validation = validateConversationDecisionV3Shape(value);
-  const semantic = validateConversationDecisionV3Semantics(
-    value,
-    buildConversationDecisionV3SemanticContext(buildResponsesGoldenAdapterInput(scenario)),
-  );
+  const semanticContext = buildConversationDecisionV3SemanticContext(buildResponsesGoldenAdapterInput(scenario));
+  const semantic = validateConversationDecisionV3Semantics(value, semanticContext);
   const decision = value as Partial<ConversationDecisionV3> | null;
   const reply = typeof decision?.reply?.text === "string" ? decision.reply.text : "";
   const normalizedReply = normalize(reply);
@@ -367,6 +369,9 @@ export function evaluateResponsesGoldenScenario(
     .filter((index): index is number => index !== null);
   const forbiddenFound = forbiddenTermIndexes.length > 0;
   const patchMatches = Object.entries(scenario.expectedPatch ?? {}).every(([key, expected]) => decision?.state_patch?.[key as keyof ConversationDecisionV3["state_patch"]] === expected);
+  const transitionPrep = validation.ok
+    ? prepareConversationDecisionV3Transition(value as ConversationDecisionV3, semanticContext)
+    : null;
 
   if (!roleMatch) reasonCodes.push("ROLE_MISMATCH");
   if (!replyPresent) reasonCodes.push("EMPTY_REPLY");
@@ -375,6 +380,7 @@ export function evaluateResponsesGoldenScenario(
   if (!requiredTermsPresent) reasonCodes.push("REQUIRED_SEMANTIC_EVIDENCE_MISSING");
   if (forbiddenFound) reasonCodes.push("FORBIDDEN_CLAIM_OR_STYLE");
   if (!patchMatches) reasonCodes.push("STATE_PATCH_MISMATCH");
+  if (transitionPrep !== null && !transitionPrep.valid) reasonCodes.push("TRANSITION_PREP_INVALID");
 
   const signals = decision?.quality_signals;
   if (signals?.answered_latest_message !== true) reasonCodes.push("LATEST_MESSAGE_NOT_ANSWERED");
@@ -401,6 +407,9 @@ export function evaluateResponsesGoldenScenario(
     correct_next_action: correctNextAction,
     correct_role_boundary: signals?.correct_role_boundary === true && roleMatch,
     actions_allowed: actionsAllowed,
+    transition_prep_valid: transitionPrep?.valid ?? false,
+    transition_prep_kind: transitionPrep?.transition_kind ?? "not_run",
+    transition_prep_reason_codes: transitionPrep?.reason_codes ?? [],
     actual_next_action: decision?.next_action ?? null,
     missing_required_group_indexes: missingRequiredGroupIndexes,
     forbidden_term_indexes: forbiddenTermIndexes,

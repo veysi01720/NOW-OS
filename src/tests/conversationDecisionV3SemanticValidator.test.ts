@@ -116,6 +116,28 @@ describe("ConversationDecisionV3 semantic validator", () => {
     }), context({ allowed_actions: ["answer_user_question"] })), "NEXT_ACTION_MISSING_INFO_INCOMPATIBLE");
   });
 
+  it("accepts only grounded explicit missing-info escalation without state mutation", () => {
+    const valid = validateConversationDecisionV3Semantics(decision({
+      next_action: "escalate_missing_info",
+      chosen_actions: ["escalate_policy_missing"],
+      requires_escalation: true,
+    }), context({ allowed_actions: ["escalate_policy_missing"] }));
+    expect(valid.ok).toBe(true);
+
+    expectRejected(validateConversationDecisionV3Semantics(decision({
+      next_action: "escalate_missing_info",
+      chosen_actions: ["answer_user_question"],
+      requires_escalation: false,
+    }), context({ allowed_actions: ["answer_user_question"] })), "NEXT_ACTION_MISSING_INFO_ESCALATION_INCOMPATIBLE");
+
+    expectRejected(validateConversationDecisionV3Semantics(decision({
+      next_action: "escalate_missing_info",
+      chosen_actions: ["escalate_policy_missing"],
+      requires_escalation: true,
+      patch: { age: 27 },
+    }), context({ allowed_actions: ["escalate_policy_missing"] })), "NEXT_ACTION_MISSING_INFO_ESCALATION_INCOMPATIBLE");
+  });
+
   it("rejects missing, duplicate, orphan, and mismatched state patch evidence", () => {
     const missing = validateConversationDecisionV3Semantics(decision({
       next_action: "update_candidate_state",

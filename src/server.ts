@@ -34,6 +34,7 @@ const DEFAULT_RESPONSES_SHADOW_SNAPSHOT: ResponsesShadowSnapshot = {
   last_observed_at: null,
   last_schema_valid: null,
   last_semantic_valid: null,
+  last_transition_prep_valid: null,
   last_role_match: null,
   last_reply_present: null,
   last_latency_ms: null,

@@ -62,6 +62,17 @@ describe("ConversationDecisionV3 strict schema", () => {
     expect(validateConversationDecisionV3Shape(validDecision())).toEqual({ ok: true, reason_codes: [] });
   });
 
+  it("accepts the explicit missing-info escalation next action", () => {
+    const result = validateConversationDecisionV3Shape(validDecision({
+      next_action: "escalate_missing_info",
+      chosen_actions: ["escalate_policy_missing"],
+      requires_escalation: true,
+      escalation_reason: "verified context is missing",
+    }));
+
+    expect(result).toEqual({ ok: true, reason_codes: [] });
+  });
+
   it("rejects missing required fields", () => {
     const decision = validDecision();
     delete decision.reply;

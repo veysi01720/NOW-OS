@@ -167,6 +167,7 @@ describe("connection doctor route", () => {
         last_observed_at: "2026-07-15T01:00:00.000Z",
         last_schema_valid: true,
         last_semantic_valid: true,
+        last_transition_prep_valid: true,
         last_role_match: true,
         last_reply_present: true,
         last_latency_ms: 120,

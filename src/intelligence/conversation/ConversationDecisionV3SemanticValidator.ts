@@ -183,6 +183,11 @@ function validateActionCompatibility(
       reasons.push("NEXT_ACTION_ESCALATION_INCOMPATIBLE");
     }
   }
+  if (decision.next_action === "escalate_missing_info") {
+    if (!decision.requires_escalation || !actions.has("escalate_policy_missing") || patchFields.length > 0) {
+      reasons.push("NEXT_ACTION_MISSING_INFO_ESCALATION_INCOMPATIBLE");
+    }
+  }
   if (decision.next_action === "no_reply" && (actions.size > 0 || patchFields.length > 0)) {
     reasons.push("NEXT_ACTION_NO_REPLY_INCOMPATIBLE");
   }

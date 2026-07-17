@@ -142,6 +142,31 @@ describe("Responses golden replay", () => {
     expect(report.raw_output_logged).toBe(false);
     expect(report.input_tokens_total).toBe(20);
     expect(report.output_tokens_total).toBe(40);
+    expect(report.results.every((result) => result.transition_prep_valid)).toBe(true);
+    expect(report.results.map((result) => result.transition_prep_kind)).toEqual(["none", "none"]);
+  });
+
+  it("reports transition preparation validity for compact intake fixtures", () => {
+    const scenario: ResponsesGoldenScenario = {
+      id: "compact_intake",
+      category: "fixture",
+      role: "candidate",
+      message: "27 erkek 4 saat",
+      allowedActions: ["acknowledge_information"],
+      expectedNextActions: ["update_candidate_state"],
+      expectedPatch: { age: 27, gender: "erkek", daily_hours: 4 },
+    };
+
+    const result = evaluateResponsesGoldenScenario(scenario, decision({
+      nextAction: "update_candidate_state",
+      chosenActions: ["acknowledge_information"],
+      patch: { age: 27, gender: "erkek", daily_hours: 4 },
+    }), 1, undefined);
+
+    expect(result.transition_prep_valid).toBe(true);
+    expect(result.transition_prep_kind).toBe("candidate_state_preview");
+    expect(result.transition_prep_reason_codes).toEqual([]);
+    expect(result.passed).toBe(true);
   });
 
   it("rejects invalid schema and unsafe reference offers deterministically", () => {

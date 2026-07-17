@@ -100,17 +100,23 @@ Package 10 handling:
 
 ### 5. Package 10 Acceptance Matrix For Addendum Items
 
-The Package 10 acceptance report must include this table and fill each result
-as `uygulandi`, `uygulanmadi`, or `sonraki_pakete_ertelendi`.
+The Package 10 acceptance report includes this table with each result filled as
+`uygulandi`, `uygulanmadi`, or `sonraki_pakete_ertelendi`.
+
+Acceptance report:
+
+```text
+C:\Users\lll\Documents\Codex\2026-07-04\i\work\package09_semantic_enforcement\outputs\package10\PACKAGE_10_ACCEPTANCE_EVIDENCE_REPORT.md
+```
 
 | Addendum Item | Package 10 Result | Why | Evidence |
 |---|---|---|---|
-| Ek 1 - self-report risk | TBD | Validator-computed quality metrics belong primarily to Package 11/12 replay evaluation, not transition preparation unless touched by tests. | File path / test command |
-| Ek 2 - candidate concurrency lock | TBD | Package 10 scope includes minimal candidate-scoped transition evaluation lock, not queue cutover. | File path / test command |
-| Ek 3 - Assistants fallback type | TBD | Belongs to Package 11/12 adapter selection and cutover docs, not state-transition prep. | File path / test command |
-| Ek 4 - numeric rollback thresholds | TBD | Belongs to Package 12 shadow/canary readiness after replay metrics exist. | File path / test command |
-| Ek 5 - escalate_missing_info | TBD | Package 10 scope includes missing-info transition proposal handling. | File path / test command |
-| Ek 6 - structured facts split | TBD | Package 10 may document dependency, but implementation belongs with context/knowledge fixture hardening before Package 11/12 replay. | File path / test command |
+| Ek 1 - self-report risk | sonraki_pakete_ertelendi | Validator-computed quality metrics belong primarily to Package 11/12 replay evaluation, not transition preparation. | Acceptance report matrix |
+| Ek 2 - candidate concurrency lock | uygulandi | Package 10 includes minimal candidate-scoped transition evaluation lock, not queue cutover. | Acceptance report matrix |
+| Ek 3 - Assistants fallback type | sonraki_pakete_ertelendi | Belongs to Package 11/12 adapter selection and cutover docs, not state-transition prep; manual-flag-only remains preferred. | Acceptance report matrix |
+| Ek 4 - numeric rollback thresholds | sonraki_pakete_ertelendi | Belongs to Package 12 shadow/canary readiness after replay metrics exist. | Acceptance report matrix |
+| Ek 5 - escalate_missing_info | uygulandi | Package 10 includes missing-info transition proposal handling. | Acceptance report matrix |
+| Ek 6 - structured facts split | sonraki_pakete_ertelendi | Package 10 documents the dependency; implementation belongs with context/knowledge fixture hardening before Package 11/12 replay. | Acceptance report matrix |
 
 ## Addendum Placement Outside Package 10
 

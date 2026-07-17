@@ -183,7 +183,7 @@ describe("Responses shadow service", () => {
     expect(adapter.calls[0].contextPayload.sender).toEqual({ sender_id: "shadow_subject", phone_number: "shadow_subject" });
     expect(adapter.calls[0].contextPayload.chat.remote_jid).toBe("shadow_private_ref");
     expect(adapter.calls[0].metadata.traceId).not.toBe("raw_trace_identifier");
-    expect(service.snapshot()).toMatchObject({ last_status: "valid", last_schema_valid: true, last_semantic_valid: true, last_role_match: true, last_reply_present: true, valid_total: 1 });
+    expect(service.snapshot()).toMatchObject({ last_status: "valid", last_schema_valid: true, last_semantic_valid: true, last_transition_prep_valid: true, last_role_match: true, last_reply_present: true, valid_total: 1 });
     const serialized = JSON.stringify(events);
     expect(serialized).not.toMatch(/905000000000|raw-private|raw_sender_identifier|Guvenli bir soru/);
     expect(events[0]).toMatchObject({ raw_text_logged: false, outbound_count: 0, state_write_count: 0 });
