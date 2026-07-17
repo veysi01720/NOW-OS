@@ -487,14 +487,12 @@ function buildContext(scenario: ResponsesGoldenScenario): BackendContextPayloadV
       allowed_actions: scenario.allowedActions,
       forbidden_actions: ["send_whatsapp", "write_state_directly", "invent_policy"],
     },
-    ...(scenario.structuredAppFacts ? {
-      structured_facts: {
-        app_facts_source_status: "loaded",
-        app_facts_source_hash: "golden_structured_fixture",
-        app_facts: scenario.structuredAppFacts,
-        errors: [],
-      },
-    } : {}),
+    structured_facts: {
+      app_facts_source_status: "loaded",
+      app_facts_source_hash: "golden_structured_fixture",
+      app_facts: scenario.structuredAppFacts ?? STRUCTURED_APP_FACTS_FIXTURE,
+      errors: [],
+    },
   };
   return context as unknown as BackendContextPayloadV1;
 }

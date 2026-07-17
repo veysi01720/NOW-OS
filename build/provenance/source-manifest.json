@@ -1,16 +1,16 @@
 {
   "schema_version": "1.0",
-  "generated_at": "2026-07-17T22:13:46.079Z",
+  "generated_at": "2026-07-17T22:45:05.334Z",
   "workspace_id": "canonical-now-os",
   "workspace_role": "CANONICAL_PRODUCTION_SOURCE",
   "compose_project": "deploy_package",
   "service_name": "now_os_backend",
   "expected_command": "node dist/server.js",
-  "source_tree_hash": "f70e8a1d7f158b14127d4848f8be4367fe20905a248d16065177a251e4d4a3f3",
+  "source_tree_hash": "9cb34761c2f8224ef0ff0afe784c9ef9eeba584869f7d60fd90bac5a26b775d0",
   "package_lock_hash": "90e17cc0a3b6cfbee86758a5a573ae446f54d1973dd0c14c1c6b489542ef66ea",
-  "dist_tree_hash": "ff196886c85e232f426d4f68ca73ca6efdfec7920ea92d226ada7f3eabc4665b",
+  "dist_tree_hash": "37f24fb12999ab6d400297b7631a7485b9d8ddbd6e3f4272f9b2be62e39a10c0",
   "workspace_identity_hash": "4db557418dcaad79bf29c01788f72ca2a36aee0aa18d338f4f8054de3b35c57b",
-  "test_result_reference": "package12-harness-522-pass",
+  "test_result_reference": "package12b-structured-check-522-pass",
   "source_file_count": 267,
   "dist_file_count": 212,
   "source_files": [
@@ -691,13 +691,13 @@
     },
     {
       "path": "src/modelAdapter/responsesDecisionPrompt.ts",
-      "sha256": "0dc548a07cd4d618cdf0dd5fc90972e89fdf6455212bc3913e49a27452cfa679",
-      "size": 6121
+      "sha256": "e7c796cb55169306efd666001d23fb58d08a5e3b55d62c4c9ae79f1ef635df29",
+      "size": 6384
     },
     {
       "path": "src/modelAdapter/responsesGoldenReplay.ts",
-      "sha256": "70b91770ffdca6ac68cfaf0cf22743e73b4c86f62e886447b7f9c0f7bfe9cb4b",
-      "size": 31754
+      "sha256": "3960ebed10021ccd364e49ab81cfe99f6bdb843ea25f103eb3b7516477937f9f",
+      "size": 31721
     },
     {
       "path": "src/modelAdapter/responsesModelQualification.ts",
@@ -1146,8 +1146,8 @@
     },
     {
       "path": "src/tests/modelAdapter/responsesDecisionPrompt.test.ts",
-      "sha256": "86ef5fe83e0fb559df979bffe6bc67f2bfebd8296f85e75f5e1806b906cce7f5",
-      "size": 3582
+      "sha256": "422013320f3ebed3049cc5e7405216463bbd02a6ef96f388f6e853762b0f0b2b",
+      "size": 3809
     },
     {
       "path": "src/tests/modelAdapter/responsesGoldenReplay.test.ts",
@@ -1773,13 +1773,13 @@
     },
     {
       "path": "dist/modelAdapter/responsesDecisionPrompt.js",
-      "sha256": "23cb823edcc5a925c35ca6f433f9d0cd529afa490ac19f314754346c135a4ab7",
-      "size": 5517
+      "sha256": "15228f0155450e192b08a703dcfe8fd6330bbb047e2730a394b9eb68db2483c4",
+      "size": 5700
     },
     {
       "path": "dist/modelAdapter/responsesGoldenReplay.js",
-      "sha256": "3a2a7788f3cc91c783ee874932661f105853a24f0f59cd90206ae5e5ab79a286",
-      "size": 29585
+      "sha256": "689de7222cbd8971569b93fdc415f5c6b80e19595c105d23fc969095eb54d2ee",
+      "size": 29532
     },
     {
       "path": "dist/modelAdapter/responsesModelQualification.js",
@@ -2223,8 +2223,8 @@
     },
     {
       "path": "dist/tests/modelAdapter/responsesDecisionPrompt.test.js",
-      "sha256": "ef1f6d3805a5aaf4c6cebdfcf23740610d2ce02509c61353c084c6d9da220fcc",
-      "size": 3703
+      "sha256": "2ac55935f4659374911fbae9a5e960ae85fe09f5db5adbe8b1ef4a046f9d15d1",
+      "size": 3946
     },
     {
       "path": "dist/tests/modelAdapter/responsesGoldenReplay.test.js",

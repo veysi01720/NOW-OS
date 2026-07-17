@@ -14,6 +14,7 @@ export interface ResponsesDecisionContext {
     recent_bot_replies: string[];
   };
   allowed_apps: string[];
+  structured_facts: ModelAdapterInput["contextPayload"]["structured_facts"] | null;
   knowledge: {
     source_count: number;
     rule_ids: string[];
@@ -41,6 +42,7 @@ export function buildResponsesDecisionContext(input: ModelAdapterInput): Respons
       recent_bot_replies: [...input.contextPayload.memory.last_5_bot_replies],
     },
     allowed_apps: [...input.contextPayload.allowed_apps],
+    structured_facts: input.contextPayload.structured_facts ?? null,
     knowledge: {
       source_count: input.retrievedKnowledge?.sourceCount ?? input.contextPayload.answer_plan?.source_count ?? 0,
       rule_ids: [...(input.retrievedKnowledge?.ruleIds ?? input.contextPayload.answer_plan?.relevant_knowledge_rules ?? [])],
@@ -65,7 +67,7 @@ export function buildResponsesSystemInstructions(): string {
     "Use at most one clear question. Do not add generic closers or offer unrelated help.",
     "role must match decision_context.role. Preserve owner, manager, candidate, and group boundaries.",
     "chosen_actions must contain only exact backend domain action IDs from decision_context.allowed_actions. next_action is a separate orchestration outcome: choose it to match the reply and proposed state change, never by copying an allowed action string. Never ask candidate intake questions in an owner or manager reply.",
-    "Use only facts in decision_context, candidate_state, allowed_apps, and knowledge rule identifiers.",
+    "Use only facts in decision_context, structured_facts, candidate_state, allowed_apps, and knowledge rule identifiers. Treat structured_facts as exact backend-approved facts and copy codes or app names exactly.",
     "Do not invent app names, links, codes, earnings, payment details, references, guarantees, safety claims, policies, or setup steps.",
     "If the user names an app that is absent from allowed_apps, never quote or repeat that name in reply.text; call it bu uygulama and ask for approved guidance instead.",
     "Never say kesin guvenli, hic risk yok, sorun yasamazsiniz, garanti, or offer to share references unless explicitly grounded.",

@@ -27,6 +27,9 @@ describe("Responses decision context boundary", () => {
     expect(serialized).not.toContain("conversation_decision_v2_instructions");
     expect(serialized).not.toContain("legacy provider prompt");
     expect(serialized).toContain("decision_context");
+    expect(serialized).toContain("structured_facts");
+    expect(serialized).toContain("NIVI");
+    expect(serialized).toContain("M9W5B8");
   });
 
   it("keeps state, grounding, role, and no-outbound rules in backend-owned instructions", () => {
@@ -39,6 +42,7 @@ describe("Responses decision context boundary", () => {
     expect(instructions).toMatch(/state_patch_evidence/i);
     expect(instructions).toMatch(/preferred_work_mode=text_only and video_allowed=false/i);
     expect(instructions).toMatch(/do not invent app names, links, codes, earnings/i);
+    expect(instructions).toMatch(/structured_facts as exact backend-approved facts/i);
     expect(instructions).toMatch(/at most one clear question/i);
     expect(instructions).toMatch(/never call tools, send messages, write state/i);
     expect(instructions).toMatch(/diagnostic only/i);
