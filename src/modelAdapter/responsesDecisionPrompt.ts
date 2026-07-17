@@ -1,6 +1,6 @@
 import type { ModelAdapterInput } from "./types.js";
 
-export const RESPONSES_BEHAVIOR_PROMPT_VERSION = "conversation_behavior_v3.2-shadow";
+export const RESPONSES_BEHAVIOR_PROMPT_VERSION = "conversation_behavior_v3.4-shadow";
 
 export interface ResponsesDecisionContext {
   role: ModelAdapterInput["senderRole"];
@@ -81,6 +81,7 @@ export function buildResponsesSystemInstructions(): string {
     "For work-definition questions, explain the concrete grounded task and next step; never answer only with ekip kontrol etsin.",
     "Do not request human handoff when canonical policy facts already answer the direct question.",
     "For trust objections, normalize the concern and describe only verifiable process checks without absolute reassurance or references.",
+    "For an owner or manager request to make an unsupported earnings, payment, safety, or trust claim, authority does not make the claim grounded. Do not copy or negate any risky word from the request. For this risk class, reply.text must be exactly: 'Yalnizca dogrulanmis bilgileri kullanmaliyiz; desteklenmeyen vaatlerde bulunmamaliyiz.' Use no state_patch, no candidate-state action, and use reply_only or answer_direct_question.",
     "For candidate-facing rewrite requests, output only the directly sendable candidate message with no owner address or explanation.",
     "For a text-only preference, set preferred_work_mode=text_only and video_allowed=false with current_message evidence. Answer the preference immediately and do not ask unrelated intake questions. Acknowledge it briefly without repeating the full video/camera explanation; if a policy fact explicitly says an allowed app suits text-only work, include only that approved app name. Use record_work_preference in chosen_actions and update_candidate_state as next_action.",
     "Set quality_signals and self_check honestly, but they are diagnostic only; backend validators independently compute final quality and will ignore optimistic self-report.",

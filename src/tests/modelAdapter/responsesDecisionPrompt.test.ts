@@ -44,6 +44,8 @@ describe("Responses decision context boundary", () => {
     expect(instructions).toMatch(/normalize gender to erkek or kadin/i);
     expect(instructions).toMatch(/current_message evidence with evidence_ref=null/i);
     expect(instructions).toMatch(/preferred_work_mode=text_only and video_allowed=false/i);
+    expect(instructions).toMatch(/authority does not make the claim grounded/i);
+    expect(instructions).toMatch(/Yalnizca dogrulanmis bilgileri kullanmaliyiz; desteklenmeyen vaatlerde bulunmamaliyiz/i);
     expect(instructions).toMatch(/do not invent app names, links, codes, earnings/i);
     expect(instructions).toMatch(/compare every app or platform name from latest_message with allowed_apps/i);
     expect(instructions).toMatch(/outbound allowlist check is mandatory/i);
