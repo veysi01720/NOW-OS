@@ -4,10 +4,19 @@ import { dirname } from "node:path";
 export interface ModelAdapterCanaryApproval {
   schema_version: 1;
   approval_id: string;
+  approval_generation: string;
   approved: boolean;
+  issued_by: "owner_dashboard_token";
   issued_at: string;
   expires_at: string;
   maximum_observed_messages: number;
+  scope: {
+    tenant_id: string;
+    intents: string[];
+    traffic_percent: number;
+    channel: "private";
+    sender_role: "candidate";
+  };
   invalidated_at: string | null;
   invalidation_reason: string | null;
 }
@@ -19,7 +28,14 @@ export class ModelAdapterCanaryApprovalStore {
     try {
       if (!existsSync(this.filePath)) return null;
       const value = JSON.parse(readFileSync(this.filePath, "utf8")) as Partial<ModelAdapterCanaryApproval>;
-      if (value.schema_version !== 1 || typeof value.approval_id !== "string") return null;
+      if (
+        value.schema_version !== 1
+        || typeof value.approval_id !== "string"
+        || typeof value.approval_generation !== "string"
+        || value.issued_by !== "owner_dashboard_token"
+        || typeof value.scope !== "object"
+        || value.scope === null
+      ) return null;
       return value as ModelAdapterCanaryApproval;
     } catch {
       return null;

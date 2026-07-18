@@ -22,6 +22,9 @@ import { ResponsesShadowService, type ResponsesShadowSnapshot } from "./modelAda
 import { ConnectionHealthMonitor } from "./observability/connectionHealthMonitor.js";
 import { resolve } from "node:path";
 import { ModelAdapterCanaryApprovalStore } from "./modelAdapter/modelAdapterCanaryApproval.js";
+import { ModelAdapterCanaryApprovalAuditStore } from "./modelAdapter/modelAdapterCanaryApprovalAudit.js";
+import { ModelAdapterCanaryApprovalController } from "./modelAdapter/modelAdapterCanaryApprovalController.js";
+import { ModelAdapterCanaryStateStore } from "./modelAdapter/modelAdapterCanaryStateStore.js";
 import { ModelAdapterCanaryThresholdEvaluator } from "./modelAdapter/modelAdapterCanaryThresholds.js";
 import { ModelAdapterCanaryControl } from "./modelAdapter/modelAdapterCanaryControl.js";
 
@@ -121,6 +124,19 @@ export function registerConnectionDoctorRoute(
         canary_approval_valid: false,
         canary_reservation_count: 0,
         canary_terminal_observation_count: 0,
+        canary_terminal_window_target: 20,
+        canary_terminal_window_progress: 0,
+        canary_terminal_window_complete: false,
+        canary_window_started_at: null,
+        canary_last_terminal_at: null,
+        canary_result_totals: {
+          unsafe_claim_count: 0,
+          safe_fallback_count: 0,
+          validator_reject_count: 0,
+          schema_or_parse_reject_count: 0,
+          final_provider_failure_count: 0,
+          model_origin_accepted_count: 0,
+        },
       },
       model_adapter_contract: {
         model_adapter_contract_version: "1.0",
@@ -201,10 +217,20 @@ export async function buildServer() {
   const whatsappLearningStore = new FileWhatsAppLearningStore(resolve(DATA_DIR, "whatsapp_learning_messages.json"));
   const whatsappVisualResearchStore = new FileWhatsAppVisualResearchStore(resolve(DATA_DIR, "whatsapp_visual_research.json"));
   const assistantClient = new OpenAIAssistantClient(env.openaiApiKey, env.openaiAssistantId);
+  const modelAdapterCanaryApprovalStore = new ModelAdapterCanaryApprovalStore(
+    resolve(DATA_DIR, "model_adapter_canary_approval.json"),
+  );
+  const modelAdapterCanaryApprovalController = new ModelAdapterCanaryApprovalController(
+    modelAdapterCanaryApprovalStore,
+    new ModelAdapterCanaryApprovalAuditStore(resolve(DATA_DIR, "model_adapter_canary_approval_audit.ndjson")),
+    env,
+  );
   const modelAdapterCanaryControl = new ModelAdapterCanaryControl(
-    new ModelAdapterCanaryApprovalStore(resolve(DATA_DIR, "model_adapter_canary_approval.json")),
+    modelAdapterCanaryApprovalStore,
     new ModelAdapterCanaryThresholdEvaluator(),
     logger,
+    undefined,
+    new ModelAdapterCanaryStateStore(resolve(DATA_DIR, "model_adapter_canary_state.json")),
   );
   let responsesShadowService: ResponsesShadowService | undefined;
   const responsesCanaryConfigured = env.modelAdapterCanaryMode !== "off"
@@ -353,7 +379,8 @@ export async function buildServer() {
     ingestionStore,
     socialLeadStore,
     whatsappLearningStore,
-    whatsappVisualResearchStore
+    whatsappVisualResearchStore,
+    modelAdapterCanaryApprovalController,
   });
 
   return { app, env };

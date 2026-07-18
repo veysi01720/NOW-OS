@@ -9,6 +9,7 @@ import { dashboardHtml } from "./dashboardHtml.js";
 import { runBackup, getLatestBackupStatus } from "../utils/backupHelper.js";
 import { buildAnalyticsSnapshot } from "../analytics/analyticsService.js";
 import { getSafeConfigSummary } from "../config/envValidator.js";
+import type { ModelAdapterCanaryApprovalController, ModelAdapterCanaryApprovalRequest } from "../modelAdapter/modelAdapterCanaryApprovalController.js";
 
 export interface DashboardDeps {
   env: EnvConfig;
@@ -26,6 +27,7 @@ export interface DashboardDeps {
   socialLeadStore?: import("../store/socialLeadStore.js").PersistentSocialLeadStore;
   whatsappLearningStore?: import("../store/whatsappLearningStore.js").PersistentWhatsAppLearningStore;
   whatsappVisualResearchStore?: import("../store/whatsappVisualResearchStore.js").PersistentWhatsAppVisualResearchStore;
+  modelAdapterCanaryApprovalController?: ModelAdapterCanaryApprovalController;
 }
 
 export function registerDashboardRoutes(app: FastifyInstance, deps: DashboardDeps): void {
@@ -42,8 +44,6 @@ export function registerDashboardRoutes(app: FastifyInstance, deps: DashboardDep
     }
 
     const finalToken = authHeader.split(' ')[1] || authHeader;
-    console.log("Auth Check: token=", finalToken, " owner=", deps.env.dashboardOwnerToken, " admin=", deps.env.dashboardAdminToken, " manager=", deps.env.dashboardManagerToken);
-    
     if ((finalToken === deps.env.dashboardOwnerToken || finalToken === process.env.DASHBOARD_OWNER_TOKEN) && deps.env.dashboardOwnerToken !== "") {
       role = "owner";
       source = "owner_token";
@@ -91,6 +91,50 @@ export function registerDashboardRoutes(app: FastifyInstance, deps: DashboardDep
 
   app.get("/dashboard/health", { preHandler: requireAuth }, async (req, reply) => {
     return reply.send({ status: "ok", maintenance_mode: deps.maintenanceStore.isEnabled() });
+  });
+
+  app.post("/dashboard/actions/model-adapter-canary/approve", { preHandler: requireAuth }, async (req, reply) => {
+    const actorRole = (req as FastifyRequest & { actor_role?: string }).actor_role;
+    const authSource = (req as FastifyRequest & { role_resolution_source?: string }).role_resolution_source;
+    if (actorRole !== "owner" || authSource !== "owner_token") {
+      deps.actionAuditStore.logAction({
+        action_type: "model_adapter_canary_approval_denied",
+        actor_role: actorRole === "manager" ? "manager" : "unknown",
+        actor_masked_ref: "authenticated-dashboard-actor",
+        role_resolution_source: authSource === "manager_token" ? "manager_token" : "unknown",
+        target_type: "system",
+        target_safe_ref: "model-adapter-canary",
+        risk_level: "HIGH",
+        confirm_required: true,
+        confirmed: false,
+        result_status: "failure",
+        sanitized_reason: "OWNER_TOKEN_REQUIRED",
+      });
+      return reply.code(403).send({ status: "denied", reason_code: "OWNER_TOKEN_REQUIRED" });
+    }
+    if (!deps.modelAdapterCanaryApprovalController) {
+      return reply.code(503).send({ status: "unavailable", reason_code: "APPROVAL_CONTROLLER_UNAVAILABLE" });
+    }
+    const body = (req.body ?? {}) as Partial<ModelAdapterCanaryApprovalRequest>;
+    const result = deps.modelAdapterCanaryApprovalController.issue({
+      tenant_id: typeof body.tenant_id === "string" ? body.tenant_id : "",
+      intents: Array.isArray(body.intents) ? body.intents.filter((value): value is string => typeof value === "string") : [],
+      traffic_percent: typeof body.traffic_percent === "number" ? body.traffic_percent : Number.NaN,
+      expires_in_minutes: typeof body.expires_in_minutes === "number" ? body.expires_in_minutes : Number.NaN,
+      maximum_observed_messages: typeof body.maximum_observed_messages === "number" ? body.maximum_observed_messages : Number.NaN,
+    });
+    if (!result.ok) {
+      return reply.code(result.status).send({ status: "rejected", reason_code: result.reason_code });
+    }
+    return reply.code(201).send({
+      status: "approved",
+      approval_id: result.approval.approval_id,
+      approval_generation: result.approval.approval_generation,
+      issued_at: result.approval.issued_at,
+      expires_at: result.approval.expires_at,
+      maximum_observed_messages: result.approval.maximum_observed_messages,
+      scope: result.approval.scope,
+    });
   });
 
   app.get("/dashboard/summary", { preHandler: requireAuth }, async (req, reply) => {

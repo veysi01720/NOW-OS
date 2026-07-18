@@ -106,10 +106,19 @@ function approvalStore(now: Date) {
   store.write({
     schema_version: 1,
     approval_id: "synthetic-no-outbound-approval",
+    approval_generation: "synthetic-no-outbound-generation",
     approved: true,
+    issued_by: "owner_dashboard_token",
     issued_at: now.toISOString(),
     expires_at: new Date(now.getTime() + 15 * 60_000).toISOString(),
     maximum_observed_messages: 1,
+    scope: {
+      tenant_id: "now_os",
+      intents: ["candidate_first_contact"],
+      traffic_percent: 10,
+      channel: "private",
+      sender_role: "candidate",
+    },
     invalidated_at: null,
     invalidation_reason: null,
   });

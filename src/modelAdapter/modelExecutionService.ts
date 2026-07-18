@@ -51,6 +51,19 @@ export interface ModelExecutionRuntimeSnapshot {
   canary_approval_valid: boolean;
   canary_reservation_count: number;
   canary_terminal_observation_count: number;
+  canary_terminal_window_target: number;
+  canary_terminal_window_progress: number;
+  canary_terminal_window_complete: boolean;
+  canary_window_started_at: string | null;
+  canary_last_terminal_at: string | null;
+  canary_result_totals: {
+    unsafe_claim_count: number;
+    safe_fallback_count: number;
+    validator_reject_count: number;
+    schema_or_parse_reject_count: number;
+    final_provider_failure_count: number;
+    model_origin_accepted_count: number;
+  };
 }
 
 export type ModelExecutionServiceInput = ModelAdapterInput;
@@ -405,6 +418,19 @@ export class ModelExecutionService {
       canary_approval_valid: canary?.approval_valid ?? false,
       canary_reservation_count: canary?.reservation_count ?? 0,
       canary_terminal_observation_count: canary?.terminal_observation_count ?? 0,
+      canary_terminal_window_target: canary?.terminal_window_target ?? 20,
+      canary_terminal_window_progress: canary?.terminal_window_progress ?? 0,
+      canary_terminal_window_complete: canary?.terminal_window_complete ?? false,
+      canary_window_started_at: canary?.window_started_at ?? null,
+      canary_last_terminal_at: canary?.last_terminal_at ?? null,
+      canary_result_totals: canary?.result_totals ?? {
+        unsafe_claim_count: 0,
+        safe_fallback_count: 0,
+        validator_reject_count: 0,
+        schema_or_parse_reject_count: 0,
+        final_provider_failure_count: 0,
+        model_origin_accepted_count: 0,
+      },
     };
   }
 

@@ -98,6 +98,16 @@ export class ModelAdapterCanaryThresholdEvaluator {
   private currentWindow: ModelAdapterCanaryTerminalObservation[] = [];
   private previousWindow: WindowEvaluation | null = null;
 
+  reset(): void {
+    this.currentWindow = [];
+    this.previousWindow = null;
+  }
+
+  restore(observations: ModelAdapterCanaryTerminalObservation[]): void {
+    this.reset();
+    for (const observation of observations) this.evaluate(observation);
+  }
+
   evaluate(observation: ModelAdapterCanaryTerminalObservation): ModelAdapterCanaryThresholdDecision {
     const immediate = immediateThresholds(observation);
     if (immediate.length > 0) {
