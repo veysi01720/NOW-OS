@@ -4,7 +4,11 @@ Generated: 2026-07-18
 
 ## Status
 
-Design prepared for owner review. **No implementation has started.**
+Design prepared for owner review. **No implementation has started.** Package 13
+Path B was audited and rejected because a legacy model-execution callsite omits
+the intent-scope metadata and the selector does not fail closed when that scope
+is empty. The missing-policy blocker therefore cannot be declared irrelevant to
+the canary until the scope bypass is closed or this normalization is completed.
 
 ```text
 CODE_CHANGED=NO
@@ -13,6 +17,8 @@ VALIDATOR_CHANGED=NO
 ALLOWED_ACTION_RESOLVER_CHANGED=NO
 CANARY_ARMED=NO
 DEPLOY_EXECUTED=NO
+PACKAGE_12_GATE_RELAXED=NO
+PATH_B_SCOPE_PROOF=FAILED
 ```
 
 ## Purpose

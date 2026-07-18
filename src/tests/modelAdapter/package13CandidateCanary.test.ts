@@ -4,6 +4,7 @@ import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import { handleIncomingMessage } from "../../bridge/handleIncomingMessage.js";
 import type { NormalizedIncomingMessage } from "../../bridge/normalizeEvolutionMessage.js";
+import { inferConversationIntent } from "../../intelligence/conversation/ConversationContextBuilder.js";
 import type { IModelAdapter } from "../../modelAdapter/IModelAdapter.js";
 import { ModelAdapterCanaryApprovalStore } from "../../modelAdapter/modelAdapterCanaryApproval.js";
 import { ModelAdapterCanaryControl } from "../../modelAdapter/modelAdapterCanaryControl.js";
@@ -161,8 +162,26 @@ describe("Package 13 candidate first-contact canary", () => {
     expect(selection({ inferredIntent: "payment_question" }).reason).toBe("denied_intent");
     expect(selection({ inferredIntent: "approve_review" }).reason).toBe("denied_intent");
     expect(selection({ inferredIntent: "reject_review" }).reason).toBe("denied_intent");
+    expect(selection({ inferredIntent: "app_fact_question" }).reason).toBe("denied_intent");
     expect(selection({ inferredIntent: null }).reason).toBe("denied_intent");
     expect(selection({ trafficBucket: 10 }).reason).toBe("denied_traffic_bucket");
+  });
+
+  it("keeps unknown-app missing-policy traffic outside the exact first-contact intent scope", () => {
+    const greetingIntent = inferConversationIntent("Selam");
+    const firstContactIntent = inferConversationIntent("Selam, is icin yazdim");
+    const unknownAppIntent = inferConversationIntent("NovaChat kodunu verir misin?");
+
+    expect(greetingIntent).toBe("greeting_or_first_contact");
+    expect(firstContactIntent).toBe("candidate_first_contact");
+    expect(unknownAppIntent).toBeNull();
+
+    expect(selection({ inferredIntent: greetingIntent }).useAdapterLayer).toBe(true);
+    expect(selection({ inferredIntent: firstContactIntent }).useAdapterLayer).toBe(true);
+    expect(selection({ inferredIntent: unknownAppIntent }).reason).toBe("denied_intent");
+
+    // The qualification fixture's explicit semantic label is excluded too.
+    expect(selection({ inferredIntent: "app_fact_question" }).reason).toBe("denied_intent");
   });
 
   it("uses Responses only for an approved private greeting and keeps real outbound at zero", async () => {
