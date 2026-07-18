@@ -7,7 +7,10 @@ import {
   type ConversationDecisionV3Action,
 } from "../../intelligence/conversation/ConversationDecisionV3Schema.js";
 import {
+  RESPONSES_COMBINED_SCENARIOS,
+  RESPONSES_EXPANDED_SCENARIOS,
   RESPONSES_GOLDEN_SCENARIOS,
+  RESPONSES_TARGETED_SCENARIO_IDS,
   classifyResponsesGoldenProviderError,
   evaluateResponsesGoldenScenario,
   runRepeatedResponsesGoldenReplay,
@@ -196,6 +199,15 @@ function fakeAdapter(replyFor: (input: ModelAdapterInput) => ConversationDecisio
 }
 
 describe("Responses golden replay", () => {
+  it("defines one deduplicated combined regression catalog for every qualification change", () => {
+    const combinedIds = RESPONSES_COMBINED_SCENARIOS.map((scenario) => scenario.id);
+    const expandedIds = new Set(RESPONSES_EXPANDED_SCENARIOS.map((scenario) => scenario.id));
+
+    expect(RESPONSES_COMBINED_SCENARIOS).toHaveLength(23);
+    expect(new Set(combinedIds)).toHaveLength(23);
+    expect(RESPONSES_TARGETED_SCENARIO_IDS.every((id) => expandedIds.has(id))).toBe(true);
+    expect(RESPONSES_TARGETED_SCENARIO_IDS.every((id) => combinedIds.includes(id))).toBe(true);
+  });
   it("covers a unique, mixed golden and adversarial catalog", () => {
     expect(RESPONSES_GOLDEN_SCENARIOS).toHaveLength(13);
     expect(new Set(RESPONSES_GOLDEN_SCENARIOS.map((item) => item.id)).size).toBe(13);

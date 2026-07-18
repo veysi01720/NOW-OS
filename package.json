@@ -12,6 +12,7 @@
     "provenance:generate": "node scripts/generate-build-provenance.mjs",
     "provenance:verify": "node scripts/verify-build-provenance.mjs",
     "test:package12:real": "tsx scripts/responsesModelQualification.ts",
+    "test:package12:combined-real": "tsx scripts/responsesQualificationSuite.ts",
     "test": "vitest run",
     "test:watch": "vitest",
     "backup": "tsx scripts/backup.ts",

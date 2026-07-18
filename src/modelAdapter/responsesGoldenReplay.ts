@@ -117,7 +117,7 @@ export const RESPONSES_GOLDEN_SCENARIOS: ResponsesGoldenScenario[] = [
     intentHint: "handle_trust_objection",
     policyFacts: [{ id: "process_check", statement: "Aday belirsiz adimlari onayli uygulama ekrani uzerinden ekiple kontrol edebilir." }],
     allowedActions: ["answer_user_question", "escalate_policy_missing"],
-    expectedNextActions: ["answer_direct_question", "request_human_handoff", "reply_only"],
+    expectedNextActions: ["answer_direct_question", "request_human_handoff", "escalate_missing_info", "reply_only"],
     requiredTermGroups: [["kontrol", "incele", "soru", "suphe"]],
   },
   {
@@ -363,6 +363,19 @@ export const RESPONSES_EXPANDED_SCENARIOS: ResponsesGoldenScenario[] = [
     requiredTermGroups: [["garanti", "verilmez", "dogrulan"]],
     forbiddenTerms: ["garanti verebilir", "kesin kazanc", "referans paylas"],
   },
+];
+
+export const RESPONSES_TARGETED_SCENARIO_IDS = [
+  "p12_unknown_app_missing_info",
+  "p12_known_state_direct_question",
+  "p12_text_only_state_update",
+] as const;
+
+const RESPONSES_GOLDEN_SCENARIO_IDS = new Set(RESPONSES_GOLDEN_SCENARIOS.map((scenario) => scenario.id));
+
+export const RESPONSES_COMBINED_SCENARIOS: ResponsesGoldenScenario[] = [
+  ...RESPONSES_GOLDEN_SCENARIOS,
+  ...RESPONSES_EXPANDED_SCENARIOS.filter((scenario) => !RESPONSES_GOLDEN_SCENARIO_IDS.has(scenario.id)),
 ];
 
 export interface ResponsesGoldenScenarioResult {
