@@ -4,6 +4,15 @@ import type { Logger } from "../../observability/logger.js";
 import type { UserState } from "../../storage/types.js";
 import type { NormalizedIncomingMessage } from "../../bridge/normalizeEvolutionMessage.js";
 import type { ModelExecutionService } from "../../modelAdapter/modelExecutionService.js";
+import type { ModelAdapterInput } from "../../modelAdapter/types.js";
+import {
+  validateConversationDecisionV3Shape,
+  type ConversationDecisionV3,
+} from "./ConversationDecisionV3Schema.js";
+import {
+  buildConversationDecisionV3SemanticContext,
+  validateConversationDecisionV3Semantics,
+} from "./ConversationDecisionV3SemanticValidator.js";
 import type { ConversationDecision, ConversationDecisionContext } from "./ConversationDecisionSchema.js";
 import { buildConversationDecisionContext } from "./ConversationContextBuilder.js";
 import { buildDeterministicSafetyDecision } from "./ConversationDecisionRepair.js";
@@ -124,7 +133,7 @@ async function runModelDecision(input: {
     conversation_decision_v2_instructions: buildDecisionPrompt(input.context, input.repairInput)
   } as BackendContextPayloadV1;
 
-  const modelOutput = await input.modelExecutionService.execute({
+  const adapterInput: ModelAdapterInput = {
     tenantId: "now_os",
     conversationId: input.context.request_id,
     mode: "conversation_decision_v2",
@@ -147,10 +156,66 @@ async function runModelDecision(input: {
         model_adapter_layer_enabled: input.env.modelAdapterLayerEnabled,
         model_adapter_canary_mode: input.env.modelAdapterCanaryMode,
         model_adapter_canary_tenants: input.env.modelAdapterCanaryTenants,
-        model_adapter_canary_roles: input.env.modelAdapterCanaryRoles
-      }
+        model_adapter_canary_roles: input.env.modelAdapterCanaryRoles,
+        model_adapter_canary_intents: input.env.modelAdapterCanaryIntents,
+        model_adapter_canary_percent: input.env.modelAdapterCanaryPercent
+      },
+      inferredIntent: input.context.latest_message.inferred_intent
     }
-  });
+  };
+  const modelOutput = await input.modelExecutionService.execute(adapterInput);
+
+  if (modelOutput.providerTrace?.provider === "openai_responses") {
+    let value: unknown;
+    try {
+      value = JSON.parse(modelOutput.rawText);
+    } catch {
+      return { decision: null, rawText: modelOutput.rawText };
+    }
+    const shape = validateConversationDecisionV3Shape(value);
+    const semantics = validateConversationDecisionV3Semantics(
+      value,
+      buildConversationDecisionV3SemanticContext(adapterInput),
+    );
+    if (!shape.ok || !semantics.ok) {
+      return { decision: null, rawText: modelOutput.rawText };
+    }
+    const v3 = value as ConversationDecisionV3;
+    const supportedActions = v3.chosen_actions.filter((action): action is ConversationDecision["chosen_actions"][number] =>
+      action !== "record_work_preference",
+    );
+    const mappedNextAction = supportedActions.find((action) =>
+      v3.next_action === "ask_missing_info"
+        ? action.startsWith("ask_missing_")
+        : v3.next_action === "answer_direct_question" || v3.next_action === "reply_only"
+          ? action === "answer_user_question" || action === "acknowledge_information"
+          : false,
+    ) ?? "none";
+    const decision: ConversationDecision = {
+      decision_version: "2.0",
+      intent: v3.intent,
+      direct_question: v3.direct_question,
+      reply: v3.reply,
+      chosen_actions: supportedActions,
+      state_patch: {
+        age: v3.state_patch.age,
+        gender: v3.state_patch.gender,
+        daily_hours: v3.state_patch.daily_hours,
+        work_model_acceptance: v3.state_patch.work_model_acceptance,
+        selected_app: v3.state_patch.selected_app,
+        phone_type: v3.state_patch.phone_type,
+        work_model_disclosed: v3.state_patch.work_model_disclosed ?? undefined,
+      },
+      policy_facts_used: v3.policy_facts_used,
+      next_action: mappedNextAction,
+      requires_escalation: v3.requires_escalation,
+      escalation_reason: v3.escalation_reason,
+      risk_flags: v3.risk_flags,
+      self_check: v3.self_check,
+      origin: input.repairInput ? "conversation_decision_v2_model_repair" : "conversation_decision_v2_model",
+    };
+    return { decision, rawText: modelOutput.rawText };
+  }
 
   const decision = parseConversationDecision(modelOutput.rawText);
   if (decision) {

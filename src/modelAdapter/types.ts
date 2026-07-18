@@ -33,7 +33,10 @@ export interface ModelAdapterInput {
       model_adapter_canary_mode: "off" | "internal" | "tenant_allowlist";
       model_adapter_canary_tenants: string[];
       model_adapter_canary_roles: string[];
+      model_adapter_canary_intents?: string[];
+      model_adapter_canary_percent?: number;
     };
+    inferredIntent?: string | null;
   };
 }
 

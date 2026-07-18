@@ -30,6 +30,8 @@ function getEmptyEnv(): EnvConfig {
     modelAdapterCanaryMode: "off",
     modelAdapterCanaryTenants: [],
     modelAdapterCanaryRoles: ["owner", "manager"],
+    modelAdapterCanaryIntents: [],
+    modelAdapterCanaryPercent: 0,
     modelExecutionTimeoutEnabled: false,
     modelExecutionTimeoutMs: 45_000,
     responsesShadowEnabled: false,

@@ -64,6 +64,7 @@ import type { ConnectionHealthMonitor } from "../observability/connectionHealthM
 import { resolveAuthorityContext } from "./authorityContext.js";
 import { applyUserStateTransition } from "../storage/userStateTransitionBoundary.js";
 import { resolveConversationModelRoute } from "./modelRoutingPolicy.js";
+import { emptyModelAdapterCanaryObservation } from "../modelAdapter/modelAdapterCanaryThresholds.js";
 export interface HandleIncomingMessageDeps {
   env: EnvConfig;
   assistantClient?: {
@@ -97,6 +98,7 @@ export interface HandleIncomingMessageResult {
     | "zip_ingestion_started"
     | "sent"
     | "fallback_sent"
+    | "canary_stopped"
     | "reply_send_failed"
     | "duplicate_ignored";
   correlation_id: string;
@@ -791,6 +793,43 @@ export async function handleIncomingMessage(
           modelExecutionService,
           logger,
         });
+        const canaryObservation = {
+          ...emptyModelAdapterCanaryObservation(),
+          unsafe_claim_count: decisionResult.quality_reason_codes.includes("UNSUPPORTED_CLAIM") ? 1 : 0,
+          validator_reject_count: decisionResult.validation_reason_codes.length > 0
+            || decisionResult.quality_reason_codes.length > 0
+            ? 1
+            : 0,
+          safe_fallback_count: decisionResult.origin.startsWith("deterministic_") ? 1 : 0,
+          schema_or_parse_reject_count: decisionResult.origin === "deterministic_safety_response" ? 1 : 0,
+          final_provider_failure_count: decisionResult.origin === "deterministic_transport_failure" ? 1 : 0,
+          model_origin_accepted_count: decisionResult.origin.startsWith("conversation_decision_v2_model") ? 1 : 0,
+        };
+        const canaryTerminal = modelExecutionService.finalizeCanaryObservation(
+          message.correlation_id,
+          canaryObservation,
+        );
+        if (canaryTerminal && !canaryTerminal.egress_allowed) {
+          logger.error({
+            event_type: "MODEL_ADAPTER_CANARY_EGRESS_BLOCKED",
+            correlation_id: message.correlation_id,
+            threshold_ids: canaryTerminal.threshold_ids,
+            effective_canary_mode: canaryTerminal.effective_canary_mode,
+            outbound_count: 0,
+            raw_text_logged: false,
+          });
+          recordEvent(deps, {
+            message,
+            state: decisionResult.nextState,
+            senderRole: backendContext.sender_role,
+            assistantStatus: "blocked",
+            parserResult: "valid_guarded",
+            sendtextStatus: "blocked",
+            fallbackUsed: true,
+            internalBossNoteLogged: false,
+          });
+          return { status: "canary_stopped", correlation_id: message.correlation_id };
+        }
         applyUserStateTransition({
           store: deps.userStateStore,
           conversationKey,

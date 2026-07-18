@@ -21,6 +21,9 @@ import { createOpenAIResponsesAdapter } from "./modelAdapter/ResponsesAdapter.js
 import { ResponsesShadowService, type ResponsesShadowSnapshot } from "./modelAdapter/responsesShadowService.js";
 import { ConnectionHealthMonitor } from "./observability/connectionHealthMonitor.js";
 import { resolve } from "node:path";
+import { ModelAdapterCanaryApprovalStore } from "./modelAdapter/modelAdapterCanaryApproval.js";
+import { ModelAdapterCanaryThresholdEvaluator } from "./modelAdapter/modelAdapterCanaryThresholds.js";
+import { ModelAdapterCanaryControl } from "./modelAdapter/modelAdapterCanaryControl.js";
 
 const DEFAULT_RESPONSES_SHADOW_SNAPSHOT: ResponsesShadowSnapshot = {
   enabled: false,
@@ -51,6 +54,7 @@ export function registerConnectionDoctorRoute(
   flags: {
     behaviorOrchestratorEnabled?: boolean;
     responsesShadowSnapshot?: () => ResponsesShadowSnapshot;
+    modelAdapterSnapshot?: () => unknown;
   } = {},
 ) {
   app.get("/healthz/connection-doctor", async (_req: unknown, reply: any) => {
@@ -89,9 +93,10 @@ export function registerConnectionDoctorRoute(
         rollback_mode: "flag_off",
         production_canary_ready: false,
       },
-      model_adapter: {
+      model_adapter: flags.modelAdapterSnapshot?.() ?? {
         model_adapter_layer_global_enabled: false,
         model_adapter_canary_mode: "off",
+        model_adapter_canary_mode_configured: "off",
         model_adapter_canary_scope_supported: true,
         model_adapter_current_decision: { use_adapter_layer: false, reason: "disabled_mode_off", canary_scope: "off" },
         model_adapter_selected_adapter: "assistant_adapter",
@@ -110,6 +115,12 @@ export function registerConnectionDoctorRoute(
         assistant_id_changed: false,
         provider_changed: false,
         responses_api_used: false,
+        automatic_stop_code_active: false,
+        canary_stop_latched: false,
+        canary_stop_reason: null,
+        canary_approval_valid: false,
+        canary_reservation_count: 0,
+        canary_terminal_observation_count: 0,
       },
       model_adapter_contract: {
         model_adapter_contract_version: "1.0",
@@ -190,12 +201,23 @@ export async function buildServer() {
   const whatsappLearningStore = new FileWhatsAppLearningStore(resolve(DATA_DIR, "whatsapp_learning_messages.json"));
   const whatsappVisualResearchStore = new FileWhatsAppVisualResearchStore(resolve(DATA_DIR, "whatsapp_visual_research.json"));
   const assistantClient = new OpenAIAssistantClient(env.openaiApiKey, env.openaiAssistantId);
+  const modelAdapterCanaryControl = new ModelAdapterCanaryControl(
+    new ModelAdapterCanaryApprovalStore(resolve(DATA_DIR, "model_adapter_canary_approval.json")),
+    new ModelAdapterCanaryThresholdEvaluator(),
+    logger,
+  );
   let responsesShadowService: ResponsesShadowService | undefined;
-  if (env.responsesShadowEnabled && env.responsesShadowMode !== "off" && env.openaiResponsesModel) {
-    const responsesAdapter = await createOpenAIResponsesAdapter({
+  const responsesCanaryConfigured = env.modelAdapterCanaryMode !== "off"
+    && env.modelAdapterCanaryIntents.length > 0;
+  const responsesRuntimeNeeded = (env.responsesShadowEnabled && env.responsesShadowMode !== "off")
+    || responsesCanaryConfigured;
+  const responsesAdapter = responsesRuntimeNeeded && env.openaiResponsesModel
+    ? await createOpenAIResponsesAdapter({
       apiKey: env.openaiApiKey,
       model: env.openaiResponsesModel,
-    });
+    })
+    : undefined;
+  if (env.responsesShadowEnabled && env.responsesShadowMode !== "off" && responsesAdapter) {
     responsesShadowService = new ResponsesShadowService(
       responsesAdapter,
       {
@@ -214,6 +236,14 @@ export async function buildServer() {
       raw_text_logged: false,
     });
   }
+  if (responsesCanaryConfigured && !responsesAdapter) {
+    logger.error({
+      event_type: "MODEL_ADAPTER_CANARY_NOT_ARMED",
+      reason: "responses_model_not_configured",
+      effective_canary_mode: "off",
+      raw_text_logged: false,
+    });
+  }
   const modelExecutionService = new ModelExecutionService(
     assistantClient,
     persistentStore.threadStore,
@@ -223,6 +253,8 @@ export async function buildServer() {
       modelExecutionTimeoutEnabled: env.modelExecutionTimeoutEnabled,
       modelExecutionTimeoutMsConfigured: env.modelExecutionTimeoutMs > 0,
       responsesShadowObserver: responsesShadowService,
+      canaryControl: modelAdapterCanaryControl,
+      canaryAdapter: responsesAdapter,
     },
   );
   const connectionHealthMonitor = new ConnectionHealthMonitor({
@@ -252,6 +284,7 @@ export async function buildServer() {
             ? (env.responsesShadowMode === "off" ? "disabled_mode_off" : "model_not_configured")
             : "disabled_global",
         }),
+    modelAdapterSnapshot: () => modelExecutionService.snapshot(),
   });
   await connectionHealthMonitor.runReachabilityCheck("startup");
   const reachabilityInterval = setInterval(() => {

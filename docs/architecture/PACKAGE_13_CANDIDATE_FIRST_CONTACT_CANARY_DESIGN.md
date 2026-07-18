@@ -1,29 +1,29 @@
 # Package 13 - Candidate Greeting and First-Contact Canary Design
 
-Status: DESIGN READY / OWNER APPROVAL REQUIRED / NOT IMPLEMENTED  
+Status: IMPLEMENTED / LOCAL PASS / OWNER APPROVAL REQUIRED / NOT ARMED
 Date: 2026-07-18
 
 ## 1. Objective
 
 Observe the qualified Responses decision path only for private candidate
-greeting and first-contact events. This package does not authorize code,
-configuration, shadow, canary, deployment, model, provider, or binding changes.
+greeting and first-contact events. Implementation preserves default-off
+configuration and does not authorize a live arm, deployment, model change,
+provider change, or binding change.
 
-## 2. Current Blockers
+## 2. Resolved Implementation Blockers
 
-Canary must not be armed yet:
+1. Package 12 thresholds are implemented by
+   `src/modelAdapter/modelAdapterCanaryThresholds.ts`.
+2. The canonical model execution service can select an injected
+   `ResponsesAdapter` while `modelAdapterFactory.ts` remains the legacy rollback
+   boundary.
+3. Selection intersects role, tenant, private channel, inferred intent, stable
+   traffic bucket, approval, and reservation.
+4. The runtime controller immediately forces effective mode `off`, persists
+   approval invalidation atomically, restores the stop latch after restart, and
+   exposes sanitized state through Connection Doctor.
 
-1. Package 12 numeric thresholds exist only as design assertions. There is no
-   functional automatic-stop evaluator or simulated immediate-stop proof.
-2. `modelAdapterFactory.ts` still returns `AssistantAdapter`; the model adapter
-   canary selector does not select `ResponsesAdapter`.
-3. `modelAdapterSelection.ts` scopes by role and tenant only. It cannot enforce
-   a greeting/first-contact intent allowlist.
-4. Environment flags are startup configuration. An automatic stop needs an
-   immediate runtime deny latch plus idempotent configuration reconciliation;
-   changing a process environment variable in memory is not durable rollback.
-
-All four blockers require a separately approved implementation package.
+Live arm still requires explicit owner approval and runtime configuration.
 
 ## 3. Exact Eligibility Scope
 
@@ -65,10 +65,10 @@ MODEL_ADAPTER_CANARY_PERCENT=10
 RESPONSES_SHADOW_ENABLED=false
 ```
 
-`MODEL_ADAPTER_CANARY_INTENTS` and `MODEL_ADAPTER_CANARY_PERCENT` are proposed
-contracts; they do not exist in runtime code today. Global adapter enable stays
-false. The canary mode alone must never broaden selection beyond the tenant,
-role, intent, private-channel, approval, and percentage intersection.
+`MODEL_ADAPTER_CANARY_INTENTS` and `MODEL_ADAPTER_CANARY_PERCENT` are
+implemented with empty/zero defaults. Global adapter enable stays false. The
+canary mode alone cannot broaden selection beyond the tenant, role, intent,
+private-channel, approval, and percentage intersection.
 
 ## 5. Traffic and Observation Window
 
@@ -173,8 +173,10 @@ Implementation may be considered arm-ready only when:
 10. owner approves the exact runtime configuration and window.
 
 ```text
-DESIGN_STATUS=READY_FOR_OWNER_REVIEW
-CANARY_CODE_WRITTEN=NO
+DESIGN_STATUS=IMPLEMENTED_LOCAL_PASS
+CANARY_CODE_WRITTEN=YES
 SHADOW_OR_CANARY_FLAG_OPENED=NO
-CURRENT_ARM_STATUS=BLOCKED_BY_FUNCTIONAL_STOP_AND_INTENT_SCOPE
+AUTOMATIC_STOP_CODE_ACTIVE=YES
+FUNCTIONAL_CANARY_ARM_READY=YES
+CURRENT_ARM_STATUS=OWNER_APPROVAL_REQUIRED_NOT_ARMED
 ```

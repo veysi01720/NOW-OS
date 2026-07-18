@@ -33,6 +33,8 @@ export interface EnvConfig {
   modelAdapterCanaryMode: "off" | "internal" | "tenant_allowlist";
   modelAdapterCanaryTenants: string[];
   modelAdapterCanaryRoles: string[];
+  modelAdapterCanaryIntents: string[];
+  modelAdapterCanaryPercent: number;
   modelExecutionTimeoutEnabled: boolean;
   modelExecutionTimeoutMs: number;
   responsesShadowEnabled: boolean;
@@ -71,6 +73,12 @@ function parsePort(value: string): number {
 function parsePositiveInteger(value: string | undefined, fallback: number): number {
   const candidate = Number(value ?? fallback);
   if (!Number.isInteger(candidate) || candidate <= 0) return fallback;
+  return candidate;
+}
+
+function parsePercentage(value: string | undefined, fallback: number): number {
+  const candidate = Number(value ?? fallback);
+  if (!Number.isFinite(candidate) || candidate < 0 || candidate > 100) return fallback;
   return candidate;
 }
 
@@ -130,6 +138,8 @@ export function loadEnv(): EnvConfig {
     modelAdapterCanaryMode: parseEnum("MODEL_ADAPTER_CANARY_MODE", process.env.MODEL_ADAPTER_CANARY_MODE, ["off", "internal", "tenant_allowlist"] as const, "off"),
     modelAdapterCanaryTenants: parseCsv(process.env.MODEL_ADAPTER_CANARY_TENANTS),
     modelAdapterCanaryRoles: parseCsv(process.env.MODEL_ADAPTER_CANARY_ROLES ?? "owner,manager"),
+    modelAdapterCanaryIntents: parseCsv(process.env.MODEL_ADAPTER_CANARY_INTENTS),
+    modelAdapterCanaryPercent: parsePercentage(process.env.MODEL_ADAPTER_CANARY_PERCENT, 0),
     modelExecutionTimeoutEnabled: process.env.MODEL_EXECUTION_TIMEOUT_ENABLED === "true",
     modelExecutionTimeoutMs: parsePositiveInteger(process.env.MODEL_EXECUTION_TIMEOUT_MS, 45_000),
     responsesShadowEnabled: process.env.RESPONSES_SHADOW_ENABLED === "true",

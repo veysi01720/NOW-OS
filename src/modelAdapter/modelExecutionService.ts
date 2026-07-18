@@ -7,6 +7,9 @@ import { ModelExecutionError, normalizeModelExecutionError, type ModelExecutionE
 import { resolveModelAdapterExecution, type AdapterExecutionDecision } from "./modelAdapterSelection.js";
 import type { ModelAdapterInput, ModelAdapterOutput } from "./types.js";
 import type { ResponsesShadowObserver } from "./responsesShadowService.js";
+import type { ModelAdapterCanaryControl } from "./modelAdapterCanaryControl.js";
+import type { ModelAdapterCanaryTerminalObservation } from "./modelAdapterCanaryThresholds.js";
+import { createHash } from "node:crypto";
 
 export type ModelAdapterLastErrorClass = "none" | "model_execution_error";
 
@@ -19,6 +22,7 @@ export interface ModelExecutionOptions {
 export interface ModelExecutionRuntimeSnapshot {
   model_adapter_layer_global_enabled: boolean;
   model_adapter_canary_mode: "off" | "internal" | "tenant_allowlist";
+  model_adapter_canary_mode_configured: "off" | "internal" | "tenant_allowlist";
   model_adapter_canary_scope_supported: boolean;
   model_adapter_current_decision: {
     use_adapter_layer: boolean;
@@ -39,8 +43,14 @@ export interface ModelExecutionRuntimeSnapshot {
   late_result_ignored: boolean;
   model_adapter_rollback_method: "FLAG_OFF";
   assistant_id_changed: false;
-  provider_changed: false;
-  responses_api_used: false;
+  provider_changed: boolean;
+  responses_api_used: boolean;
+  automatic_stop_code_active: boolean;
+  canary_stop_latched: boolean;
+  canary_stop_reason: string | null;
+  canary_approval_valid: boolean;
+  canary_reservation_count: number;
+  canary_terminal_observation_count: number;
 }
 
 export type ModelExecutionServiceInput = ModelAdapterInput;
@@ -55,6 +65,7 @@ export class ModelExecutionService {
   };
   private lastGlobalEnabled = false;
   private lastCanaryMode: "off" | "internal" | "tenant_allowlist" = "off";
+  private lastConfiguredCanaryMode: "off" | "internal" | "tenant_allowlist" = "off";
   private lastSuccessAt: string | null = null;
   private lastErrorClass: ModelAdapterLastErrorClass = "none";
   private lastErrorCode: ModelExecutionErrorCode | "none" = "none";
@@ -62,6 +73,7 @@ export class ModelExecutionService {
   private lastTimeoutConfigured = false;
   private lastLateResultIgnored = false;
   private executionSequence = 0;
+  private lastResponsesApiUsed = false;
   private readonly adapterFactory: (input: {
     assistantClient: AssistantClient;
     threadStore: ThreadStore;
@@ -80,13 +92,18 @@ export class ModelExecutionService {
         threadStore: ThreadStore;
       }) => IModelAdapter;
       responsesShadowObserver?: ResponsesShadowObserver;
+      canaryControl?: ModelAdapterCanaryControl;
+      canaryAdapter?: IModelAdapter;
     },
   ) {
     this.adapterFactory = initialFlags?.adapterFactory ?? createModelAdapter;
     this.responsesShadowObserver = initialFlags?.responsesShadowObserver;
+    this.canaryControl = initialFlags?.canaryControl;
+    this.canaryAdapter = initialFlags?.canaryAdapter;
     if (initialFlags) {
       this.lastGlobalEnabled = initialFlags.modelAdapterLayerEnabled;
       this.lastCanaryMode = initialFlags.modelAdapterCanaryMode;
+      this.lastConfiguredCanaryMode = initialFlags.modelAdapterCanaryMode;
       this.lastTimeoutEnabled = initialFlags.modelExecutionTimeoutEnabled === true;
       this.lastTimeoutConfigured = initialFlags.modelExecutionTimeoutMsConfigured === true;
       this.lastDecision = {
@@ -100,6 +117,15 @@ export class ModelExecutionService {
   }
 
   private readonly responsesShadowObserver?: ResponsesShadowObserver;
+  private readonly canaryControl?: ModelAdapterCanaryControl;
+  private readonly canaryAdapter?: IModelAdapter;
+
+  finalizeCanaryObservation(
+    traceId: string,
+    observation: ModelAdapterCanaryTerminalObservation,
+  ): ReturnType<ModelAdapterCanaryControl["finalize"]> | null {
+    return this.canaryControl?.finalize(traceId, observation) ?? null;
+  }
 
   async execute(input: ModelExecutionServiceInput, options: ModelExecutionOptions = {}): Promise<ModelAdapterOutput> {
     this.lastTimeoutEnabled = options.timeoutEnabled === true;
@@ -148,17 +174,64 @@ export class ModelExecutionService {
     executionId: number,
     signal: AbortSignal | undefined,
   ): Promise<ModelAdapterOutput> {
-    const decision = resolveModelAdapterExecution({
+    const configuredMode = input.metadata.featureFlags.model_adapter_canary_mode;
+    const controlSnapshot = this.canaryControl?.snapshot();
+    const effectiveMode = this.canaryControl?.effectiveMode(configuredMode) ?? configuredMode;
+    let decision = resolveModelAdapterExecution({
       tenantId: input.tenantId,
       senderRole: input.senderRole,
       channelType: input.channelType,
       mode: input.mode,
-      featureFlags: input.metadata.featureFlags,
+      featureFlags: {
+        ...input.metadata.featureFlags,
+        model_adapter_canary_mode: effectiveMode,
+        model_adapter_stop_latched: controlSnapshot?.stop_latched ?? false,
+      },
+      inferredIntent: input.metadata.inferredIntent,
+      trafficBucket: Number.parseInt(createHash("sha256").update(input.metadata.traceId).digest("hex").slice(0, 8), 16) % 100,
       traceId: input.metadata.traceId,
     });
+    if (
+      decision.useAdapterLayer
+      && (input.metadata.featureFlags.model_adapter_canary_intents?.length ?? 0) > 0
+      && !this.canaryAdapter
+    ) {
+      decision = {
+        useAdapterLayer: false,
+        adapterName: "assistant_adapter",
+        provider: "openai_assistant",
+        reason: "denied_adapter_unavailable",
+        canaryScope: "off",
+      };
+    }
+    if (
+      decision.useAdapterLayer
+      && !input.metadata.featureFlags.model_adapter_layer_enabled
+      && configuredMode !== "off"
+      && this.canaryControl
+    ) {
+      const reservation = this.canaryControl.reserve(input.metadata.traceId);
+      if (reservation !== "reserved" && reservation !== "already_reserved") {
+        const reason: AdapterExecutionDecision["reason"] = reservation === "denied_stop_latched"
+          ? "disabled_stop_latched"
+          : reservation === "denied_budget_exhausted"
+            ? "denied_budget_exhausted"
+            : reservation === "duplicate"
+              ? "denied_duplicate_event"
+              : "denied_approval_invalid";
+        decision = {
+          useAdapterLayer: false,
+          adapterName: "assistant_adapter",
+          provider: "openai_assistant",
+          reason,
+          canaryScope: "off",
+        };
+      }
+    }
     this.lastDecision = decision;
     this.lastGlobalEnabled = input.metadata.featureFlags.model_adapter_layer_enabled;
-    this.lastCanaryMode = input.metadata.featureFlags.model_adapter_canary_mode;
+    this.lastConfiguredCanaryMode = configuredMode;
+    this.lastCanaryMode = decision.reason === "disabled_stop_latched" ? "off" : effectiveMode;
 
     try {
       if (signal?.aborted) {
@@ -169,14 +242,24 @@ export class ModelExecutionService {
           causeCategory: "abort_signal",
         });
       }
-      const adapter = this.adapterFactory({
-        assistantClient: this.assistantClient,
-        threadStore: this.threadStore,
-      });
+      const adapter = decision.useAdapterLayer && this.canaryAdapter
+        ? this.canaryAdapter
+        : this.adapterFactory({
+            assistantClient: this.assistantClient,
+            threadStore: this.threadStore,
+          });
+      this.lastDecision = {
+        ...decision,
+        adapterName: adapter.name === "AssistantAdapter" ? "assistant_adapter" : adapter.name,
+        provider: adapter.provider,
+      };
+      this.lastResponsesApiUsed = decision.useAdapterLayer && adapter.provider === "openai_responses";
       const output = await adapter.run(input);
 
       if (decision.useAdapterLayer) {
-        if (output.normalizedResponse === null) {
+        if (adapter.provider === "openai_responses" && output.rawText.trim() !== "") {
+          this.markSuccess(executionId);
+        } else if (output.normalizedResponse === null) {
           this.markContractFailure(output.rawText, executionId);
         } else {
           this.markSuccess(executionId);
@@ -289,9 +372,11 @@ export class ModelExecutionService {
   }
 
   snapshot(): ModelExecutionRuntimeSnapshot {
+    const canary = this.canaryControl?.snapshot();
     return {
       model_adapter_layer_global_enabled: this.lastGlobalEnabled,
-      model_adapter_canary_mode: this.lastCanaryMode,
+      model_adapter_canary_mode: this.canaryControl?.effectiveMode(this.lastConfiguredCanaryMode) ?? this.lastCanaryMode,
+      model_adapter_canary_mode_configured: this.lastConfiguredCanaryMode,
       model_adapter_canary_scope_supported: true,
       model_adapter_current_decision: {
         use_adapter_layer: this.lastDecision.useAdapterLayer,
@@ -312,8 +397,14 @@ export class ModelExecutionService {
       late_result_ignored: this.lastLateResultIgnored,
       model_adapter_rollback_method: "FLAG_OFF",
       assistant_id_changed: false,
-      provider_changed: false,
-      responses_api_used: false,
+      provider_changed: this.lastResponsesApiUsed,
+      responses_api_used: this.lastResponsesApiUsed,
+      automatic_stop_code_active: canary?.automatic_stop_code_active ?? false,
+      canary_stop_latched: canary?.stop_latched ?? false,
+      canary_stop_reason: canary?.stop_reason ?? null,
+      canary_approval_valid: canary?.approval_valid ?? false,
+      canary_reservation_count: canary?.reservation_count ?? 0,
+      canary_terminal_observation_count: canary?.terminal_observation_count ?? 0,
     };
   }
 

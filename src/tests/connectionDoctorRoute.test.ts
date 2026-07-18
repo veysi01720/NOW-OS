@@ -76,6 +76,7 @@ describe("connection doctor route", () => {
         model_adapter: {
           model_adapter_layer_global_enabled: false,
           model_adapter_canary_mode: "off",
+          model_adapter_canary_mode_configured: "off",
           model_adapter_canary_scope_supported: true,
           model_adapter_current_decision: {
             use_adapter_layer: false,
@@ -98,6 +99,12 @@ describe("connection doctor route", () => {
           assistant_id_changed: false,
           provider_changed: false,
           responses_api_used: false,
+          automatic_stop_code_active: false,
+          canary_stop_latched: false,
+          canary_stop_reason: null,
+          canary_approval_valid: false,
+          canary_reservation_count: 0,
+          canary_terminal_observation_count: 0,
         },
         model_adapter_contract: {
           model_adapter_contract_version: "1.0",
