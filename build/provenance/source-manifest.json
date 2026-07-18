@@ -1,16 +1,16 @@
 {
   "schema_version": "1.0",
-  "generated_at": "2026-07-18T14:38:57.150Z",
+  "generated_at": "2026-07-18T15:25:18.631Z",
   "workspace_id": "canonical-now-os",
   "workspace_role": "CANONICAL_PRODUCTION_SOURCE",
   "compose_project": "deploy_package",
   "service_name": "now_os_backend",
   "expected_command": "node dist/server.js",
-  "source_tree_hash": "ca4572251360c2f958ac96d244c154d710f6d5095509b28352fbe804d92cdb69",
-  "package_lock_hash": "90e17cc0a3b6cfbee86758a5a573ae446f54d1973dd0c14c1c6b489542ef66ea",
+  "source_tree_hash": "4cf2079a188bc93592ac52a45bba332ff90b1d9ce515025bf8845fc04e0bc8cc",
+  "package_lock_hash": "39fbd255187c77d3792ea921680c7bdcf72e648a88abee89b298167937bcb1c8",
   "dist_tree_hash": "7a9c15bfafaad6fbdfe7df07f040a83c4ddc771b3f750072d655d01622b94a9f",
   "workspace_identity_hash": "4db557418dcaad79bf29c01788f72ca2a36aee0aa18d338f4f8054de3b35c57b",
-  "test_result_reference": "tests-545-pass",
+  "test_result_reference": "tests-545-pass-admzip-fixed",
   "source_file_count": 282,
   "dist_file_count": 223,
   "source_files": [
@@ -236,13 +236,13 @@
     },
     {
       "path": "package-lock.json",
-      "sha256": "90e17cc0a3b6cfbee86758a5a573ae446f54d1973dd0c14c1c6b489542ef66ea",
-      "size": 136797
+      "sha256": "39fbd255187c77d3792ea921680c7bdcf72e648a88abee89b298167937bcb1c8",
+      "size": 136793
     },
     {
       "path": "package.json",
-      "sha256": "8bd9543a64991d22994dc714121c348ccab65cfd59c1c944bc80b93a9a0ba218",
-      "size": 1191
+      "sha256": "b67df5c8dc7e978e917abd3b1565c156e13eed19b7812253e16a074ddd69db3d",
+      "size": 1189
     },
     {
       "path": "scripts/deploy-runtime-lock.mjs",

@@ -238,18 +238,15 @@ canary_armed=NO
 shadow_enabled=NO
 ```
 
-Separate pre-existing dependency finding:
+The dependency finding recorded during the first pass was subsequently closed
+in `PACKAGE_13_REQUALIFICATION_VARIANCE_AND_ADMZIP_FIX_REPORT.md`:
 
 ```text
 npm audit --omit=dev
-high=1
+high=0
 critical=0
-package=adm-zip
-fix_available=true
+adm-zip=0.6.0
 ```
-
-No dependency was upgraded in this task because it is outside the requested
-arming-blocker scope and would change the lockfile and candidate provenance.
 
 ## Final Status
 
