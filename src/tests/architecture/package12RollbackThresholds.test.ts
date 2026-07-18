@@ -33,6 +33,8 @@ describe("Package 12 numeric automatic rollback thresholds", () => {
     expect(design).toContain("`9/10`");
     expect(design).toContain("Layla structured-fact scenario must pass `3/3`");
     expect(design).toContain("Linky-code structured-fact scenario must pass `3/3`");
-    expect(design).toContain("PACKAGE_12_EXPANDED_STATUS=NOT_ELIGIBLE_FOR_CANARY");
+    expect(design).toContain("PACKAGE_12_QUALIFICATION_STATUS=ELIGIBLE_FOR_CANARY");
+    expect(design).toContain("FUNCTIONAL_AUTOMATIC_STOP_READY=NO");
+    expect(design).toContain("No runtime threshold evaluator");
   });
 });

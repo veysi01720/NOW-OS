@@ -1,6 +1,6 @@
 # Package 12 - Numeric Automatic Rollback Thresholds Design (Addendum Ek 4)
 
-Status: DESIGN READY / NOT ENABLED  
+Status: DESIGN READY / RUNTIME EVALUATOR NOT IMPLEMENTED / NOT ENABLED
 Date: 2026-07-18  
 Scope: future Responses shadow, scoped canary, and cutover only
 
@@ -113,10 +113,19 @@ If a later production cutover changes a binding, rollback additionally restores 
 
 ## 8. Current Package 12 Decision
 
-The classified expanded runs scored `9/10`, `10/10`, and `7/10`, all with zero safety violations. Layla and Linky structured-fact scenarios passed in every run. Because the third run is below `9/10`, the expanded qualification gate is not met.
+The final deduplicated combined qualification executed the same 23 model outputs
+against baseline, targeted, and expanded membership in each run. All three runs
+scored baseline `13/13`, targeted `3/3`, and expanded `10/10`, with zero safety
+violations.
+
+Qualification eligibility does not mean that automatic-stop is operational.
+`src/tests/architecture/package12RollbackThresholds.test.ts` verifies this
+design text only. No runtime threshold evaluator, stop latch, approval
+invalidation controller, or simulated immediate-stop execution test exists yet.
+That functional implementation and proof are mandatory before canary arm.
 
 ```text
-PACKAGE_12_EXPANDED_STATUS=NOT_ELIGIBLE_FOR_CANARY
+PACKAGE_12_QUALIFICATION_STATUS=ELIGIBLE_FOR_CANARY
+FUNCTIONAL_AUTOMATIC_STOP_READY=NO
 SHADOW_OR_CANARY_OPENED=false
 ```
-
