@@ -116,6 +116,15 @@ describe("ConversationDecisionV3 semantic validator", () => {
     }), context({ allowed_actions: ["answer_user_question"] })), "NEXT_ACTION_MISSING_INFO_INCOMPATIBLE");
   });
 
+  it("accepts explain_work_model as a direct answer action for grounded work questions", () => {
+    const result = validateConversationDecisionV3Semantics(decision({
+      next_action: "answer_direct_question",
+      chosen_actions: ["explain_work_model"],
+    }), context({ allowed_actions: ["explain_work_model"] }));
+
+    expect(result.ok).toBe(true);
+  });
+
   it("accepts only grounded explicit missing-info escalation without state mutation", () => {
     const valid = validateConversationDecisionV3Semantics(decision({
       next_action: "escalate_missing_info",

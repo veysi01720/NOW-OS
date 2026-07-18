@@ -394,6 +394,7 @@ export interface ResponsesGoldenScenarioResult {
   transition_prep_kind: string;
   transition_prep_reason_codes: string[];
   actual_next_action: string | null;
+  actual_chosen_actions: string[];
   missing_required_group_indexes: number[];
   forbidden_term_indexes: number[];
   latency_ms: number;
@@ -780,6 +781,7 @@ export function evaluateResponsesGoldenScenario(
     transition_prep_kind: transitionPrep?.transition_kind ?? "not_run",
     transition_prep_reason_codes: transitionPrep?.reason_codes ?? [],
     actual_next_action: decision?.next_action ?? null,
+    actual_chosen_actions: Array.isArray(decision?.chosen_actions) ? [...decision.chosen_actions] : [],
     missing_required_group_indexes: missingRequiredGroupIndexes,
     forbidden_term_indexes: forbiddenTermIndexes,
     latency_ms: latencyMs,

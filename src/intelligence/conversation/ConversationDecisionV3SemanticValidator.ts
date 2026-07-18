@@ -54,6 +54,7 @@ const MISSING_INFO_ACTIONS = new Set<ConversationDecisionV3Action>([
 const DIRECT_ANSWER_ACTIONS = new Set<ConversationDecisionV3Action>([
   "answer_user_question",
   "clarify_previous_explanation",
+  "explain_work_model",
 ]);
 
 const STATE_UPDATE_ACTIONS = new Set<ConversationDecisionV3Action>([
