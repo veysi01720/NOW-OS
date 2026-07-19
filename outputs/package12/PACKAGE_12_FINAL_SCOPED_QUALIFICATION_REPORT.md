@@ -2,6 +2,7 @@
 
 Date: 2026-07-19
 Status: PASS FOR CURRENT SCOPED QUALIFICATION
+PACKAGE_12_STATUS: ELIGIBLE_FOR_CANARY
 
 ## Qualification Scope
 
@@ -24,6 +25,10 @@ targeted_target=2/2
 expanded_target=9/9
 unsafe_claim_count=0
 all_three_runs_passed=YES
+all_runs_meet_all_suite_targets=true
+run_1=baseline 13/13, targeted 2/2, expanded 9/9, unsafe=0
+run_2=baseline 13/13, targeted 2/2, expanded 9/9, unsafe=0
+run_3=baseline 13/13, targeted 2/2, expanded 9/9, unsafe=0
 real_outbound_count=0
 ```
 
