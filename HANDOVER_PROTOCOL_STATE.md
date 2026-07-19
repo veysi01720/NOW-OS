@@ -66,13 +66,19 @@ real_whatsapp_outbound=0
 
 ## Last Five Commit Change Summary
 
-Reproduce with:
+Command:
 
 ```text
 git diff --stat HEAD~5..HEAD
 ```
 
-The handover summary with the captured change surface is:
+Captured output:
+
+```text
+32 files changed, 1870 insertions(+), 154 deletions(-)
+```
+
+The complete file-level change surface is recorded in:
 
 `outputs/package12/PACKAGE_12_HANDOVER_SUMMARY.md`
 
