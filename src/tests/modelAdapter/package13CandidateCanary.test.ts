@@ -1,4 +1,4 @@
-import { mkdtempSync, rmSync } from "node:fs";
+import { mkdtempSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
@@ -10,6 +10,7 @@ import { ModelAdapterCanaryApprovalStore } from "../../modelAdapter/modelAdapter
 import { ModelAdapterCanaryControl } from "../../modelAdapter/modelAdapterCanaryControl.js";
 import { ModelAdapterCanaryThresholdEvaluator } from "../../modelAdapter/modelAdapterCanaryThresholds.js";
 import { resolveModelAdapterExecution } from "../../modelAdapter/modelAdapterSelection.js";
+import { RESPONSES_CANARY_EXCLUDED_SCENARIO_IDS } from "../../modelAdapter/responsesGoldenReplay.js";
 import { ModelExecutionService } from "../../modelAdapter/modelExecutionService.js";
 import type { ModelAdapterInput, ModelAdapterOutput } from "../../modelAdapter/types.js";
 import { UserRunLock } from "../../queue/userRunLock.js";
@@ -167,6 +168,63 @@ describe("Package 13 candidate first-contact canary", () => {
     expect(selection({ trafficBucket: 10 }).reason).toBe("denied_traffic_bucket");
   });
 
+  it("fails closed when canary intent scope is empty or omitted", () => {
+    const empty = selection({
+      featureFlags: {
+        model_adapter_layer_enabled: false,
+        model_adapter_canary_mode: "tenant_allowlist",
+        model_adapter_canary_tenants: ["now_os"],
+        model_adapter_canary_roles: ["candidate"],
+        model_adapter_canary_intents: [],
+        model_adapter_canary_percent: 100,
+      },
+    });
+    const omitted = selection({
+      featureFlags: {
+        model_adapter_layer_enabled: false,
+        model_adapter_canary_mode: "tenant_allowlist",
+        model_adapter_canary_tenants: ["now_os"],
+        model_adapter_canary_roles: ["candidate"],
+        model_adapter_canary_percent: 100,
+      },
+    });
+
+    expect(empty.useAdapterLayer).toBe(false);
+    expect(empty.reason).toBe("denied_empty_intent_scope");
+    expect(omitted.useAdapterLayer).toBe(false);
+    expect(omitted.reason).toBe("denied_empty_intent_scope");
+  });
+
+  it("fails closed for malformed intent scope entries and blank inferred intent", () => {
+    const malformedScope = selection({
+      featureFlags: {
+        model_adapter_layer_enabled: false,
+        model_adapter_canary_mode: "tenant_allowlist",
+        model_adapter_canary_tenants: ["now_os"],
+        model_adapter_canary_roles: ["candidate"],
+        model_adapter_canary_intents: ["candidate_first_contact", " "],
+        model_adapter_canary_percent: 100,
+      },
+    });
+    const blankInferredIntent = selection({ inferredIntent: "   " });
+
+    expect(malformedScope.useAdapterLayer).toBe(false);
+    expect(malformedScope.reason).toBe("denied_empty_intent_scope");
+    expect(blankInferredIntent.useAdapterLayer).toBe(false);
+    expect(blankInferredIntent.reason).toBe("denied_intent");
+  });
+
+  it("propagates intent, percentage, and inferred intent at both legacy execution callsites", () => {
+    const source = readFileSync(
+      new URL("../../bridge/handleIncomingMessage.ts", import.meta.url),
+      "utf8",
+    );
+
+    expect(source.match(/model_adapter_canary_intents:\s*deps\.env\.modelAdapterCanaryIntents/g)).toHaveLength(2);
+    expect(source.match(/model_adapter_canary_percent:\s*deps\.env\.modelAdapterCanaryPercent/g)).toHaveLength(2);
+    expect(source.match(/inferredIntent:\s*inferConversationIntent\(message\.text\)/g)).toHaveLength(2);
+  });
+
   it("keeps unknown-app missing-policy traffic outside the exact first-contact intent scope", () => {
     const greetingIntent = inferConversationIntent("Selam");
     const firstContactIntent = inferConversationIntent("Selam, is icin yazdim");
@@ -182,6 +240,7 @@ describe("Package 13 candidate first-contact canary", () => {
 
     // The qualification fixture's explicit semantic label is excluded too.
     expect(selection({ inferredIntent: "app_fact_question" }).reason).toBe("denied_intent");
+    expect(RESPONSES_CANARY_EXCLUDED_SCENARIO_IDS).toContain("p12_unknown_app_missing_info");
   });
 
   it("uses Responses only for an approved private greeting and keeps real outbound at zero", async () => {

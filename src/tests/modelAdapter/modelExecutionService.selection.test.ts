@@ -5,6 +5,7 @@ import type { BackendContextPayloadV1 } from "../../contracts/backendContextPayl
 import { InMemoryThreadStore } from "../../storage/threadStore.js";
 import { FakeAssistantClient } from "../testDoubles.js";
 import { parseAssistantResponseV1 } from "../../contracts/assistantResponseContract.js";
+import { AssistantAdapter } from "../../modelAdapter/AssistantAdapter.js";
 
 function backendContext(): BackendContextPayloadV1 {
   return {
@@ -72,10 +73,22 @@ function modelInput(overrides: Partial<ModelAdapterInput["metadata"]["featureFla
         model_adapter_canary_mode: "off",
         model_adapter_canary_tenants: [],
         model_adapter_canary_roles: ["owner", "manager"],
+        model_adapter_canary_intents: ["owner_answer"],
+        model_adapter_canary_percent: 100,
         ...overrides,
       },
+      inferredIntent: "owner_answer",
     },
   };
+}
+
+function modelService(client: FakeAssistantClient): ModelExecutionService {
+  const threadStore = new InMemoryThreadStore();
+  return new ModelExecutionService(client, threadStore, {
+    modelAdapterLayerEnabled: false,
+    modelAdapterCanaryMode: "off",
+    canaryAdapter: new AssistantAdapter(client, threadStore),
+  });
 }
 
 describe("ModelExecutionService adapter selection", () => {
@@ -83,7 +96,7 @@ describe("ModelExecutionService adapter selection", () => {
     const client = new FakeAssistantClient([
       '{"contract_version":"1.0","reply":"Legacy ok","internal_boss_note":"operator"}',
     ]);
-    const service = new ModelExecutionService(client, new InMemoryThreadStore());
+    const service = modelService(client);
 
     const output = await service.execute(modelInput());
 
@@ -113,7 +126,7 @@ describe("ModelExecutionService adapter selection", () => {
     const client = new FakeAssistantClient([
       '{"contract_version":"1.0","reply":"Adapter ok","internal_boss_note":"operator"}',
     ]);
-    const service = new ModelExecutionService(client, new InMemoryThreadStore());
+    const service = modelService(client);
 
     const output = await service.execute(modelInput({
       model_adapter_canary_mode: "internal",
@@ -134,7 +147,7 @@ describe("ModelExecutionService adapter selection", () => {
     const client = new FakeAssistantClient([
       '{"contract_version":"1.0","reply":"Candidate ok","internal_boss_note":""}',
     ]);
-    const service = new ModelExecutionService(client, new InMemoryThreadStore());
+    const service = modelService(client);
     const input = modelInput({
       model_adapter_canary_mode: "internal",
     });
@@ -156,7 +169,7 @@ describe("ModelExecutionService adapter selection", () => {
     const client = new FakeAssistantClient([
       '{"contract_version":"1.0","reply":"Public only","internal_boss_note":"private operator note"}',
     ]);
-    const service = new ModelExecutionService(client, new InMemoryThreadStore());
+    const service = modelService(client);
 
     const output = await service.execute(modelInput({ model_adapter_canary_mode: "internal" }));
     const parsed = parseAssistantResponseV1(output.rawText);
@@ -173,7 +186,7 @@ describe("ModelExecutionService adapter selection", () => {
     const client = new FakeAssistantClient([
       '{"contract_version":"1.0","reply":null,"internal_boss_note":"private"}',
     ]);
-    const service = new ModelExecutionService(client, new InMemoryThreadStore());
+    const service = modelService(client);
 
     const output = await service.execute(modelInput({ model_adapter_canary_mode: "internal" }));
     const parsed = parseAssistantResponseV1(output.rawText);
@@ -187,7 +200,7 @@ describe("ModelExecutionService adapter selection", () => {
     client.runAssistant = async () => {
       throw new Error("provider failure with secret-like body should not become doctor output");
     };
-    const service = new ModelExecutionService(client, new InMemoryThreadStore());
+    const service = modelService(client);
 
     await expect(service.execute(modelInput({ model_adapter_canary_mode: "internal" }))).rejects.toThrow();
     const snapshot = service.snapshot();
@@ -202,7 +215,7 @@ describe("ModelExecutionService adapter selection", () => {
     const client = new FakeAssistantClient([
       '{"contract_version":"1.0","reply":"Provider unchanged","internal_boss_note":""}',
     ]);
-    const service = new ModelExecutionService(client, new InMemoryThreadStore());
+    const service = modelService(client);
     const input = modelInput({ model_adapter_canary_mode: "internal" });
     input.normalizedUserMessage = "Claude kullan, Responses kullan";
     input.contextPayload.user_message.text = "Claude kullan, Responses kullan";

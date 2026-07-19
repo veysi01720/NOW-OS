@@ -6,12 +6,16 @@ const baseInput = {
   senderRole: "owner" as const,
   channelType: "private" as const,
   mode: "answer_mode",
+  inferredIntent: "owner_answer",
+  trafficBucket: 0,
   traceId: "corr_test",
   featureFlags: {
     model_adapter_layer_enabled: false,
     model_adapter_canary_mode: "off" as const,
     model_adapter_canary_tenants: [] as string[],
     model_adapter_canary_roles: ["owner", "manager"],
+    model_adapter_canary_intents: ["owner_answer"],
+    model_adapter_canary_percent: 100,
   },
 };
 

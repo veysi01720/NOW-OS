@@ -6,6 +6,7 @@ import { InMemoryMessageDedupeStore } from "../../storage/messageDedupeStore.js"
 import { InMemoryStore } from "../../storage/memoryStore.js";
 import { InMemoryThreadStore } from "../../storage/threadStore.js";
 import { ModelExecutionService } from "../../modelAdapter/modelExecutionService.js";
+import { AssistantAdapter } from "../../modelAdapter/AssistantAdapter.js";
 import {
   createSilentLogger,
   createTestEnv,
@@ -47,6 +48,7 @@ function deps(input: {
     {
       modelAdapterLayerEnabled: false,
       modelAdapterCanaryMode: input.canaryMode ?? "internal",
+      canaryAdapter: new AssistantAdapter(assistantClient, threadStore),
     },
   );
   const sender = new FakeSender();
@@ -70,6 +72,8 @@ function deps(input: {
         modelAdapterCanaryMode: input.canaryMode ?? "internal",
         modelAdapterCanaryTenants: input.tenantAllowlist ?? [],
         modelAdapterCanaryRoles: ["owner", "manager"],
+        modelAdapterCanaryIntents: ["greeting_or_first_contact", "candidate_first_contact"],
+        modelAdapterCanaryPercent: 100,
         approvedApps: ["Layla", "Linky"],
       }),
       modelExecutionService,
@@ -123,7 +127,7 @@ describe("synthetic/replay model adapter canary harness", () => {
 
     const result = await handleIncomingMessage(
       message({
-        text: scenario.text,
+        text: `Selam ${scenario.text}`,
         sender_id: test.senderId,
         phone_number: test.senderId,
         remote_jid: "private_safe_ref",
@@ -152,7 +156,7 @@ describe("synthetic/replay model adapter canary harness", () => {
       role: "manager",
     });
     await handleIncomingMessage(
-      message({ sender_id: manager.senderId, phone_number: manager.senderId, text: "Rapor ver" }),
+      message({ sender_id: manager.senderId, phone_number: manager.senderId, text: "Selam rapor ver" }),
       manager.deps,
     );
 
@@ -161,7 +165,7 @@ describe("synthetic/replay model adapter canary harness", () => {
       role: "candidate",
     });
     await handleIncomingMessage(
-      message({ sender_id: candidate.senderId, phone_number: candidate.senderId, text: "25 kadin 4 saat Merhaba" }),
+      message({ sender_id: candidate.senderId, phone_number: candidate.senderId, text: "Selam 25 kadin 4 saat" }),
       candidate.deps,
     );
 
@@ -177,7 +181,7 @@ describe("synthetic/replay model adapter canary harness", () => {
       canaryMode: "tenant_allowlist",
       tenantAllowlist: ["now_os"],
     });
-    await handleIncomingMessage(message({ phone_number: allowed.senderId, sender_id: allowed.senderId }), allowed.deps);
+    await handleIncomingMessage(message({ phone_number: allowed.senderId, sender_id: allowed.senderId, text: "Selam" }), allowed.deps);
 
     const empty = deps({
       responses: ['{"contract_version":"1.0","reply":"Denied","internal_boss_note":""}'],
@@ -185,7 +189,7 @@ describe("synthetic/replay model adapter canary harness", () => {
       canaryMode: "tenant_allowlist",
       tenantAllowlist: [],
     });
-    await handleIncomingMessage(message({ phone_number: empty.senderId, sender_id: empty.senderId }), empty.deps);
+    await handleIncomingMessage(message({ phone_number: empty.senderId, sender_id: empty.senderId, text: "Selam" }), empty.deps);
 
     expect(allowed.modelExecutionService.snapshot().model_adapter_current_decision.reason).toBe("enabled_tenant_allowlist");
     expect(empty.modelExecutionService.snapshot().model_adapter_current_decision.reason).toBe("denied_empty_allowlist");
@@ -205,7 +209,7 @@ describe("synthetic/replay model adapter canary harness", () => {
     });
 
     await handleIncomingMessage(
-      message({ sender_id: test.senderId, phone_number: test.senderId, text: "Layla iPhone adi ne?" }),
+      message({ sender_id: test.senderId, phone_number: test.senderId, text: "Selam Layla iPhone adi ne?" }),
       test.deps,
     );
 
@@ -262,7 +266,7 @@ describe("synthetic/replay model adapter canary harness", () => {
     const test = deps({ responses: ["plain invalid output"], role: "owner" });
 
     const result = await handleIncomingMessage(
-      message({ sender_id: test.senderId, phone_number: test.senderId, text: "Invalid contract test" }),
+      message({ sender_id: test.senderId, phone_number: test.senderId, text: "Selam invalid contract test" }),
       test.deps,
     );
 

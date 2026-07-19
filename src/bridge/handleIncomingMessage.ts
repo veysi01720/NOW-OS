@@ -65,6 +65,7 @@ import { resolveAuthorityContext } from "./authorityContext.js";
 import { applyUserStateTransition } from "../storage/userStateTransitionBoundary.js";
 import { resolveConversationModelRoute } from "./modelRoutingPolicy.js";
 import { emptyModelAdapterCanaryObservation } from "../modelAdapter/modelAdapterCanaryThresholds.js";
+import { inferConversationIntent } from "../intelligence/conversation/ConversationContextBuilder.js";
 export interface HandleIncomingMessageDeps {
   env: EnvConfig;
   assistantClient?: {
@@ -923,7 +924,11 @@ export async function handleIncomingMessage(
               model_adapter_canary_mode: deps.env.modelAdapterCanaryMode,
               model_adapter_canary_tenants: deps.env.modelAdapterCanaryTenants,
               model_adapter_canary_roles: deps.env.modelAdapterCanaryRoles,
+              model_adapter_canary_intents: deps.env.modelAdapterCanaryIntents,
+              model_adapter_canary_percent: deps.env.modelAdapterCanaryPercent,
+              responses_missing_policy_normalization_enabled: deps.env.responsesMissingPolicyNormalizationEnabled,
             },
+            inferredIntent: inferConversationIntent(message.text),
           },
         });
         rawAssistantResponse = modelOutput.rawText;
@@ -963,7 +968,11 @@ export async function handleIncomingMessage(
                 model_adapter_canary_mode: deps.env.modelAdapterCanaryMode,
                 model_adapter_canary_tenants: deps.env.modelAdapterCanaryTenants,
                 model_adapter_canary_roles: deps.env.modelAdapterCanaryRoles,
+                model_adapter_canary_intents: deps.env.modelAdapterCanaryIntents,
+                model_adapter_canary_percent: deps.env.modelAdapterCanaryPercent,
+                responses_missing_policy_normalization_enabled: deps.env.responsesMissingPolicyNormalizationEnabled,
               },
+              inferredIntent: inferConversationIntent(message.text),
             },
           });
           rawAssistantResponse = retryOutput.rawText;

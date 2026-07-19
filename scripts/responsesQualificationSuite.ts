@@ -1,6 +1,7 @@
 import { createOpenAIResponsesAdapter } from "../src/modelAdapter/ResponsesAdapter.js";
 import {
   RESPONSES_COMBINED_SCENARIOS,
+  RESPONSES_CANARY_EXCLUDED_SCENARIO_IDS,
   RESPONSES_EXPANDED_SCENARIOS,
   RESPONSES_GOLDEN_SCENARIOS,
   RESPONSES_TARGETED_SCENARIO_IDS,
@@ -12,6 +13,9 @@ import {
 const BASELINE_IDS = new Set(RESPONSES_GOLDEN_SCENARIOS.map((scenario) => scenario.id));
 const TARGETED_IDS = new Set<string>(RESPONSES_TARGETED_SCENARIO_IDS);
 const EXPANDED_IDS = new Set(RESPONSES_EXPANDED_SCENARIOS.map((scenario) => scenario.id));
+const CANARY_EXCLUDED_IDS = new Set<string>(RESPONSES_CANARY_EXCLUDED_SCENARIO_IDS);
+const CANARY_TARGETED_IDS = new Set([...TARGETED_IDS].filter((id) => !CANARY_EXCLUDED_IDS.has(id)));
+const CANARY_EXPANDED_IDS = new Set([...EXPANDED_IDS].filter((id) => !CANARY_EXCLUDED_IDS.has(id)));
 
 interface SuiteScore {
   passed: number;
@@ -43,6 +47,8 @@ function sanitizedFailures(report: ResponsesGoldenReport): Array<Record<string, 
       actual_next_action: result.actual_next_action,
       actual_chosen_actions: result.actual_chosen_actions,
       missing_required_group_indexes: result.missing_required_group_indexes,
+      provider_http_status: result.provider_http_status,
+      provider_error_type: result.provider_error_type,
       attempts: result.attempt_count,
       retry_recovered: result.retry_recovered,
     }));
@@ -56,16 +62,33 @@ async function main(): Promise<void> {
   const model = process.env.OPENAI_RESPONSES_MODEL?.trim();
   if (!apiKey || !model) throw new Error("QUALIFICATION_CONFIG_MISSING");
 
+  const requestedScenarioId = process.env.RESPONSES_QUALIFICATION_SCENARIO?.trim();
+  const scenarios = requestedScenarioId
+    ? RESPONSES_COMBINED_SCENARIOS.filter((scenario) => scenario.id === requestedScenarioId)
+    : RESPONSES_COMBINED_SCENARIOS;
+  if (scenarios.length === 0) throw new Error("QUALIFICATION_SCENARIO_NOT_FOUND");
+  const runsTotal = Number.parseInt(process.env.RESPONSES_QUALIFICATION_RUNS ?? "3", 10);
+  const runsCount = Number.isInteger(runsTotal) && runsTotal > 0 ? runsTotal : 3;
   const adapter = await createOpenAIResponsesAdapter({ apiKey, model });
   const runs = [];
-  for (let index = 0; index < 3; index += 1) {
-    const report = await runResponsesGoldenReplay(adapter, RESPONSES_COMBINED_SCENARIOS, {
-      maxTransientRetries: 1,
-      retryDelayMs: 2_000,
+  const totalCalls = scenarios.length * runsCount;
+  const suiteStartedAt = Date.now();
+  for (let index = 0; index < runsCount; index += 1) {
+    const report = await runResponsesGoldenReplay(adapter, scenarios, {
+      maxTransientRetries: 2,
+      retryDelayMs: 3_000,
+      interCallDelayMs: 2_500,
+      heartbeatMs: 10_000,
+      onProgress: (event) => {
+        const ordinal = index * scenarios.length + event.scenarioIndex + 1;
+        const elapsedSeconds = Math.round((Date.now() - suiteStartedAt) / 1000);
+        const suffix = event.classification ? ` classification=${event.classification}` : "";
+        console.log(`[${ordinal}/${totalCalls}] ${event.scenarioId} - ${elapsedSeconds}s elapsed (${event.phase}, attempt=${event.attempt})${suffix}`);
+      },
     });
     const baseline = scoreSuite(report.results, BASELINE_IDS, 12);
-    const targeted = scoreSuite(report.results, TARGETED_IDS, 3);
-    const expanded = scoreSuite(report.results, EXPANDED_IDS, 9);
+    const targeted = scoreSuite(report.results, CANARY_TARGETED_IDS, CANARY_TARGETED_IDS.size);
+    const expanded = scoreSuite(report.results, CANARY_EXPANDED_IDS, CANARY_EXPANDED_IDS.size);
     runs.push({
       run: index + 1,
       unique_scenarios_executed: report.scenarios_total,
@@ -79,6 +102,7 @@ async function main(): Promise<void> {
       semantic_rejects: report.model_semantic_rejection_count,
       quality_rejects: report.model_quality_rejection_count,
       recovered_transient_failures: report.transient_failures_recovered,
+      missing_policy_normalization_applied_count: report.missing_policy_normalization_applied_count ?? 0,
       failures: sanitizedFailures(report),
       all_suite_targets_met: baseline.target_met
         && targeted.target_met
@@ -91,12 +115,18 @@ async function main(): Promise<void> {
   console.log(JSON.stringify({
     procedure: "combined_regression",
     model_configured: true,
-    unique_catalog_size: RESPONSES_COMBINED_SCENARIOS.length,
+    unique_catalog_size: scenarios.length,
+    requested_scenario: requestedScenarioId ?? null,
+    runs_requested: runsCount,
     catalog_membership: {
       baseline: BASELINE_IDS.size,
-      targeted: TARGETED_IDS.size,
-      expanded: EXPANDED_IDS.size,
-      targeted_is_expanded_subset: [...TARGETED_IDS].every((id) => EXPANDED_IDS.has(id)),
+      targeted: CANARY_TARGETED_IDS.size,
+      expanded: CANARY_EXPANDED_IDS.size,
+      catalog_targeted: TARGETED_IDS.size,
+      catalog_expanded: EXPANDED_IDS.size,
+      targeted_is_expanded_subset: [...CANARY_TARGETED_IDS].every((id) => CANARY_EXPANDED_IDS.has(id)),
+      canary_excluded_scenarios: [...CANARY_EXCLUDED_IDS],
+      canary_intent_scope: ["greeting_or_first_contact", "candidate_first_contact"],
     },
     runs,
     all_runs_meet_all_suite_targets: allRunsMeetTarget,

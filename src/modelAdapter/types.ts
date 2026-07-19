@@ -35,6 +35,7 @@ export interface ModelAdapterInput {
       model_adapter_canary_roles: string[];
       model_adapter_canary_intents?: string[];
       model_adapter_canary_percent?: number;
+      responses_missing_policy_normalization_enabled?: boolean;
     };
     inferredIntent?: string | null;
   };

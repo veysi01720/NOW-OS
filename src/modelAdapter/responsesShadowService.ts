@@ -6,8 +6,12 @@ import {
   validateConversationDecisionV3Semantics,
 } from "../intelligence/conversation/ConversationDecisionV3SemanticValidator.js";
 import { prepareConversationDecisionV3Transition } from "../intelligence/conversation/ConversationDecisionV3TransitionPreparation.js";
-import type { ConversationDecisionV3 } from "../intelligence/conversation/ConversationDecisionV3Schema.js";
+import {
+  validateConversationDecisionV3Shape,
+  type ConversationDecisionV3,
+} from "../intelligence/conversation/ConversationDecisionV3Schema.js";
 import type { Logger } from "../observability/logger.js";
+import { normalizeConversationDecisionV3MissingPolicy } from "../intelligence/conversation/ConversationDecisionV3PolicyNormalizer.js";
 
 export type ResponsesShadowMode = "off" | "internal" | "tenant_allowlist";
 export type ResponsesShadowStatus = "never_run" | "skipped" | "valid" | "invalid" | "provider_error" | "timeout";
@@ -156,20 +160,25 @@ export class ResponsesShadowService implements ResponsesShadowObserver {
       const output = await Promise.race([this.adapter.run(sanitizeInput(input)), timeout]);
       const parsed = parseJson(output.rawText);
       const semanticContext = buildConversationDecisionV3SemanticContext(input);
+      const shape = !parsed.parseError ? validateConversationDecisionV3Shape(parsed.value) : null;
+      const normalization = shape?.ok
+        ? normalizeConversationDecisionV3MissingPolicy(parsed.value as ConversationDecisionV3, input)
+        : null;
+      const evaluatedValue = normalization?.decision ?? parsed.value;
       const validation = parsed.parseError
         ? { ok: false, shape_valid: false, reason_codes: ["INVALID_JSON"] }
         : validateConversationDecisionV3Semantics(
-          parsed.value,
+            evaluatedValue,
           semanticContext,
         );
       const transitionPrep = validation.shape_valid
-        ? prepareConversationDecisionV3Transition(parsed.value as ConversationDecisionV3, semanticContext)
+        ? prepareConversationDecisionV3Transition(evaluatedValue as ConversationDecisionV3, semanticContext)
         : null;
-      const role = typeof parsed.value === "object" && parsed.value !== null
-        ? (parsed.value as { role?: unknown }).role
+      const role = typeof evaluatedValue === "object" && evaluatedValue !== null
+        ? (evaluatedValue as { role?: unknown }).role
         : undefined;
-      const reply = typeof parsed.value === "object" && parsed.value !== null
-        ? (parsed.value as { reply?: { text?: unknown } }).reply?.text
+      const reply = typeof evaluatedValue === "object" && evaluatedValue !== null
+        ? (evaluatedValue as { reply?: { text?: unknown } }).reply?.text
         : undefined;
       const roleMatch = role === input.senderRole;
       const replyPresent = typeof reply === "string" && reply.trim().length > 0;
@@ -184,6 +193,19 @@ export class ResponsesShadowService implements ResponsesShadowObserver {
         primaryHash: hash(primaryOutput.rawText),
         shadowHash: hash(output.rawText),
       });
+      if (normalization) {
+        this.logger.info({
+          event_type: "RESPONSES_MISSING_POLICY_NORMALIZATION",
+          applied: normalization.applied,
+          normalization_id: normalization.normalization_id,
+          reason_codes: normalization.reason_codes,
+          original_control_tuple_hash: normalization.original_control_tuple_hash,
+          normalized_control_tuple_hash: normalization.normalized_control_tuple_hash,
+          raw_text_logged: false,
+          outbound_count: 0,
+          state_write_count: 0,
+        });
+      }
     } catch (error) {
       const timedOut = error instanceof Error && error.message === "RESPONSES_SHADOW_TIMEOUT";
       this.record(timedOut ? "timeout" : "provider_error", timedOut ? "deadline_exceeded" : "provider_failure", {

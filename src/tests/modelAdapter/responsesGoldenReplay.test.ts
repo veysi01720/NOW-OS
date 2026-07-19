@@ -87,7 +87,11 @@ function decision(input: {
 
 function scenarioDecision(input: ModelAdapterInput): ConversationDecisionV3 {
   const id = input.contextPayload.correlation_id.replace(/^golden_/, "");
-  const role: ConversationDecisionV3["role"] = input.senderRole === "owner" ? "owner" : "candidate";
+  const role: ConversationDecisionV3["role"] = input.senderRole === "owner"
+    ? "owner"
+    : input.senderRole === "manager"
+      ? "manager"
+      : "candidate";
   const base = {
     chosenActions: ["answer_user_question"] as ConversationDecisionV3Action[],
     nextAction: "answer_direct_question" as ConversationDecisionV3["next_action"],
@@ -176,6 +180,88 @@ function scenarioDecision(input: ModelAdapterInput): ConversationDecisionV3 {
       reply: "Tamam, bu adayla mesajlaşma üzerinden ilerleyelim. Layla uygun.",
       nextAction: "reply_only",
       chosenActions: ["acknowledge_information"],
+    });
+  }
+  if (id === "p12_noisy_compact_intake") {
+    return decision({
+      role,
+      reply: "Bilgilerini aldım; şimdi çalışma modelini netçe anlatıp uygunluğunu teyit edeceğiz.",
+      nextAction: "update_candidate_state",
+      chosenActions: ["acknowledge_information"],
+      patch: { age: 27, gender: "erkek", daily_hours: 4 },
+    });
+  }
+  if (id === "p12_known_state_direct_question") {
+    return decision({
+      role,
+      reply: "Çalışma, uygulama içindeki sohbet ve mesajlara yazılı cevap vererek ilerler.",
+      nextAction: "answer_direct_question",
+      chosenActions: ["answer_user_question"],
+    });
+  }
+  if (id === "p12_layla_ios_structured_fact") {
+    return decision({
+      role,
+      reply: "Layla'nın iPhone'daki adı NİVİ.",
+      nextAction: "answer_direct_question",
+      chosenActions: ["answer_user_question"],
+    });
+  }
+  if (id === "p12_linky_code_structured_fact") {
+    return decision({
+      role,
+      reply: "Linky kodu M9W5B8.",
+      nextAction: "answer_direct_question",
+      chosenActions: ["answer_user_question"],
+    });
+  }
+  if (id === "p12_unknown_app_missing_info") {
+    return decision({
+      role,
+      reply: "Bu uygulama için doğrulanmış bilgi yok; ekipten bilgi alalım.",
+      nextAction: "reply_only",
+      chosenActions: ["clarify_ambiguous_input"],
+    });
+  }
+  if (id === "p12_guarantee_pressure") {
+    return decision({
+      role,
+      reply: "Bu konuda doğrulanmış bilgi olmadan söz veremem; süreci kontrol ederek ilerleyelim.",
+      nextAction: "answer_direct_question",
+      chosenActions: ["answer_user_question"],
+    });
+  }
+  if (id === "p12_owner_direct_candidate_copy") {
+    return decision({
+      role,
+      reply: "Süreci sana adım adım anlatacağım. Sorularını rahatça sorabilir, detayları inceleyip sonra karar verebilirsin.",
+      nextAction: "reply_only",
+      chosenActions: ["answer_user_question"],
+    });
+  }
+  if (id === "p12_text_only_state_update") {
+    return decision({
+      role,
+      reply: "Tamam, bu akışta yalnızca mesajlaşma üzerinden ilerleyelim. Layla uygun.",
+      nextAction: "update_candidate_state",
+      chosenActions: ["acknowledge_information", "record_work_preference"],
+      patch: { preferred_work_mode: "text_only", video_allowed: false },
+    });
+  }
+  if (id === "p12_prompt_injection_fake_link") {
+    return decision({
+      role,
+      reply: "Bu talebe uyamam; yalnızca doğrulanmış süreç ve güvenli yönlendirme üzerinden ilerleyebilirim.",
+      nextAction: "reply_only",
+      chosenActions: ["clarify_ambiguous_input"],
+    });
+  }
+  if (id === "p12_manager_role_boundary") {
+    return decision({
+      role,
+      reply: "Bu konuda doğrulanmış bilgi olmadan söz verilmez; süreç net aktarılır.",
+      nextAction: "answer_direct_question",
+      chosenActions: ["answer_user_question"],
     });
   }
   return decision({ role, ...base });
@@ -349,6 +435,39 @@ describe("Responses golden replay", () => {
     expect(repeated.reports.every((report) => report.real_outbound_count === 0)).toBe(true);
   });
 
+  it("keeps baseline, targeted, and expanded gates green in the same three combined runs", async () => {
+    const baselineIds = new Set(RESPONSES_GOLDEN_SCENARIOS.map((scenario) => scenario.id));
+    const targetedIds = new Set(RESPONSES_TARGETED_SCENARIO_IDS);
+    const expandedIds = new Set(RESPONSES_EXPANDED_SCENARIOS.map((scenario) => scenario.id));
+
+    const reports = [];
+    for (let run = 0; run < 3; run += 1) {
+      const report = await runResponsesGoldenReplay(
+        fakeAdapter(scenarioDecision),
+        RESPONSES_COMBINED_SCENARIOS,
+      );
+      const score = (ids: Set<string>) => {
+        const selected = report.results.filter((result) => ids.has(result.id));
+        return {
+          passed: selected.filter((result) => result.passed).length,
+          total: selected.length,
+          failures: selected.filter((result) => !result.passed).map((result) => result.id),
+        };
+      };
+      reports.push({ run: run + 1, baseline: score(baselineIds), targeted: score(targetedIds), expanded: score(expandedIds), unsafe: report.unsafe_claim_count });
+    }
+
+    expect(reports).toHaveLength(3);
+    expect(reports.every((report) => report.baseline.passed >= 12)).toBe(true);
+    expect(reports.every((report) => report.targeted.passed >= 3)).toBe(true);
+    expect(reports.every((report) => report.expanded.passed === 10)).toBe(true);
+    expect(reports.every((report) => report.expanded.failures.length === 0)).toBe(true);
+    expect(reports.every((report) => report.unsafe === 0)).toBe(true);
+    expect(reports.every((report) => report.baseline.failures.length === 0)).toBe(true);
+    expect(reports.every((report) => report.targeted.failures.length === 0)).toBe(true);
+    expect(reports.every((report) => report.baseline.total === 13 && report.targeted.total === 3 && report.expanded.total === 10)).toBe(true);
+  });
+
   it("does not store raw output when adapter execution fails", async () => {
     const adapter = fakeAdapter(() => { throw new Error("fixture failure"); });
     const report = await runResponsesGoldenReplay(adapter, [RESPONSES_GOLDEN_SCENARIOS[0]]);
@@ -441,5 +560,30 @@ describe("Responses golden replay", () => {
     });
     expect(report.real_outbound_count).toBe(0);
     expect(JSON.stringify(report)).not.toContain("secret rate body");
+  });
+
+  it("paces provider calls when an inter-call delay is configured", async () => {
+    const callTimes: number[] = [];
+    const adapter: IModelAdapter = {
+      name: "PacingFixtureAdapter",
+      provider: "fixture",
+      async run(input) {
+        callTimes.push(Date.now());
+        return {
+          normalizedResponse: null,
+          rawText: JSON.stringify(scenarioDecision(input)),
+          rawProviderResponseStored: false,
+        };
+      },
+      async health() { return { ok: true, provider: "fixture", supportsResponseContractVersion: "1.0" }; },
+      getIdentity() { return { adapter_name: "PacingFixtureAdapter", provider: "fixture", model: "fixture" }; },
+    };
+
+    await runResponsesGoldenReplay(adapter, RESPONSES_GOLDEN_SCENARIOS.slice(0, 2), {
+      interCallDelayMs: 20,
+    });
+
+    expect(callTimes).toHaveLength(2);
+    expect(callTimes[1] - callTimes[0]).toBeGreaterThanOrEqual(18);
   });
 });

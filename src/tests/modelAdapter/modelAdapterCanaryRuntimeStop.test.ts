@@ -90,7 +90,7 @@ function candidateMessage(): NormalizedIncomingMessage {
     remote_jid: "private-safe-reference",
     message_id: "canary-runtime-message",
     message_type: "conversation",
-    text: "Aday guvenemiyor, nasil ilerleyelim?",
+    text: "Selam, is icin yazdim",
     chat_type: "private",
     is_from_me: false,
     is_group: false,
@@ -115,7 +115,7 @@ function approvalStore(now: Date) {
     scope: {
       tenant_id: "now_os",
       intents: ["candidate_first_contact"],
-      traffic_percent: 10,
+      traffic_percent: 100,
       channel: "private",
       sender_role: "candidate",
     },
@@ -235,6 +235,7 @@ describe("model adapter canary runtime automatic stop", () => {
       modelAdapterCanaryMode: "internal",
       canaryControl: control,
       adapterFactory: () => adapter,
+      canaryAdapter: adapter,
     });
     const sender = new FakeSender();
     const result = await handleIncomingMessage(candidateMessage(), {
@@ -243,6 +244,8 @@ describe("model adapter canary runtime automatic stop", () => {
         modelAdapterLayerEnabled: false,
         modelAdapterCanaryMode: "internal",
         modelAdapterCanaryRoles: ["candidate"],
+        modelAdapterCanaryIntents: ["greeting_or_first_contact", "candidate_first_contact"],
+        modelAdapterCanaryPercent: 100,
         approvedApps: ["Layla", "Linky"],
       }),
       modelExecutionService,

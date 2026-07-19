@@ -15,6 +15,7 @@ export type AdapterExecutionReason =
   | "denied_approval_invalid"
   | "denied_budget_exhausted"
   | "denied_duplicate_event"
+  | "denied_empty_intent_scope"
   | "denied_intent"
   | "denied_channel"
   | "denied_traffic_bucket"
@@ -83,36 +84,54 @@ export function resolveModelAdapterExecution(input: AdapterSelectionInput): Adap
     };
   }
 
-  const intentScope = input.featureFlags.model_adapter_canary_intents ?? [];
-  if (intentScope.length > 0) {
-    if (input.channelType !== "private") {
-      return {
-        useAdapterLayer: false,
-        adapterName: "assistant_adapter",
-        provider: "openai_assistant",
-        reason: "denied_channel",
-        canaryScope: input.featureFlags.model_adapter_canary_mode,
-      };
-    }
-    if (input.inferredIntent === null || input.inferredIntent === undefined || !intentScope.includes(input.inferredIntent)) {
-      return {
-        useAdapterLayer: false,
-        adapterName: "assistant_adapter",
-        provider: "openai_assistant",
-        reason: "denied_intent",
-        canaryScope: input.featureFlags.model_adapter_canary_mode,
-      };
-    }
-    const percentage = input.featureFlags.model_adapter_canary_percent ?? 0;
-    if (percentage <= 0 || input.trafficBucket === undefined || input.trafficBucket >= percentage) {
-      return {
-        useAdapterLayer: false,
-        adapterName: "assistant_adapter",
-        provider: "openai_assistant",
-        reason: "denied_traffic_bucket",
-        canaryScope: input.featureFlags.model_adapter_canary_mode,
-      };
-    }
+  const configuredIntentScope = input.featureFlags.model_adapter_canary_intents ?? [];
+  const intentScope = configuredIntentScope.filter(
+    (intent): intent is string => typeof intent === "string" && intent.trim().length > 0,
+  );
+  if (
+    intentScope.length === 0
+    || intentScope.length !== configuredIntentScope.length
+    || configuredIntentScope.some((intent) => typeof intent !== "string" || intent.trim().length === 0)
+  ) {
+    return {
+      useAdapterLayer: false,
+      adapterName: "assistant_adapter",
+      provider: "openai_assistant",
+      reason: "denied_empty_intent_scope",
+      canaryScope: input.featureFlags.model_adapter_canary_mode,
+    };
+  }
+  if (input.channelType !== "private") {
+    return {
+      useAdapterLayer: false,
+      adapterName: "assistant_adapter",
+      provider: "openai_assistant",
+      reason: "denied_channel",
+      canaryScope: input.featureFlags.model_adapter_canary_mode,
+    };
+  }
+  if (
+    typeof input.inferredIntent !== "string"
+    || input.inferredIntent.trim().length === 0
+    || !intentScope.includes(input.inferredIntent)
+  ) {
+    return {
+      useAdapterLayer: false,
+      adapterName: "assistant_adapter",
+      provider: "openai_assistant",
+      reason: "denied_intent",
+      canaryScope: input.featureFlags.model_adapter_canary_mode,
+    };
+  }
+  const percentage = input.featureFlags.model_adapter_canary_percent ?? 0;
+  if (percentage <= 0 || input.trafficBucket === undefined || input.trafficBucket >= percentage) {
+    return {
+      useAdapterLayer: false,
+      adapterName: "assistant_adapter",
+      provider: "openai_assistant",
+      reason: "denied_traffic_bucket",
+      canaryScope: input.featureFlags.model_adapter_canary_mode,
+    };
   }
 
   if (input.featureFlags.model_adapter_canary_mode === "internal") {

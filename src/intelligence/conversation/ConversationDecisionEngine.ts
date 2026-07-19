@@ -20,6 +20,10 @@ import { parseConversationDecision, validateConversationDecision } from "./Conve
 import { validateSemanticQuality } from "../quality/SemanticQualityGuard.js";
 import { validateAndApplyStatePatch } from "../candidate/StatePatchValidator.js";
 import { recordDecisionTrace } from "./DecisionTraceRecorder.js";
+import {
+  normalizeConversationDecisionV3MissingPolicy,
+  type ConversationDecisionV3PolicyNormalizationResult,
+} from "./ConversationDecisionV3PolicyNormalizer.js";
 
 export interface ConversationDecisionEngineResult {
   context: ConversationDecisionContext;
@@ -37,6 +41,24 @@ export interface ConversationDecisionEngineResult {
 }
 
 export const CONVERSATION_BEHAVIOR_PROMPT_VERSION = "conversation_behavior_v2.1";
+
+function logMissingPolicyNormalization(
+  logger: Logger,
+  correlationId: string,
+  result: ConversationDecisionV3PolicyNormalizationResult | null,
+): void {
+  if (!result) return;
+  logger.info({
+    event_type: "RESPONSES_MISSING_POLICY_NORMALIZATION",
+    correlation_id: correlationId,
+    applied: result.applied,
+    normalization_id: result.normalization_id,
+    reason_codes: result.reason_codes,
+    original_control_tuple_hash: result.original_control_tuple_hash,
+    normalized_control_tuple_hash: result.normalized_control_tuple_hash,
+    raw_text_logged: false,
+  });
+}
 
 function buildDecisionPrompt(context: ConversationDecisionContext, repairInput?: {
   previousRawText: string;
@@ -126,7 +148,11 @@ async function runModelDecision(input: {
     previousRawText: string;
     reasonCodes: string[];
   };
-}): Promise<{ decision: ConversationDecision | null; rawText: string }> {
+}): Promise<{
+  decision: ConversationDecision | null;
+  rawText: string;
+  normalization: ConversationDecisionV3PolicyNormalizationResult | null;
+}> {
   const payload = {
     ...input.backendContext,
     conversation_decision_v2: input.context,
@@ -158,7 +184,8 @@ async function runModelDecision(input: {
         model_adapter_canary_tenants: input.env.modelAdapterCanaryTenants,
         model_adapter_canary_roles: input.env.modelAdapterCanaryRoles,
         model_adapter_canary_intents: input.env.modelAdapterCanaryIntents,
-        model_adapter_canary_percent: input.env.modelAdapterCanaryPercent
+        model_adapter_canary_percent: input.env.modelAdapterCanaryPercent,
+        responses_missing_policy_normalization_enabled: input.env.responsesMissingPolicyNormalizationEnabled
       },
       inferredIntent: input.context.latest_message.inferred_intent
     }
@@ -170,17 +197,21 @@ async function runModelDecision(input: {
     try {
       value = JSON.parse(modelOutput.rawText);
     } catch {
-      return { decision: null, rawText: modelOutput.rawText };
+      return { decision: null, rawText: modelOutput.rawText, normalization: null };
     }
     const shape = validateConversationDecisionV3Shape(value);
+    const normalization = shape.ok
+      ? normalizeConversationDecisionV3MissingPolicy(value as ConversationDecisionV3, adapterInput)
+      : null;
+    const evaluatedValue = normalization?.decision ?? value;
     const semantics = validateConversationDecisionV3Semantics(
-      value,
+      evaluatedValue,
       buildConversationDecisionV3SemanticContext(adapterInput),
     );
     if (!shape.ok || !semantics.ok) {
-      return { decision: null, rawText: modelOutput.rawText };
+      return { decision: null, rawText: modelOutput.rawText, normalization };
     }
-    const v3 = value as ConversationDecisionV3;
+    const v3 = evaluatedValue as ConversationDecisionV3;
     const supportedActions = v3.chosen_actions.filter((action): action is ConversationDecision["chosen_actions"][number] =>
       action !== "record_work_preference",
     );
@@ -189,7 +220,9 @@ async function runModelDecision(input: {
         ? action.startsWith("ask_missing_")
         : v3.next_action === "answer_direct_question" || v3.next_action === "reply_only"
           ? action === "answer_user_question" || action === "acknowledge_information"
-          : false,
+          : v3.next_action === "escalate_missing_info"
+            ? action === "escalate_policy_missing"
+            : false,
     ) ?? "none";
     const decision: ConversationDecision = {
       decision_version: "2.0",
@@ -214,14 +247,14 @@ async function runModelDecision(input: {
       self_check: v3.self_check,
       origin: input.repairInput ? "conversation_decision_v2_model_repair" : "conversation_decision_v2_model",
     };
-    return { decision, rawText: modelOutput.rawText };
+    return { decision, rawText: modelOutput.rawText, normalization };
   }
 
   const decision = parseConversationDecision(modelOutput.rawText);
   if (decision) {
     decision.origin = input.repairInput ? "conversation_decision_v2_model_repair" : "conversation_decision_v2_model";
   }
-  return { decision, rawText: modelOutput.rawText };
+  return { decision, rawText: modelOutput.rawText, normalization: null };
 }
 
 export async function executeConversationDecisionV2(input: {
@@ -258,6 +291,7 @@ export async function executeConversationDecisionV2(input: {
       });
       decision = modelResult.decision;
       rawModelOutput = modelResult.rawText;
+      logMissingPolicyNormalization(input.logger, context.request_id, modelResult.normalization);
     }
   } catch (error) {
     input.logger.warn({
@@ -289,6 +323,7 @@ export async function executeConversationDecisionV2(input: {
               reasonCodes: repairReasons
             }
           });
+          logMissingPolicyNormalization(input.logger, context.request_id, repairResult.normalization);
           if (repairResult.decision) {
             const repairValidation = validateConversationDecision(repairResult.decision, context);
             const repairQuality = validateSemanticQuality(repairResult.decision.reply.text, context);

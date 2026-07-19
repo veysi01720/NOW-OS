@@ -43,6 +43,7 @@ export interface EnvConfig {
   responsesShadowRoles: string[];
   responsesShadowTimeoutMs: number;
   openaiResponsesModel?: string;
+  responsesMissingPolicyNormalizationEnabled?: boolean;
   conversationDecisionV2Enabled?: boolean;
   versions: VersionConfig;
 }
@@ -148,6 +149,7 @@ export function loadEnv(): EnvConfig {
     responsesShadowRoles: parseCsv(process.env.RESPONSES_SHADOW_ROLES),
     responsesShadowTimeoutMs: parsePositiveInteger(process.env.RESPONSES_SHADOW_TIMEOUT_MS, 15_000),
     openaiResponsesModel: process.env.OPENAI_RESPONSES_MODEL?.trim() || undefined,
+    responsesMissingPolicyNormalizationEnabled: process.env.RESPONSES_MISSING_POLICY_NORMALIZATION_ENABLED === "true",
     conversationDecisionV2Enabled: process.env.CONVERSATION_DECISION_V2_ENABLED !== "false",
     versions: {
       assistant_response_contract_version: SUPPORTED_ASSISTANT_RESPONSE_CONTRACT_VERSION,

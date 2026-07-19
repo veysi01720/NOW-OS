@@ -201,4 +201,23 @@ describe("ResponsesAdapter canonical contract", () => {
     const output = await adapter.run(adapterInput());
     expect(JSON.stringify(output.providerTrace)).not.toMatch(/api[_-]?key|secret|@s\.whatsapp\.net|@g\.us/i);
   });
+
+  it("classifies a direct Responses request deadline and aborts the provider call", async () => {
+    let providerSignal: AbortSignal | undefined;
+    const adapter = new ResponsesAdapter({
+      model: "gpt-test-responses",
+      timeoutMs: 10,
+      runtime: {
+        responses: {
+          create: async (_input, options) => {
+            providerSignal = options?.signal;
+            return new Promise(() => undefined);
+          },
+        },
+      },
+    });
+
+    await expect(adapter.run(adapterInput())).rejects.toMatchObject({ name: "APIConnectionTimeoutError" });
+    expect(providerSignal?.aborted).toBe(true);
+  });
 });

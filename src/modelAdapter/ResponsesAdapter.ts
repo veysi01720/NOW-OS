@@ -8,20 +8,23 @@ import { buildResponsesDecisionContext, buildResponsesSystemInstructions } from 
 
 interface ResponsesRuntime {
   responses: {
-    create(input: Record<string, unknown>): Promise<Record<string, unknown>>;
+    create(input: Record<string, unknown>, options?: { signal?: AbortSignal }): Promise<Record<string, unknown>>;
   };
 }
 
-export async function createOpenAIResponsesAdapter(input: { apiKey: string; model: string }): Promise<ResponsesAdapter> {
+export async function createOpenAIResponsesAdapter(input: { apiKey: string; model: string; timeoutMs?: number }): Promise<ResponsesAdapter> {
   const { default: OpenAI } = await import("openai");
   const runtime = new OpenAI({ apiKey: input.apiKey }) as unknown as ResponsesRuntime;
-  return new ResponsesAdapter({ runtime, model: input.model });
+  return new ResponsesAdapter({ runtime, model: input.model, timeoutMs: input.timeoutMs });
 }
 
 export interface ResponsesAdapterOptions {
   runtime: ResponsesRuntime;
   model: string;
+  timeoutMs?: number;
 }
+
+const DEFAULT_RESPONSES_REQUEST_TIMEOUT_MS = 45_000;
 
 function extractOutputText(response: Record<string, unknown>): string {
   if (typeof response.output_text === "string") return response.output_text;
@@ -67,6 +70,8 @@ export class ResponsesAdapter implements IModelAdapter {
     const response = await this.createDecisionResponse({
       traceId: input.metadata.traceId,
       decisionContext,
+      externalSignal: input.execution?.signal,
+      timeoutMs: input.execution?.timeoutMs ?? this.options.timeoutMs ?? DEFAULT_RESPONSES_REQUEST_TIMEOUT_MS,
     });
     const rawText = extractOutputText(response);
 
@@ -103,6 +108,8 @@ export class ResponsesAdapter implements IModelAdapter {
   private createDecisionResponse(input: {
     traceId: string;
     decisionContext: ReturnType<typeof buildResponsesDecisionContext>;
+    externalSignal?: AbortSignal;
+    timeoutMs: number;
   }): Promise<Record<string, unknown>> {
     const payload: Record<string, unknown> = {
       model: this.options.model,
@@ -140,6 +147,34 @@ export class ResponsesAdapter implements IModelAdapter {
       },
     };
 
-    return this.options.runtime.responses.create(payload);
+    const controller = new AbortController();
+    let timeoutHandle: ReturnType<typeof setTimeout> | undefined;
+    let onExternalAbort: (() => void) | undefined;
+    const timeoutMs = Number.isFinite(input.timeoutMs) && input.timeoutMs > 0
+      ? input.timeoutMs
+      : DEFAULT_RESPONSES_REQUEST_TIMEOUT_MS;
+
+    const request = this.options.runtime.responses.create(payload, { signal: controller.signal });
+    const timeout = new Promise<Record<string, unknown>>((_resolve, reject) => {
+      timeoutHandle = setTimeout(() => {
+        controller.abort();
+        const error = new Error("Responses API request deadline exceeded");
+        error.name = "APIConnectionTimeoutError";
+        reject(error);
+      }, timeoutMs);
+    });
+
+    if (input.externalSignal) {
+      onExternalAbort = () => controller.abort();
+      if (input.externalSignal.aborted) onExternalAbort();
+      else input.externalSignal.addEventListener("abort", onExternalAbort, { once: true });
+    }
+
+    return Promise.race([request, timeout]).finally(() => {
+      if (timeoutHandle) clearTimeout(timeoutHandle);
+      if (input.externalSignal && onExternalAbort) {
+        input.externalSignal.removeEventListener("abort", onExternalAbort);
+      }
+    });
   }
 }

@@ -12,6 +12,7 @@ import {
   validateConversationDecisionV3Semantics,
 } from "../intelligence/conversation/ConversationDecisionV3SemanticValidator.js";
 import { prepareConversationDecisionV3Transition } from "../intelligence/conversation/ConversationDecisionV3TransitionPreparation.js";
+import { normalizeConversationDecisionV3MissingPolicy } from "../intelligence/conversation/ConversationDecisionV3PolicyNormalizer.js";
 
 export interface ResponsesGoldenScenario {
   id: string;
@@ -309,7 +310,7 @@ export const RESPONSES_EXPANDED_SCENARIOS: ResponsesGoldenScenario[] = [
     state: { age: 27, gender: "erkek", daily_hours: 4 },
     intentHint: "payment_and_trust_objection",
     allowedActions: ["answer_user_question", "escalate_policy_missing"],
-    expectedNextActions: ["answer_direct_question", "request_human_handoff", "reply_only"],
+    expectedNextActions: ["answer_direct_question", "request_human_handoff", "escalate_missing_info", "reply_only"],
     requiredTermGroups: [["garanti", "kesin", "dogrulan", "kontrol"]],
     forbiddenTerms: ["kesin kazan", "sorun yasamaz", "hic risk yok"],
   },
@@ -371,6 +372,11 @@ export const RESPONSES_TARGETED_SCENARIO_IDS = [
   "p12_text_only_state_update",
 ] as const;
 
+// Tracked in the quality catalog, but outside the current first-contact canary gate.
+export const RESPONSES_CANARY_EXCLUDED_SCENARIO_IDS = [
+  "p12_unknown_app_missing_info",
+] as const;
+
 const RESPONSES_GOLDEN_SCENARIO_IDS = new Set(RESPONSES_GOLDEN_SCENARIOS.map((scenario) => scenario.id));
 
 export const RESPONSES_COMBINED_SCENARIOS: ResponsesGoldenScenario[] = [
@@ -416,10 +422,13 @@ export interface ResponsesGoldenScenarioResult {
   execution_classification: ResponsesGoldenExecutionClassification;
   provider_error_code: ResponsesGoldenProviderErrorCode | null;
   provider_http_status: number | null;
+  provider_error_type: string | null;
   retryable_provider_error: boolean;
   attempt_count: number;
   retry_recovered: boolean;
   attempt_failure_classifications: ResponsesGoldenExecutionClassification[];
+  missing_policy_normalization_applied: boolean;
+  missing_policy_normalization_reason_codes: string[];
 }
 
 export type ResponsesGoldenExecutionClassification =
@@ -448,6 +457,7 @@ interface ResponsesGoldenExecutionDiagnostic {
   classification?: ResponsesGoldenExecutionClassification;
   provider_error_code?: ResponsesGoldenProviderErrorCode | null;
   provider_http_status?: number | null;
+  provider_error_type?: string | null;
   retryable_provider_error?: boolean;
   attempt_count?: number;
   retry_recovered?: boolean;
@@ -478,6 +488,7 @@ export interface ResponsesGoldenReport {
   transient_failures_recovered: number;
   transient_failure_attempt_count: number;
   transient_failure_classification_counts: Partial<Record<ResponsesGoldenExecutionClassification, number>>;
+  missing_policy_normalization_applied_count?: number;
   results: ResponsesGoldenScenarioResult[];
 }
 
@@ -576,7 +587,10 @@ export function buildResponsesGoldenAdapterInput(scenario: ResponsesGoldenScenar
         model_adapter_canary_mode: "off",
         model_adapter_canary_tenants: [],
         model_adapter_canary_roles: [],
+        responses_missing_policy_normalization_enabled:
+          process.env.RESPONSES_MISSING_POLICY_NORMALIZATION_ENABLED === "true",
       },
+      inferredIntent: scenario.intentHint ?? null,
     },
   };
 }
@@ -594,40 +608,70 @@ function errorRecord(error: unknown): Record<string, unknown> {
   return typeof error === "object" && error !== null ? error as Record<string, unknown> : {};
 }
 
+function sanitizedProviderErrorType(error: unknown): string {
+  const record = errorRecord(error);
+  const cause = errorRecord(record.cause);
+  const name = error instanceof Error ? error.name : "";
+  const constructorName = error !== null && typeof error === "object"
+    ? (error as { constructor?: { name?: unknown } }).constructor?.name
+    : undefined;
+  const causeName = typeof cause.name === "string" ? cause.name : "";
+  const causeConstructorName = cause.constructor && typeof cause.constructor === "object"
+    && typeof (cause.constructor as { name?: unknown }).name === "string"
+    ? (cause.constructor as { name: string }).name
+    : "";
+  const candidate = [name, typeof constructorName === "string" ? constructorName : "", causeName, causeConstructorName]
+    .find((value) => value.trim().length > 0)
+    ?? (typeof record.type === "string" ? record.type : "UnknownError");
+  return candidate.replace(/[^A-Za-z0-9_.-]/g, "_").slice(0, 80) || "UnknownError";
+}
+
 export function classifyResponsesGoldenProviderError(error: unknown): {
   classification: Extract<ResponsesGoldenExecutionClassification, `PROVIDER_${string}`>;
   provider_error_code: ResponsesGoldenProviderErrorCode;
   provider_http_status: number | null;
+  provider_error_type: string;
   retryable: boolean;
 } {
   const record = errorRecord(error);
+  const cause = errorRecord(record.cause);
   const status = typeof record.status === "number"
     ? record.status
     : typeof record.statusCode === "number"
       ? record.statusCode
+      : typeof cause.status === "number"
+        ? cause.status
+        : typeof cause.statusCode === "number"
+          ? cause.statusCode
       : null;
   const name = error instanceof Error ? error.name.toLowerCase() : "";
-  const rawCode = typeof record.code === "string" ? record.code.toLowerCase() : "";
-  const rawType = typeof record.type === "string" ? record.type.toLowerCase() : "";
+  const rawCode = typeof record.code === "string"
+    ? record.code.toLowerCase()
+    : typeof cause.code === "string" ? cause.code.toLowerCase() : "";
+  const rawType = typeof record.type === "string"
+    ? record.type.toLowerCase()
+    : typeof cause.type === "string" ? cause.type.toLowerCase() : "";
   const safeMarker = `${name} ${rawCode} ${rawType}`;
+  const providerErrorType = sanitizedProviderErrorType(error);
 
   if (status === 429 || /rate[_ -]?limit/.test(safeMarker)) {
-    return { classification: "PROVIDER_RATE_LIMIT", provider_error_code: "RATE_LIMIT", provider_http_status: status, retryable: true };
+    return { classification: "PROVIDER_RATE_LIMIT", provider_error_code: "RATE_LIMIT", provider_http_status: status, provider_error_type: providerErrorType, retryable: true };
   }
   if (/timeout|timedout|etimedout/.test(safeMarker)) {
-    return { classification: "PROVIDER_TIMEOUT", provider_error_code: "TIMEOUT", provider_http_status: status, retryable: true };
+    return { classification: "PROVIDER_TIMEOUT", provider_error_code: "TIMEOUT", provider_http_status: status, provider_error_type: providerErrorType, retryable: true };
   }
   if (/abort|cancel/.test(safeMarker)) {
-    return { classification: "PROVIDER_ABORTED", provider_error_code: "ABORTED", provider_http_status: status, retryable: false };
+    return { classification: "PROVIDER_ABORTED", provider_error_code: "ABORTED", provider_http_status: status, provider_error_type: providerErrorType, retryable: false };
   }
   if (/connection|econn|fetch_failed|network/.test(safeMarker)) {
-    return { classification: "PROVIDER_CONNECTION_ERROR", provider_error_code: "CONNECTION_ERROR", provider_http_status: status, retryable: true };
+    return { classification: "PROVIDER_CONNECTION_ERROR", provider_error_code: "CONNECTION_ERROR", provider_http_status: status, provider_error_type: providerErrorType, retryable: true };
   }
   if (status !== null) {
     return {
       classification: "PROVIDER_HTTP_ERROR",
       provider_error_code: "HTTP_ERROR",
       provider_http_status: status,
+      provider_error_type: providerErrorType,
       retryable: status >= 500 || status === 408,
     };
   }
@@ -635,6 +679,7 @@ export function classifyResponsesGoldenProviderError(error: unknown): {
     classification: "PROVIDER_UNKNOWN_ERROR",
     provider_error_code: "UNKNOWN_PROVIDER_ERROR",
     provider_http_status: null,
+    provider_error_type: providerErrorType,
     retryable: false,
   };
 }
@@ -699,9 +744,14 @@ export function evaluateResponsesGoldenScenario(
   diagnostic: ResponsesGoldenExecutionDiagnostic = {},
 ): ResponsesGoldenScenarioResult {
   const validation = validateConversationDecisionV3Shape(value);
-  const semanticContext = buildConversationDecisionV3SemanticContext(buildResponsesGoldenAdapterInput(scenario));
-  const semantic = validateConversationDecisionV3Semantics(value, semanticContext);
-  const decision = value as Partial<ConversationDecisionV3> | null;
+  const adapterInput = buildResponsesGoldenAdapterInput(scenario);
+  const normalization = validation.ok
+    ? normalizeConversationDecisionV3MissingPolicy(value as ConversationDecisionV3, adapterInput)
+    : null;
+  const evaluatedValue = normalization?.decision ?? value;
+  const semanticContext = buildConversationDecisionV3SemanticContext(adapterInput);
+  const semantic = validateConversationDecisionV3Semantics(evaluatedValue, semanticContext);
+  const decision = evaluatedValue as Partial<ConversationDecisionV3> | null;
   const reply = typeof decision?.reply?.text === "string" ? decision.reply.text : "";
   const normalizedReply = normalize(reply);
   const reasonCodes = [...validation.reason_codes, ...semantic.reason_codes];
@@ -723,7 +773,7 @@ export function evaluateResponsesGoldenScenario(
   const forbiddenFound = forbiddenTermIndexes.length > 0;
   const patchMatches = Object.entries(scenario.expectedPatch ?? {}).every(([key, expected]) => decision?.state_patch?.[key as keyof ConversationDecisionV3["state_patch"]] === expected);
   const transitionPrep = validation.ok
-    ? prepareConversationDecisionV3Transition(value as ConversationDecisionV3, semanticContext)
+    ? prepareConversationDecisionV3Transition(evaluatedValue as ConversationDecisionV3, semanticContext)
     : null;
 
   if (!roleMatch) reasonCodes.push("ROLE_MISMATCH");
@@ -803,19 +853,37 @@ export function evaluateResponsesGoldenScenario(
     execution_classification: executionClassification,
     provider_error_code: diagnostic.provider_error_code ?? null,
     provider_http_status: diagnostic.provider_http_status ?? null,
+    provider_error_type: diagnostic.provider_error_type ?? null,
     retryable_provider_error: diagnostic.retryable_provider_error ?? false,
     attempt_count: diagnostic.attempt_count ?? 1,
     retry_recovered: diagnostic.retry_recovered ?? false,
     attempt_failure_classifications: [...(diagnostic.attempt_failure_classifications ?? [])],
+    missing_policy_normalization_applied: normalization?.applied ?? false,
+    missing_policy_normalization_reason_codes: normalization?.reason_codes ?? [],
   };
 }
 
 export async function runResponsesGoldenReplay(
   adapter: IModelAdapter,
   scenarios: ResponsesGoldenScenario[] = RESPONSES_GOLDEN_SCENARIOS,
-  options: { maxTransientRetries?: number; retryDelayMs?: number } = {},
+  options: {
+    maxTransientRetries?: number;
+    retryDelayMs?: number;
+    interCallDelayMs?: number;
+    heartbeatMs?: number;
+    onProgress?: (event: {
+      phase: "start" | "heartbeat" | "complete" | "retry";
+      scenarioId: string;
+      scenarioIndex: number;
+      totalScenarios: number;
+      attempt: number;
+      elapsedMs: number;
+      classification?: string;
+    }) => void;
+  } = {},
 ): Promise<ResponsesGoldenReport> {
   const results: ResponsesGoldenScenarioResult[] = [];
+  let providerCallCount = 0;
   for (const scenario of scenarios) {
     const startedAt = Date.now();
     const attemptFailures: ResponsesGoldenExecutionClassification[] = [];
@@ -823,6 +891,26 @@ export async function runResponsesGoldenReplay(
     let attemptCount = 0;
     while (attemptCount < maxAttempts) {
       attemptCount += 1;
+      const interCallDelayMs = Math.max(0, options.interCallDelayMs ?? 0);
+      if (providerCallCount > 0 && interCallDelayMs > 0) {
+        await new Promise((resolve) => setTimeout(resolve, interCallDelayMs));
+      }
+      providerCallCount += 1;
+      const reportProgress = (phase: "start" | "heartbeat" | "complete" | "retry", classification?: string) => {
+        options.onProgress?.({
+          phase,
+          scenarioId: scenario.id,
+          scenarioIndex: scenarios.indexOf(scenario),
+          totalScenarios: scenarios.length,
+          attempt: attemptCount,
+          elapsedMs: Date.now() - startedAt,
+          ...(classification ? { classification } : {}),
+        });
+      };
+      reportProgress("start");
+      const heartbeat = options.heartbeatMs && options.heartbeatMs > 0
+        ? setInterval(() => reportProgress("heartbeat"), options.heartbeatMs)
+        : undefined;
       try {
         const output = await adapter.run(buildResponsesGoldenAdapterInput(scenario));
         const parsed = parse(output.rawText);
@@ -852,12 +940,14 @@ export async function runResponsesGoldenReplay(
             },
           ));
         }
+        reportProgress("complete");
         break;
       } catch (error) {
         const failure = classifyResponsesGoldenProviderError(error);
         attemptFailures.push(failure.classification);
         const canRetry = failure.retryable && attemptCount < maxAttempts;
         if (canRetry) {
+          reportProgress("retry", failure.classification);
           const delayMs = Math.max(0, options.retryDelayMs ?? 0);
           if (delayMs > 0) await new Promise((resolve) => setTimeout(resolve, delayMs));
           continue;
@@ -871,13 +961,17 @@ export async function runResponsesGoldenReplay(
             classification: failure.classification,
             provider_error_code: failure.provider_error_code,
             provider_http_status: failure.provider_http_status,
+            provider_error_type: failure.provider_error_type,
             retryable_provider_error: failure.retryable,
             attempt_count: attemptCount,
             retry_recovered: false,
             attempt_failure_classifications: attemptFailures,
           },
         ));
+        reportProgress("complete", failure.classification);
         break;
+      } finally {
+        if (heartbeat) clearInterval(heartbeat);
       }
     }
   }
@@ -917,6 +1011,7 @@ export async function runResponsesGoldenReplay(
     transient_failures_recovered: results.filter((result) => result.retry_recovered).length,
     transient_failure_attempt_count: results.reduce((sum, result) => sum + result.attempt_failure_classifications.length, 0),
     transient_failure_classification_counts: transientFailureClassificationCounts,
+    missing_policy_normalization_applied_count: results.filter((result) => result.missing_policy_normalization_applied).length,
     results,
   };
 }

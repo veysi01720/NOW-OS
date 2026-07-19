@@ -71,6 +71,20 @@ describe("model execution timeout env", () => {
 });
 
 describe("Responses shadow env", () => {
+  it("keeps missing-policy normalization disabled unless explicitly enabled", () => {
+    const disabled = withEnv({
+      ...requiredEnv,
+      RESPONSES_MISSING_POLICY_NORMALIZATION_ENABLED: undefined,
+    }, () => loadEnv());
+    const enabled = withEnv({
+      ...requiredEnv,
+      RESPONSES_MISSING_POLICY_NORMALIZATION_ENABLED: "true",
+    }, () => loadEnv());
+
+    expect(disabled.responsesMissingPolicyNormalizationEnabled).toBe(false);
+    expect(enabled.responsesMissingPolicyNormalizationEnabled).toBe(true);
+  });
+
   it("is fully disabled by default", () => {
     const env = withEnv({
       ...requiredEnv,
