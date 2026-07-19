@@ -104,6 +104,34 @@ docs/architecture/PACKAGE_12_CANARY_SCOPE_EXCLUSION.md
 docs/architecture/PACKAGE_13_CANDIDATE_FIRST_CONTACT_CANARY_DESIGN.md
 ```
 
+Captured command output at the handover checkpoint:
+
+```text
+ build/provenance/source-manifest.json              | 360 ++++++++++++-----
+ build/provenance/source-manifest.json.sha256       |   2 +-
+ docs/architecture/PACKAGE_12C_DETERMINISTIC_MISSING_POLICY_NORMALIZATION_DESIGN.md | 440 +++++++++++++++++++++
+ docs/architecture/PACKAGE_12_CANARY_SCOPE_EXCLUSION.md | 22 ++
+ docs/architecture/PACKAGE_13_PATH_B_INTENT_SCOPE_DECISION.md | 77 +++
+ outputs/PACKAGE_12C_REAL_MODEL_TIMEOUT_HEARTBEAT_REPORT.md | 103 +++
+ outputs/package12/PACKAGE_12_HANDOVER_SUMMARY.md | 116 ++++
+ outputs/package13/PACKAGE_13_ARMING_BLOCKER_CLOSURE_REPORT.md | 261 +++++++
+ package-lock.json                                  |  10 +-
+ package.json                                       |   2 +-
+ scripts/responsesQualificationSuite.ts             |  50 ++-
+ src/bridge/handleIncomingMessage.ts               |   9 +
+ src/config/env.ts                                  |   2 +
+ src/intelligence/conversation/ConversationDecisionEngine.ts | 53 +++
+ src/intelligence/conversation/ConversationDecisionV3PolicyNormalizer.ts | 224 ++++++
+ src/modelAdapter/ResponsesAdapter.ts              |  43 +-
+ src/modelAdapter/modelAdapterSelection.ts         |  79 ++-
+ src/modelAdapter/responsesGoldenReplay.ts         | 119 +++-
+ src/modelAdapter/responsesShadowService.ts        |  36 +-
+ src/tests/conversationDecisionV3PolicyNormalizer.test.ts | 201 +++++
+ src/tests/modelAdapter/package13CandidateCanary.test.ts | 98 +++-
+ src/tests/modelAdapter/responsesGoldenReplay.test.ts | 146 ++++-
+ 45 files changed, 3510 insertions(+), 202 deletions(-)
+```
+
 ## Safety State
 
 ```text
