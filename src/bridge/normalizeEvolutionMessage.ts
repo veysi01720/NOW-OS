@@ -112,6 +112,18 @@ function nonEmptyRecord(...records: Record<string, unknown>[]): Record<string, u
   return records.find((record) => Object.keys(record).length > 0) ?? {};
 }
 
+function isJidLikeIdentifier(value: string): boolean {
+  return /@(s\.whatsapp\.net|g\.us|lid|broadcast)\b/u.test(value);
+}
+
+function providerMessageIdFromKey(key: Record<string, unknown>): string | undefined {
+  const id = firstString(key.id);
+  if (id === undefined || isJidLikeIdentifier(id)) {
+    return undefined;
+  }
+  return id;
+}
+
 function textHash(value: string): string | null {
   const trimmed = value.trim();
   if (!trimmed) return null;
@@ -213,7 +225,7 @@ export function normalizeEvolutionMessage(payload: unknown): NormalizedIncomingM
   const chatType: ChatType = isGroup ? "group" : "private";
   const senderJid = isGroup ? participant ?? remoteJid : remoteJid;
   const phoneNumber = compactJidToPhone(senderJid);
-  const messageId = firstString(key.id, envelope.id, data.id, root.id, root.messageId) ?? createCorrelationId();
+  const messageId = providerMessageIdFromKey(key) ?? "";
   const messageType = firstString(envelope.messageType, data.messageType, root.messageType, root.event) ?? "text";
   const text = extractText(message, { ...root, ...data, ...envelope }).trim();
   const media = extractMedia(message, { ...root, ...data, ...envelope });

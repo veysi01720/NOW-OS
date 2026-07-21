@@ -188,6 +188,150 @@ describe("POST /webhooks/evolution", () => {
     await app.close();
   });
 
+  it("ignores non-message Evolution webhook events before normalization and assistant execution", async () => {
+    const app = Fastify({ logger: false });
+    const assistantClient = new FakeAssistantClient([
+      '{"contract_version":"1.0","reply":"Should not run","internal_boss_note":"log"}',
+    ]);
+    const logger = createSilentLogger();
+    registerEvolutionWebhook(app, {
+      env: createTestEnv(),
+      assistantClient,
+      sender: new FakeSender(),
+      threadStore: new InMemoryThreadStore(),
+      memoryStore: new InMemoryStore(),
+      messageDedupeStore: new InMemoryMessageDedupeStore(),
+      userStateStore: new InMemoryUserStateStore(),
+      userRunLock: new UserRunLock(),
+      logger,
+    });
+
+    const response = await app.inject({
+      method: "POST",
+      url: "/webhooks/evolution",
+      payload: {
+        event: "CONNECTION_UPDATE",
+        data: {
+          state: "open",
+        },
+      },
+    });
+
+    expect(response.statusCode).toBe(200);
+    expect(response.json()).toEqual({ status: "ignored", reason: "non_message_event" });
+    expect(assistantClient.runCalls).toHaveLength(0);
+    expect(logger.events).toEqual(expect.arrayContaining([
+      expect.objectContaining({ event_type: "NON_MESSAGE_WEBHOOK_IGNORED", event_name: "CONNECTION_UPDATE" }),
+    ]));
+
+    await app.close();
+  });
+
+  it("ignores message payloads without a valid provider key.id before dedupe", async () => {
+    const app = Fastify({ logger: false });
+    const assistantClient = new FakeAssistantClient([
+      '{"contract_version":"1.0","reply":"Should not run","internal_boss_note":"log"}',
+    ]);
+    const logger = createSilentLogger();
+    registerEvolutionWebhook(app, {
+      env: createTestEnv(),
+      assistantClient,
+      sender: new FakeSender(),
+      threadStore: new InMemoryThreadStore(),
+      memoryStore: new InMemoryStore(),
+      messageDedupeStore: new InMemoryMessageDedupeStore(),
+      userStateStore: new InMemoryUserStateStore(),
+      userRunLock: new UserRunLock(),
+      logger,
+    });
+
+    const response = await app.inject({
+      method: "POST",
+      url: "/webhooks/evolution",
+      payload: {
+        event: "MESSAGES_UPSERT",
+        data: {
+          id: "905333333333@lid",
+          remoteJid: "905333333333@s.whatsapp.net",
+          messageType: "conversation",
+          message: {
+            conversation: "Selam"
+          }
+        }
+      }
+    });
+
+    expect(response.statusCode).toBe(200);
+    expect(response.json()).toEqual({ status: "ignored", reason: "missing_provider_message_id" });
+    expect(assistantClient.runCalls).toHaveLength(0);
+    expect(logger.events).toEqual(expect.arrayContaining([
+      expect.objectContaining({ event_type: "MESSAGE_IGNORED_MISSING_PROVIDER_MESSAGE_ID" }),
+    ]));
+
+    await app.close();
+  });
+
+  it("does not collapse distinct private messages when provider key.id changes", async () => {
+    const app = Fastify({ logger: false });
+    const assistantClient = new FakeAssistantClient([
+      '{"contract_version":"1.0","reply":"First","internal_boss_note":"log"}',
+      '{"contract_version":"1.0","reply":"Second","internal_boss_note":"log"}',
+    ]);
+    const sender = new FakeSender();
+    registerEvolutionWebhook(app, {
+      env: createTestEnv(),
+      assistantClient,
+      sender,
+      threadStore: new InMemoryThreadStore(),
+      memoryStore: new InMemoryStore(),
+      messageDedupeStore: new InMemoryMessageDedupeStore(),
+      userStateStore: new InMemoryUserStateStore(),
+      userRunLock: new UserRunLock(),
+      logger: createSilentLogger(),
+    });
+
+    const basePayload = {
+      event: "MESSAGES_UPSERT",
+      data: {
+        key: {
+          remoteJid: "905333333333@s.whatsapp.net",
+          fromMe: false,
+          id: "msg_live_1",
+        },
+        id: "905333333333@lid",
+        messageType: "conversation",
+        message: {
+          conversation: "25 kadin 4 saat Selam",
+        },
+      },
+    };
+
+    const first = await app.inject({ method: "POST", url: "/webhooks/evolution", payload: basePayload });
+    const second = await app.inject({
+      method: "POST",
+      url: "/webhooks/evolution",
+      payload: {
+        ...basePayload,
+        data: {
+          ...basePayload.data,
+          key: {
+            ...basePayload.data.key,
+            id: "msg_live_2",
+          },
+        },
+      },
+    });
+
+    expect(first.statusCode).toBe(200);
+    expect(second.statusCode).toBe(200);
+    expect(first.json().status).toBe("sent");
+    expect(second.json().status).toBe("sent");
+    expect(assistantClient.runCalls).toHaveLength(2);
+    expect(sender.sends).toHaveLength(2);
+
+    await app.close();
+  });
+
   it("dual-writes inbound queue in shadow mode without changing legacy response flow", async () => {
     const app = Fastify({ logger: false });
     const reliabilityQueueStore = new InMemoryReliabilityQueueStore();

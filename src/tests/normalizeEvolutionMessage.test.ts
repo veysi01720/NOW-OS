@@ -94,6 +94,42 @@ describe("normalizeEvolutionMessage", () => {
     expect(message.push_name).toBe("Mina");
   });
 
+  it("uses only provider key.id as message_id and rejects JID-like fallbacks", () => {
+    const message = normalizeEvolutionMessage({
+      event: "MESSAGES_UPSERT",
+      data: {
+        id: "905555555555@lid",
+        remoteJid: "905555555555@s.whatsapp.net",
+        messageType: "conversation",
+        message: {
+          conversation: "Selam"
+        }
+      }
+    });
+
+    expect(message.remote_jid).toBe("905555555555@s.whatsapp.net");
+    expect(message.message_id).toBe("");
+  });
+
+  it("does not accept JID-like key.id values as provider message ids", () => {
+    const message = normalizeEvolutionMessage({
+      event: "MESSAGES_UPSERT",
+      data: {
+        key: {
+          remoteJid: "905555555555@s.whatsapp.net",
+          fromMe: false,
+          id: "120363410041708696@g.us"
+        },
+        messageType: "conversation",
+        message: {
+          conversation: "Selam"
+        }
+      }
+    });
+
+    expect(message.message_id).toBe("");
+  });
+
   it("normalizes root-level message.conversation payloads", () => {
     const message = normalizeEvolutionMessage({
       event: "messages.upsert",
