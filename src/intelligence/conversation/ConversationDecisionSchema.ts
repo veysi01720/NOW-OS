@@ -109,7 +109,7 @@ export interface ConversationDecision {
     offered_setup_too_early: boolean;
     used_generic_closing: boolean;
   };
-  origin?: "conversation_decision_v2_model" | "conversation_decision_v2_model_repair" | "deterministic_safety_response" | "deterministic_transport_failure";
+  origin?: "conversation_decision_v2_model" | "conversation_decision_v2_model_repair" | "deterministic_work_model_acceptance_fast_path" | "deterministic_safety_response" | "deterministic_transport_failure";
 }
 
 export interface DecisionValidationResult {

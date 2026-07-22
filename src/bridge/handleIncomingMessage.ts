@@ -36,6 +36,7 @@ import {
 import {
   buildBackendContext,
   getConversationKey,
+  getTenantConversationKey,
 } from "./buildBackendContext.js";
 import {
   sanitizeAndBudgetContext,
@@ -301,6 +302,7 @@ export async function handleIncomingMessage(
     status: "processing",
   });
   const conversationKey = getConversationKey(message);
+  const modelConversationKey = getTenantConversationKey("now_os", message);
   /* 1) Evaluate backend authority once and project it downstream. */
   const authorityContext = resolveAuthorityContext(message, deps.env);
   const senderRole = authorityContext.sender_role;
@@ -781,14 +783,10 @@ export async function handleIncomingMessage(
     }
     if (modelRoute === "conversation_decision_v2") {
       try {
-        logger.info({
-          event_type: "ASSISTANT_RUN_STARTED",
-          correlation_id: message.correlation_id,
-          model_adapter_layer_enabled: deps.env.modelAdapterLayerEnabled,
-        });
         const decisionResult = await executeConversationDecisionV2({
           message,
           backendContext: budgetResult.context,
+          conversationId: modelConversationKey,
           capturedFields: stateMachineResult.captured_fields ?? [],
           env: deps.env,
           modelExecutionService,

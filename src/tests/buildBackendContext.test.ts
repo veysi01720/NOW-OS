@@ -1,4 +1,4 @@
-import { buildBackendContext } from "../bridge/buildBackendContext.js";
+import { buildBackendContext, getConversationKey, getTenantConversationKey } from "../bridge/buildBackendContext.js";
 import { InMemoryStore } from "../storage/memoryStore.js";
 import { createTestEnv } from "./testDoubles.js";
 import type { NormalizedIncomingMessage } from "../bridge/normalizeEvolutionMessage.js";
@@ -24,6 +24,41 @@ function baseMessage(phoneNumber: string): NormalizedIncomingMessage {
 }
 
 describe("buildBackendContext", () => {
+  it("builds stable tenant-scoped model conversation keys by tenant and chat id", () => {
+    const first = baseMessage("905333333333");
+    first.message_id = "msg_1";
+    const second = baseMessage("905333333333");
+    second.message_id = "msg_2";
+    second.correlation_id = "corr_second";
+    const otherPrivate = baseMessage("905444444444");
+    const groupFirst: NormalizedIncomingMessage = {
+      ...baseMessage("905333333333"),
+      remote_jid: "120363000000000000@g.us",
+      chat_type: "group",
+      is_group: true,
+      message_id: "group_msg_1",
+    };
+    const groupSecond: NormalizedIncomingMessage = {
+      ...groupFirst,
+      phone_number: "905444444444",
+      sender_id: "905444444444",
+      message_id: "group_msg_2",
+    };
+    const otherGroup: NormalizedIncomingMessage = {
+      ...groupFirst,
+      remote_jid: "120363111111111111@g.us",
+    };
+
+    expect(getConversationKey(first)).toBe("905333333333");
+    expect(getConversationKey(groupFirst)).toBe("120363000000000000@g.us");
+    expect(getTenantConversationKey("now_os", first)).toBe(getTenantConversationKey("now_os", second));
+    expect(getTenantConversationKey("now_os", first)).not.toBe(getTenantConversationKey("other_tenant", first));
+    expect(getTenantConversationKey("now_os", first)).not.toBe(getTenantConversationKey("now_os", otherPrivate));
+    expect(getTenantConversationKey("now_os", groupFirst)).toBe(getTenantConversationKey("now_os", groupSecond));
+    expect(getTenantConversationKey("now_os", groupFirst)).not.toBe(getTenantConversationKey("now_os", otherGroup));
+    expect(getTenantConversationKey("now_os", first)).not.toBe(getTenantConversationKey("now_os", groupFirst));
+  });
+
   it("builds BCP-001 backend_context and assigns owner only by whitelist", () => {
     const env = createTestEnv();
     const context = buildBackendContext(baseMessage("905111111111"), env, new InMemoryStore());

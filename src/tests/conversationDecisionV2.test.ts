@@ -175,6 +175,76 @@ describe("Conversation Decision V2 candidate route", () => {
     );
   });
 
+  it("uses a deterministic fast path for work-model acceptance nudges without direct questions", async () => {
+    const testDeps = deps([]);
+    testDeps.userStateStore.states.set("905550000001", {
+      current_state: "WORK_MODEL_ACCEPTANCE",
+      age: 27,
+      gender: "erkek",
+      daily_hours: 4,
+      eligibility_status: "eligible",
+      work_model_disclosed: true,
+      model_acceptance: "pending",
+      selected_app: null,
+      phone_type: null,
+      installation_status: "not_started",
+      training_status: "not_started",
+      missing_fields: ["model_acceptance"],
+      expected_next_step: "ask_work_model_acceptance"
+    } as any);
+
+    await handleIncomingMessage(message("Selam is icin yazdim", "fast-work-model"), testDeps);
+
+    expect(testDeps.assistantClient.runCalls).toHaveLength(0);
+    expect(testDeps.assistantClient.createThreadCalls).toBe(0);
+    expect(testDeps.sender.sends).toHaveLength(1);
+    expect(testDeps.sender.sends[0]?.text).toContain("calisma modeli sana uygun mu");
+    expect(testDeps.logger.events).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          event_type: "CONVERSATION_DECISION_V2_FAST_PATH_SELECTED",
+          fast_path: "work_model_acceptance",
+          model_call_count: 0
+        }),
+        expect.objectContaining({
+          event_type: "CONVERSATION_DECISION_V2_TRACE",
+          intent: "candidate_first_contact",
+          final_reply_origin: "deterministic_work_model_acceptance_fast_path",
+          model_call_count: 0
+        })
+      ])
+    );
+  });
+
+  it("reuses the stable conversation thread for V2 model calls", async () => {
+    const firstReply = "Merhaba, ilerleyebilmem icin yas, cinsiyet ve gunluk kac saat ayirabilecegini yazar misin?";
+    const secondReply = "Bilgilerini aldim. Onayli uygulama icinde sohbetlere yaziyla cevap vererek ilerlersin; kurulumdan once bu calisma modeli sana uygun mu?";
+    const testDeps = deps([
+      decision({
+        intent: { primary: "candidate_first_contact", secondary: [], confidence: 0.95 },
+        reply: { text: firstReply, language: "tr", tone: "natural_concise", contains_question: true },
+        chosen_actions: ["ask_missing_age", "ask_missing_gender", "ask_missing_daily_hours"],
+        policy_facts_used: [],
+        next_action: "ask_missing_age"
+      }),
+      decision({
+        intent: { primary: "candidate_next_step", secondary: [], confidence: 0.95 },
+        reply: { text: secondReply, language: "tr", tone: "natural_concise", contains_question: true },
+        chosen_actions: ["acknowledge_information", "explain_work_model", "request_work_model_acceptance"],
+        state_patch: { work_model_disclosed: true, work_model_acceptance: "pending" },
+        policy_facts_used: ["male_candidate_work_model", "work_model_acceptance_required", "candidate_work_steps_chat_based"],
+        next_action: "request_work_model_acceptance"
+      })
+    ]);
+
+    await handleIncomingMessage(message("Selam is icin yazdim", "thread-reuse-1"), testDeps);
+    await handleIncomingMessage(message("27 erkek 4", "thread-reuse-2"), testDeps);
+
+    expect(testDeps.assistantClient.createThreadCalls).toBe(1);
+    expect(testDeps.assistantClient.runCalls).toHaveLength(2);
+    expect(testDeps.assistantClient.runCalls.map((call) => call.threadId)).toEqual(["thread_1", "thread_1"]);
+  });
+
   it("does not repeat the exact production work-model paragraph on clarification", async () => {
     const simpleClarification = "Basitçe şöyle: Layla içinde gelen sohbetlere yazıyla cevap vererek ilerlersin. Kamera zorunlu diye bir kural yok; önce bu mesajlaşma ağırlıklı çalışma biçiminin sana uyup uymadığını netleştiriyoruz.";
     const testDeps = deps([

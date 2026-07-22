@@ -19,6 +19,10 @@ export function getConversationKey(message: NormalizedIncomingMessage): string {
   return message.chat_type === "private" ? message.phone_number : message.remote_jid;
 }
 
+export function getTenantConversationKey(tenantId: string, message: NormalizedIncomingMessage): string {
+  return `${tenantId}:${message.chat_type}:${getConversationKey(message)}`;
+}
+
 function nonCandidateState(): UserState {
   return {
     current_state: "NON_CANDIDATE",

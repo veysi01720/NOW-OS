@@ -139,10 +139,85 @@ function buildDecisionPrompt(context: ConversationDecisionContext, repairInput?:
   ].join("\n");
 }
 
+function latestLooksLikeDirectQuestion(text: string): boolean {
+  return /(nasil|nasÄ±l|ne|mi|mu|mÄ±|mÃ¼|hesap|hesabÄ±|hesabi|kamera|para|kazanc|kazanÃ§|odeme|Ã¶deme|\?)/u.test(
+    text.toLocaleLowerCase("tr-TR"),
+  );
+}
+
+function buildWorkModelAcceptanceFastPathDecision(context: ConversationDecisionContext): ConversationDecision | null {
+  const factIds = context.canonical_policy_facts.map((fact) => fact.id);
+  const hasRequiredFacts =
+    factIds.includes("male_candidate_work_model") &&
+    factIds.includes("work_model_acceptance_required") &&
+    factIds.includes("candidate_work_steps_chat_based");
+  const firstContactLike =
+    context.latest_message.inferred_intent === "candidate_first_contact" ||
+    context.latest_message.inferred_intent === "greeting_or_first_contact";
+  const eligible =
+    context.role === "candidate" &&
+    context.channel === "private" &&
+    context.derived_state.dialogue_phase === "WORK_MODEL_ACCEPTANCE" &&
+    context.derived_state.intake_complete &&
+    context.candidate_state.work_model_acceptance !== "accepted" &&
+    context.allowed_actions.includes("request_work_model_acceptance") &&
+    hasRequiredFacts &&
+    firstContactLike &&
+    !latestLooksLikeDirectQuestion(context.latest_message.text);
+
+  if (!eligible) return null;
+
+  const reply =
+    "Bilgilerini aldim. Onayli uygulama icinde temel is, gelen sohbet veya mesajlara yaziyla duzenli cevap vermek. " +
+    "Kamera ya da goruntulu calisma zorunlu diye bir kural soylemiyoruz; mesajlasma agirlikli ilerleyebilirsin. " +
+    "Kuruluma gecmeden once bu calisma modeli sana uygun mu?";
+
+  return {
+    decision_version: "2.0",
+    intent: {
+      primary: context.latest_message.inferred_intent ?? "candidate_first_contact",
+      secondary: [],
+      confidence: 1,
+    },
+    direct_question: {
+      present: false,
+      question_summary: null,
+      answered_in_reply: true,
+    },
+    reply: {
+      text: reply,
+      language: "tr",
+      tone: "natural_concise",
+      contains_question: true,
+    },
+    chosen_actions: ["acknowledge_information", "explain_work_model", "request_work_model_acceptance"],
+    state_patch: {
+      work_model_disclosed: true,
+      work_model_acceptance: "pending",
+    },
+    policy_facts_used: factIds.filter((id) =>
+      ["male_candidate_work_model", "work_model_acceptance_required", "candidate_work_steps_chat_based"].includes(id),
+    ),
+    next_action: "request_work_model_acceptance",
+    requires_escalation: false,
+    escalation_reason: null,
+    risk_flags: [],
+    self_check: {
+      answered_latest_message: true,
+      asked_known_information_again: false,
+      invented_policy: false,
+      offered_setup_too_early: false,
+      used_generic_closing: false,
+    },
+    origin: "deterministic_work_model_acceptance_fast_path",
+  };
+}
+
 async function runModelDecision(input: {
   modelExecutionService: ModelExecutionService;
   backendContext: BackendContextPayloadV1;
   context: ConversationDecisionContext;
+  conversationId: string;
   env: EnvConfig;
   repairInput?: {
     previousRawText: string;
@@ -161,7 +236,7 @@ async function runModelDecision(input: {
 
   const adapterInput: ModelAdapterInput = {
     tenantId: "now_os",
-    conversationId: input.context.request_id,
+    conversationId: input.conversationId,
     mode: "conversation_decision_v2",
     senderRole: input.backendContext.sender_role,
     channelType: input.backendContext.chat_type,
@@ -260,6 +335,7 @@ async function runModelDecision(input: {
 export async function executeConversationDecisionV2(input: {
   message: NormalizedIncomingMessage;
   backendContext: BackendContextPayloadV1;
+  conversationId: string;
   capturedFields: string[];
   env: EnvConfig;
   modelExecutionService: ModelExecutionService;
@@ -281,12 +357,28 @@ export async function executeConversationDecisionV2(input: {
   let mutationSource: string | null = null;
 
   try {
+    decision = buildWorkModelAcceptanceFastPathDecision(context);
+    if (decision) {
+      mutationSource = "deterministic_work_model_acceptance_fast_path";
+      input.logger.info({
+        event_type: "CONVERSATION_DECISION_V2_FAST_PATH_SELECTED",
+        correlation_id: context.request_id,
+        fast_path: "work_model_acceptance",
+        model_call_count: 0,
+      });
+    }
     if (!decision) {
       modelCallCount += 1;
+      input.logger.info({
+        event_type: "ASSISTANT_RUN_STARTED",
+        correlation_id: context.request_id,
+        model_adapter_layer_enabled: input.env.modelAdapterLayerEnabled,
+      });
       const modelResult = await runModelDecision({
         modelExecutionService: input.modelExecutionService,
         backendContext: input.backendContext,
         context,
+        conversationId: input.conversationId,
         env: input.env
       });
       decision = modelResult.decision;
@@ -317,6 +409,7 @@ export async function executeConversationDecisionV2(input: {
             modelExecutionService: input.modelExecutionService,
             backendContext: input.backendContext,
             context,
+            conversationId: input.conversationId,
             env: input.env,
             repairInput: {
               previousRawText: rawModelOutput,
