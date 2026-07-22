@@ -38,6 +38,16 @@ Quality Pack 1 live conversion is partial: 2/10 real golden assertions were adde
 - Code finding: `ConversationDecisionEngine.ts` validates the model/repair decision, then replaces it with `buildDeterministicSafetyDecision(...)` when final quality or schema validation fails. The replacement fallback is not re-run through a second recent-reply repetition check before send.
 - Scope note: this is a Quality Pack 1 follow-up distinct from the NEW_LEAD parrot guard. Candidate-facing fallback templates need repeat-aware behavior or contextual variants so two different questions do not receive identical "team check" replies.
 
+#### QP1-LIVE-E1 Model Error Follow-Up
+
+- Follow-up time: 2026-07-23 01:00-01:15 Europe/Istanbul log window.
+- Sanitized model-error finding: both target correlations logged `CONVERSATION_DECISION_V2_MODEL_ERROR` and `CONVERSATION_DECISION_V2_REPAIR_MODEL_ERROR` with `error_class=ModelExecutionError`. The persisted per-correlation log event does not include `ModelExecutionError.normalized.code`, so the exact rate-limit/auth/timeout subtype is not preserved on those individual events.
+- Window-level finding: in the same 15-minute window, 5 correlations reached `ASSISTANT_RUN_STARTED`; 2 ended with `conversation_decision_v2_model`, 3 had model execution errors, and 5 model-error events were logged in total. This was a partial provider/model-execution failure cluster, not a total outage.
+- Current normalized runtime snapshot after the cluster reported `model_execution_last_error_code=RATE_LIMITED`. No later model starts were observed after the final 01:10 model error in the checked window, so the latest error in the cluster was classified by the Package 12B model execution normalizer as `RATE_LIMITED`.
+- OpenAI credential check: read-only `assistants.retrieve` with the rotated key returned HTTP 200 and the configured assistant was retrievable. This rules out a persistent auth/key failure, but it does not rule out transient rate limiting or account-tier throughput limits.
+- Telemetry gap: future diagnosis needs `CONVERSATION_DECISION_V2_MODEL_ERROR` and repair error logs to include only the sanitized `normalized.code` (`RATE_LIMITED`, `AUTHENTICATION_FAILED`, `TIMEOUT`, etc.) and never the raw provider error message.
+- Narrow design proposal, not implemented: after any final `deterministic_safety_response` or `deterministic_transport_failure` is selected, run a deterministic repeat check against the latest assistant reply. If the fallback would repeat the previous fallback at high token overlap, choose a safe intent-aware alternate fallback template. Keep this local to final safety fallback selection; do not weaken validators, do not retry the model, and do not affect V3/Responses canary.
+
 ### QP1-LIVE-C1 - Job Definition Answer Overstates Sparse Policy Facts
 
 - Category: `C_JOB_DEFINITION_MISSING_POLICY_SPECIFICS`
