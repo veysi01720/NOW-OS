@@ -1,4 +1,5 @@
 import { buildBackendContext, getConversationKey, getTenantConversationKey } from "../bridge/buildBackendContext.js";
+import { normalizeEvolutionMessage } from "../bridge/normalizeEvolutionMessage.js";
 import { InMemoryStore } from "../storage/memoryStore.js";
 import { createTestEnv } from "./testDoubles.js";
 import type { NormalizedIncomingMessage } from "../bridge/normalizeEvolutionMessage.js";
@@ -57,6 +58,44 @@ describe("buildBackendContext", () => {
     expect(getTenantConversationKey("now_os", groupFirst)).toBe(getTenantConversationKey("now_os", groupSecond));
     expect(getTenantConversationKey("now_os", groupFirst)).not.toBe(getTenantConversationKey("now_os", otherGroup));
     expect(getTenantConversationKey("now_os", first)).not.toBe(getTenantConversationKey("now_os", groupFirst));
+  });
+
+  it("uses the same private conversation key for lid and phone jid aliases", () => {
+    const lidMessage = normalizeEvolutionMessage({
+      event: "MESSAGES_UPSERT",
+      data: {
+        key: {
+          remoteJid: "111111111111111@lid",
+          remoteJidAlt: "905333333333@s.whatsapp.net",
+          addressingMode: "lid",
+          fromMe: false,
+          id: "msg_lid_alias"
+        },
+        messageType: "conversation",
+        message: {
+          conversation: "Merhaba"
+        }
+      }
+    });
+    const phoneMessage = normalizeEvolutionMessage({
+      event: "MESSAGES_UPSERT",
+      data: {
+        key: {
+          remoteJid: "905333333333@s.whatsapp.net",
+          fromMe: false,
+          id: "msg_phone_alias"
+        },
+        messageType: "conversation",
+        message: {
+          conversation: "Merhaba"
+        }
+      }
+    });
+
+    expect(lidMessage.remote_jid).toBe("111111111111111@lid");
+    expect(getConversationKey(lidMessage)).toBe("905333333333");
+    expect(getConversationKey(phoneMessage)).toBe("905333333333");
+    expect(getTenantConversationKey("now_os", lidMessage)).toBe(getTenantConversationKey("now_os", phoneMessage));
   });
 
   it("builds BCP-001 backend_context and assigns owner only by whitelist", () => {

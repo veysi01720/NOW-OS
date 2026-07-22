@@ -220,10 +220,11 @@ export function normalizeEvolutionMessage(payload: unknown): NormalizedIncomingM
   const message = nonEmptyRecord(getRecord(envelope.message), getRecord(data.message), getRecord(root.message));
 
   const remoteJid = firstString(key.remoteJid, envelope.remoteJid, data.remoteJid, root.remoteJid) ?? "";
+  const remoteJidAlt = firstString(key.remoteJidAlt, envelope.remoteJidAlt, data.remoteJidAlt, root.remoteJidAlt);
   const participant = firstString(key.participant, envelope.participant, data.participant, root.participant);
   const isGroup = remoteJid.includes("@g.us");
   const chatType: ChatType = isGroup ? "group" : "private";
-  const senderJid = isGroup ? participant ?? remoteJid : remoteJid;
+  const senderJid = isGroup ? participant ?? remoteJid : remoteJidAlt ?? remoteJid;
   const phoneNumber = compactJidToPhone(senderJid);
   const messageId = providerMessageIdFromKey(key) ?? "";
   const messageType = firstString(envelope.messageType, data.messageType, root.messageType, root.event) ?? "text";

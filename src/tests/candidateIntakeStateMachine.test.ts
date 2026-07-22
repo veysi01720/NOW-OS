@@ -1,5 +1,5 @@
 import { applyCandidateIntakeStateMachine } from "../bridge/candidateIntakeStateMachine.js";
-import type { NormalizedIncomingMessage } from "../bridge/normalizeEvolutionMessage.js";
+import { normalizeEvolutionMessage, type NormalizedIncomingMessage } from "../bridge/normalizeEvolutionMessage.js";
 import { defaultUserState, type UserIdentityInput, type UserState, type UserStateStore } from "../storage/types.js";
 import { createTestEnv } from "./testDoubles.js";
 
@@ -250,6 +250,62 @@ describe("Candidate Intake State Machine", () => {
     expect(result.next_state.missing_fields).toEqual(["model_acceptance"]);
     expect(result.next_state.current_state).toBe("WORK_MODEL_DISCLOSURE");
     expect(store.states.get("905333333333")?.age).toBe(27);
+  });
+
+  it("merges candidate intake state across lid and phone jid aliases", () => {
+    const store = new TestUserStateStore();
+    const lidMessage = normalizeEvolutionMessage({
+      event: "MESSAGES_UPSERT",
+      data: {
+        key: {
+          remoteJid: "111111111111111@lid",
+          remoteJidAlt: "905333333333@s.whatsapp.net",
+          addressingMode: "lid",
+          fromMe: false,
+          id: "msg_lid_intake"
+        },
+        messageType: "conversation",
+        message: {
+          conversation: "27 erkek 4"
+        }
+      }
+    });
+    const phoneMessage = normalizeEvolutionMessage({
+      event: "MESSAGES_UPSERT",
+      data: {
+        key: {
+          remoteJid: "905333333333@s.whatsapp.net",
+          fromMe: false,
+          id: "msg_phone_intake"
+        },
+        messageType: "conversation",
+        message: {
+          conversation: "Android"
+        }
+      }
+    });
+
+    const first = applyCandidateIntakeStateMachine(
+      lidMessage,
+      createTestEnv({ approvedApps: ["Layla"] }),
+      store
+    );
+    const second = applyCandidateIntakeStateMachine(
+      phoneMessage,
+      createTestEnv({ approvedApps: ["Layla"] }),
+      store
+    );
+
+    expect(first.captured_fields).toEqual(["age", "gender", "daily_hours"]);
+    expect(second.captured_fields).toEqual(["phone_type"]);
+    expect(store.states.size).toBe(1);
+    expect(store.states.has("111111111111111")).toBe(false);
+    expect(store.states.get("905333333333")).toMatchObject({
+      age: 27,
+      gender: "erkek",
+      daily_hours: 4,
+      phone_type: "android"
+    });
   });
 
   it("records explicit work model acceptance only after disclosure", () => {

@@ -27,6 +27,31 @@ describe("normalizeEvolutionMessage", () => {
     expect(message.push_name).toBe("Ada");
   });
 
+  it("uses remoteJidAlt as the canonical private sender when remoteJid is a lid alias", () => {
+    const message = normalizeEvolutionMessage({
+      event: "MESSAGES_UPSERT",
+      data: {
+        key: {
+          remoteJid: "111111111111111@lid",
+          remoteJidAlt: "905333333333@s.whatsapp.net",
+          addressingMode: "lid",
+          fromMe: false,
+          id: "msg_lid_private"
+        },
+        messageType: "conversation",
+        message: {
+          conversation: "Merhaba"
+        }
+      }
+    });
+
+    expect(message.remote_jid).toBe("111111111111111@lid");
+    expect(message.phone_number).toBe("905333333333");
+    expect(message.sender_id).toBe("905333333333");
+    expect(message.chat_type).toBe("private");
+    expect(message.is_group).toBe(false);
+  });
+
   it("normalizes a group message using participant as sender", () => {
     const message = normalizeEvolutionMessage({
       data: {
@@ -48,6 +73,29 @@ describe("normalizeEvolutionMessage", () => {
     expect(message.is_group).toBe(true);
     expect(message.phone_number).toBe("905444444444");
     expect(message.remote_jid).toBe("120363000000000000@g.us");
+  });
+
+  it("keeps group classification when group remoteJid has lid participant aliases", () => {
+    const message = normalizeEvolutionMessage({
+      data: {
+        key: {
+          remoteJid: "120363000000000000@g.us",
+          participant: "111111111111111@lid",
+          participantAlt: "905444444444@s.whatsapp.net",
+          addressingMode: "lid",
+          fromMe: false,
+          id: "msg_group_lid"
+        },
+        message: {
+          conversation: "Grup mesaji"
+        }
+      }
+    });
+
+    expect(message.chat_type).toBe("group");
+    expect(message.is_group).toBe(true);
+    expect(message.remote_jid).toBe("120363000000000000@g.us");
+    expect(message.phone_number).toBe("111111111111111");
   });
 
   it("preserves fromMe and empty text for handler filtering", () => {
