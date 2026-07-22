@@ -68,6 +68,20 @@ sunset oluyor, zorunlu deadline bu.
    bu bilerek böyle tasarlanmış bir güvenlik mekanizması, bypass
    edilmemeli.
 
+### 4.1 PostgreSQL bellek/OOM riski (22 Temmuz 2026)
+
+- `nowakademi_db` container'inda `OOM_KILLED=true` goruldu; container ID
+  ve `deploy_package_pgdata` volume'u korunuyordu, volume yeniden
+  olusturulmus gorunmedi.
+- Son 6 saatlik DB loglarinda birden fazla `database system was interrupted`
+  ve `automatic recovery in progress` izi vardi. Bu, DB veri kaybi olarak
+  yorumlanmadi; ancak bellek/host stabilitesi icin ayri P0/P1 altyapi riski
+  olarak kayda alindi.
+- Bu risk latency fix veya canary owner approval adiminda cozulmeyecek.
+  Ayrica ele alinacak onerilen is: PostgreSQL/Evolution bellek kullanimini
+  olcmek, DB memory limit/host swap durumunu incelemek, gerekiyorsa yalnizca
+  ilgili servis icin kontrollu kaynak artirimi planlamak.
+
 ## 5. Mimari Özet (Codex'in her yeni oturumda bilmesi gereken)
 
 - **Model-agnostik adapter katmanı** (`IModelAdapter`): OpenAI ailesi
