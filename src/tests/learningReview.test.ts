@@ -166,28 +166,24 @@ describe("SPEC-016 Owner Learning Review & Approval Actions", () => {
 
   test("owner approve action transitions state and preserves short ref", async () => {
     const msg = createMsg(`${ref} onayla`, "905111111111");
+    const previousRunCount = assistantClient.runCalls.length;
     await handleIncomingMessage(msg, deps);
-    const run = assistantClient.runCalls.pop();
-    const context = extractContext(run!.content);
-    
-    expect(context.learning_review.action_result.success).toBe(true);
-    expect(context.learning_review.action_result.new_status).toBe("approved");
-    expect(context.learning_review.approved_count).toBe(1);
-    expect(context.learning_review.pending_count).toBe(0);
 
     const sug = ingestionStore.getLearningSuggestion("sug_2");
     expect(sug.status).toBe("approved");
     expect(sug.reviewed_by).toBe("owner");
+    expect(ingestionStore.listLearningSuggestions().filter((s: any) => s.status === "pending_owner_review")).toHaveLength(0);
+    expect(assistantClient.runCalls).toHaveLength(previousRunCount);
+    expect((deps.sender as FakeSender).sends.at(-1)?.text).toContain(`${ref} onaylandi`);
   });
 
   test("repeated approve action is idempotent/handled safely", async () => {
     const msg = createMsg(`${ref} onayla`, "905111111111");
+    const previousRunCount = assistantClient.runCalls.length;
     await handleIncomingMessage(msg, deps);
-    const run = assistantClient.runCalls.pop();
-    const context = extractContext(run!.content);
-    
-    expect(context.learning_review.action_result.success).toBe(false);
-    expect(context.learning_review.action_result.message).toContain("zaten 'approved' statüsünde");
+
+    expect(assistantClient.runCalls).toHaveLength(previousRunCount);
+    expect((deps.sender as FakeSender).sends.at(-1)?.text).toContain(`zaten 'approved' durumunda`);
   });
 
   test("invalid transition rejected -> approved is blocked", async () => {
@@ -206,11 +202,11 @@ describe("SPEC-016 Owner Learning Review & Approval Actions", () => {
     const ref3 = ingestionStore.getLearningSuggestion("sug_3").short_ref;
 
     const msg = createMsg(`${ref3} onayla`, "905111111111");
+    const previousRunCount = assistantClient.runCalls.length;
     await handleIncomingMessage(msg, deps);
-    const run = assistantClient.runCalls.pop();
-    const context = extractContext(run!.content);
-    
-    expect(context.learning_review.action_result.success).toBe(false);
+
+    expect(assistantClient.runCalls).toHaveLength(previousRunCount);
+    expect((deps.sender as FakeSender).sends.at(-1)?.text).toContain(`zaten 'rejected' durumunda`);
     const sug = ingestionStore.getLearningSuggestion("sug_3");
     expect(sug.status).toBe("rejected");
   });

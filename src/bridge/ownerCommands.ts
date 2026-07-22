@@ -4,6 +4,7 @@ import type { QueueStore } from "../storage/types.js";
 import type { PersistentIngestionStore } from "../storage/ingestionStore.js";
 import type { MaintenanceStore } from "../store/maintenanceStore.js";
 import { detectCommandPrefix, routeCoreMode, type CoreMode } from "./modeRouter.js";
+import { buildKnowledgeSyncContext } from "./knowledgeSync.js";
 
 export interface OwnerCommandResult {
   is_command: boolean;
@@ -49,6 +50,15 @@ function isPendingLearningListRequest(text: string, includeCommandAliases = fals
   return (includeCommandAliases ? [...directRequests, ...commandAliases] : directRequests).includes(text);
 }
 
+function learningQueueActionFromText(text: string): { ref: string; action: "approve" | "reject" } | null {
+  const match = text.match(/^lrn-?(\d+)\s+(onayla|reddet)$/);
+  if (!match) return null;
+  return {
+    ref: `LRN-${match[1]}`,
+    action: match[2] === "onayla" ? "approve" : "reject"
+  };
+}
+
 function compactPreview(value: string, maxLength = 120): string {
   const compact = value.replace(/\s+/g, " ").trim();
   if (compact.length <= maxLength) return compact;
@@ -80,6 +90,59 @@ function pendingLearningSuggestionsReply(ingestionStore: PersistentIngestionStor
   return `Bekleyen Ogrenme Onerileri (${pending.length}):\n${lines.join("\n")}${suffix}\nOnaylanmadan aktif bilgi/config degismez.`;
 }
 
+function applyLearningQueueAction(
+  ingestionStore: PersistentIngestionStore | undefined,
+  ref: string,
+  action: "approve" | "reject",
+  actorRole: string
+): string {
+  if (!ingestionStore) {
+    return "Ogrenme servisi aktif degil.";
+  }
+
+  const suggestion = ingestionStore.getLearningSuggestionByShortRef(ref);
+  if (!suggestion) {
+    return `${ref} bulunamadi. Aktif bilgi/config degismedi.`;
+  }
+
+  if (suggestion.status !== "pending_owner_review") {
+    return `${ref} zaten '${suggestion.status}' durumunda. Aktif bilgi/config degismedi.`;
+  }
+
+  if (action === "reject") {
+    const updated = ingestionStore.updateLearningSuggestionStatus(suggestion.suggestion_id, "rejected", actorRole);
+    return updated
+      ? `${ref} reddedildi. Pending listeden cikarildi. Aktif bilgi/config degismedi.`
+      : `${ref} reddedilemedi. Aktif bilgi/config degismedi.`;
+  }
+
+  const updated = ingestionStore.updateLearningSuggestionStatus(suggestion.suggestion_id, "approved", actorRole);
+  if (!updated) {
+    return `${ref} onaylanamadi. Aktif bilgi/config degismedi.`;
+  }
+
+  const syncCapableStore = ingestionStore as PersistentIngestionStore & {
+    getKnowledgePatchByRef?: unknown;
+    saveKnowledgePatch?: unknown;
+    listKnowledgePatches?: unknown;
+  };
+  if (
+    typeof syncCapableStore.getKnowledgePatchByRef !== "function" ||
+    typeof syncCapableStore.saveKnowledgePatch !== "function" ||
+    typeof syncCapableStore.listKnowledgePatches !== "function"
+  ) {
+    return `${ref} onaylandi ama bilgi bankasina aktarim basarisiz oldu: sync servisi aktif degil. Pending listeden cikarildi; manuel kontrol gerekiyor.`;
+  }
+
+  const syncContext = buildKnowledgeSyncContext(`${ref} bilgi bankasına aktar`, actorRole, ingestionStore);
+  const result = syncContext?.action_result;
+  if (result?.success) {
+    return `${ref} onaylandi ve bilgi bankasina aktarildi${result.patch_ref ? ` (${result.patch_ref})` : ""}. Pending listeden cikarildi.`;
+  }
+
+  return `${ref} onaylandi ama bilgi bankasina aktarim basarisiz oldu: ${result?.message ?? "sync sonucu alinamadi"}. Pending listeden cikarildi; manuel kontrol gerekiyor.`;
+}
+
 export function handleOwnerCommand(
   message: NormalizedIncomingMessage,
   senderRole: string,
@@ -94,7 +157,14 @@ export function handleOwnerCommand(
 
   const prefix = detectCommandPrefix(message.text);
   const text = normalizeOwnerCommandText(message.text);
+  const learningQueueAction = learningQueueActionFromText(text);
   if (!prefix) {
+    if (message.chat_type === "private" && learningQueueAction) {
+      return commandResult(
+        applyLearningQueueAction(ingestionStore, learningQueueAction.ref, learningQueueAction.action, senderRole),
+        "owner_learning_queue_action_command"
+      );
+    }
     if (message.chat_type === "private" && isPendingLearningListRequest(text)) {
       return commandResult(
         pendingLearningSuggestionsReply(ingestionStore),
@@ -118,6 +188,13 @@ export function handleOwnerCommand(
       assistant_run_skipped: true,
       skip_reason: route.skip_reason
     };
+  }
+
+  if (learningQueueAction) {
+    return commandResult(
+      applyLearningQueueAction(ingestionStore, learningQueueAction.ref, learningQueueAction.action, senderRole),
+      "owner_learning_queue_action_command"
+    );
   }
 
   if (text === "sistem durumu") {
