@@ -108,6 +108,7 @@ describe("buildBackendContext", () => {
     expect(context.sender.phone_number).toBe("905111111111");
     expect(context.user_message.text).toBe("Merhaba");
     expect(context.versions.assistant_response_contract_version).toBe("1.0");
+    expect(context.owner_instruction_override?.rule).not.toMatch(/\b(şef|sef)\b/iu);
   });
 
   it("assigns manager only by whitelist", () => {

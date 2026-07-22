@@ -429,6 +429,23 @@ describe("Quality Pack 1 V2 golden skeletons", () => {
     expect(backendContext.sender_role).toBe("owner");
     expect(backendContext.owner_instruction_override).toBeDefined();
     expect(backendContext.owner_instruction_override.rule).toContain("internal_boss_note");
+    expect(backendContext.owner_instruction_override.rule).not.toMatch(/\b(şef|sef)\b/iu);
+  });
+
+  it("removes the hardcoded owner title from public owner replies", async () => {
+    const deps = makeDeps([
+      JSON.stringify({
+        contract_version: "1.0",
+        reply: "Şef, bekleyen önerileri kontrol ettim.",
+        internal_boss_note: "",
+      }),
+    ]);
+
+    await handleIncomingMessage(ownerMessage("Bugun durum ne?", "owner-title"), deps);
+
+    expect(deps.sender.sends).toHaveLength(1);
+    expect(deps.sender.sends[0]?.text).toBe("bekleyen önerileri kontrol ettim.");
+    expect(deps.sender.sends[0]?.text).not.toMatch(/\b(Şef|şef|Sef|sef)\b/u);
   });
 
   it("answers guarantee and payment pressure with the deterministic V2 safety boundary", async () => {

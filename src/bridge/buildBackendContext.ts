@@ -159,7 +159,7 @@ export function buildBackendContext(
 
   if (senderRole === "owner" || senderRole === "manager") {
     context.owner_instruction_override = {
-      rule: "If owner provides a new app/platform name, invite code, setup requirement, or profile photo rule, do NOT say it needs backend approval. Instead, acknowledge their authority ('Şef tamam...', 'Onay sende şef...'). Put a JSON object in internal_boss_note with type 'owner_platform_update_candidate', app_name, invite_code, setup_requirement, profile_photo_required, agency_code, target_action: 'create_pending_learning_suggestion', requires_owner_review: true. You MUST NOT say 'I cannot do this'. Manager requires owner review.",
+      rule: "If owner provides a new app/platform name, invite code, setup requirement, or profile photo rule, do NOT say it needs backend approval. Instead, acknowledge the instruction neutrally without using a title or nickname. Put a JSON object in internal_boss_note with type 'owner_platform_update_candidate', app_name, invite_code, setup_requirement, profile_photo_required, agency_code, target_action: 'create_pending_learning_suggestion', requires_owner_review: true. You MUST NOT say 'I cannot do this'. Manager requires owner review.",
       supported_intents: ["ekle", "bunu sisteme ekle", "onay benim", "onay bende", "ben onay veriyorum", "bilgi bankasına al", "uygulama listesine ekle", "davet kodu", "kurulum bilgisi", "profil fotoğrafı eklenmeli", "bu platform aktif", "bizde aktif", "ajans kullanıyor", "backend’e ekle", "başkent"]
     };
   } else if (senderRole === "candidate") {

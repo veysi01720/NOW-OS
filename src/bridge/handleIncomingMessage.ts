@@ -140,6 +140,11 @@ function ownerPlatformUpdateAlreadyQueuedReply(ref?: string): string {
 const OWNER_PLATFORM_UPDATE_QUEUE_FAILED_REPLY =
   "Bu notu aktif bilgiye yazmadim. Inceleme kuyrugu kaydi olusmadi; elle kontrol gerekiyor.";
 
+function sanitizePrivilegedReplyAddress(reply: string, senderRole: string): string {
+  if (senderRole !== "owner" && senderRole !== "manager") return reply;
+  return reply.replace(/^\s*(şef|sef|dayı|dayi|patron)[,\s:;-]*/iu, "").trimStart();
+}
+
 function groupCommandAllowed(senderRole: string): boolean {
   return senderRole === "owner" || senderRole === "manager";
 }
@@ -1234,10 +1239,11 @@ export async function handleIncomingMessage(
       : ownerPlatformSuggestionFailed
         ? OWNER_PLATFORM_UPDATE_QUEUE_FAILED_REPLY
         : qualityGuard.reply;
-    const guard = checkApprovedAppGate(publicReply, backendContext);
+    const addressedReply = sanitizePrivilegedReplyAddress(publicReply, backendContext.sender_role);
+    const guard = checkApprovedAppGate(addressedReply, backendContext);
 
     const replyText = guard.ok
-      ? publicReply
+      ? addressedReply
       : SAFE_APPROVED_APP_GATE_REPLY;
     if (!guard.ok) {
       logger.warn({
