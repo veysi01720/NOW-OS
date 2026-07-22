@@ -12,6 +12,12 @@ interface IngestionDataFile {
   publish_jobs: Record<string, PublishJob>;
 }
 
+export interface LearningSuggestionSaveResult {
+  inserted: boolean;
+  suggestion: LearningSuggestion;
+  duplicate_of?: string;
+}
+
 function emptyDataFile(): IngestionDataFile {
   return {
     schema_version: "1.0",
@@ -160,6 +166,37 @@ export class PersistentIngestionStore {
     }
     this.fileData.learning_suggestions[suggestion.suggestion_id] = suggestion;
     this.flush();
+  }
+
+  public findDuplicateLearningSuggestion(suggestion: LearningSuggestion): LearningSuggestion | undefined {
+    if (!suggestion.source_message_safe_ref) return undefined;
+
+    return Object.values(this.fileData.learning_suggestions).find((existing) =>
+      existing.source_message_safe_ref === suggestion.source_message_safe_ref &&
+      existing.source_job_id === suggestion.source_job_id &&
+      existing.source_type === suggestion.source_type &&
+      existing.suggested_category === suggestion.suggested_category &&
+      existing.proposed_knowledge_type === suggestion.proposed_knowledge_type &&
+      existing.evidence_preview_sanitized === suggestion.evidence_preview_sanitized &&
+      existing.proposed_text === suggestion.proposed_text
+    );
+  }
+
+  public saveLearningSuggestionIfNew(suggestion: LearningSuggestion): LearningSuggestionSaveResult {
+    const duplicate = this.findDuplicateLearningSuggestion(suggestion);
+    if (duplicate) {
+      return {
+        inserted: false,
+        suggestion: duplicate,
+        duplicate_of: duplicate.suggestion_id
+      };
+    }
+
+    this.saveLearningSuggestion(suggestion);
+    return {
+      inserted: true,
+      suggestion
+    };
   }
 
   public getLearningSuggestion(id: string): LearningSuggestion | undefined {

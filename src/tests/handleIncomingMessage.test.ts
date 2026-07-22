@@ -545,6 +545,50 @@ describe("handleIncomingMessage", () => {
     expect(suggestions[0]?.short_ref).toBe("LRN-1");
   });
 
+  it("does not duplicate owner platform suggestions when the same source message is reprocessed", async () => {
+    const internalBossNote = JSON.stringify({
+      type: "owner_platform_update_candidate",
+      app_name: "NewApp",
+      invite_code: "INV-1",
+      target_action: "create_pending_learning_suggestion",
+      requires_owner_review: true
+    });
+    const response = JSON.stringify({
+      contract_version: "1.0",
+      reply: "Tamam patron, guncellendi.",
+      internal_boss_note: internalBossNote
+    });
+    const ingestionStore = new InMemoryIngestionStore();
+    const firstDeps = deps(response);
+    const secondDeps = deps(response);
+    const ownerMessage = message({
+      sender_id: "905111111111",
+      phone_number: "905111111111",
+      remote_jid: "905111111111@s.whatsapp.net",
+      message_id: "owner_msg_1",
+      text: "NewApp'i de ekledik"
+    });
+
+    await handleIncomingMessage(ownerMessage, { ...firstDeps, ingestionStore: ingestionStore as any });
+    await handleIncomingMessage(ownerMessage, { ...secondDeps, ingestionStore: ingestionStore as any });
+
+    const suggestions = ingestionStore.listLearningSuggestions();
+    expect(suggestions).toHaveLength(1);
+    expect(suggestions[0]?.source_message_safe_ref).toBe("owner_msg_1");
+    expect(secondDeps.sender.sends[0]?.text).toBe(
+      "Bu not zaten inceleme kuyrugunda (LRN-1). Yeni duplicate kayit acmadim; onaylaninca aktif bilgiye donusecek."
+    );
+    expect(secondDeps.logger.events).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          event_type: "OWNER_PLATFORM_UPDATE_SUGGESTION_DUPLICATE_SKIPPED",
+          suggestion_ref: "LRN-1",
+          source_message_safe_ref: "owner_msg_1"
+        })
+      ])
+    );
+  });
+
   it("shows pending owner learning suggestions through a deterministic command without Assistant", async () => {
     const testDeps = deps("{}");
     const ingestionStore = new InMemoryIngestionStore();

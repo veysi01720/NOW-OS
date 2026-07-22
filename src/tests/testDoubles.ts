@@ -410,6 +410,37 @@ export class InMemoryIngestionStore {
     this.suggestions.set(suggestion.suggestion_id, suggestion);
   }
 
+  findDuplicateLearningSuggestion(suggestion: LearningSuggestion): LearningSuggestion | undefined {
+    if (!suggestion.source_message_safe_ref) return undefined;
+
+    return Array.from(this.suggestions.values()).find((existing) =>
+      existing.source_message_safe_ref === suggestion.source_message_safe_ref &&
+      existing.source_job_id === suggestion.source_job_id &&
+      existing.source_type === suggestion.source_type &&
+      existing.suggested_category === suggestion.suggested_category &&
+      existing.proposed_knowledge_type === suggestion.proposed_knowledge_type &&
+      existing.evidence_preview_sanitized === suggestion.evidence_preview_sanitized &&
+      existing.proposed_text === suggestion.proposed_text
+    );
+  }
+
+  saveLearningSuggestionIfNew(suggestion: LearningSuggestion): { inserted: boolean; suggestion: LearningSuggestion; duplicate_of?: string } {
+    const duplicate = this.findDuplicateLearningSuggestion(suggestion);
+    if (duplicate) {
+      return {
+        inserted: false,
+        suggestion: duplicate,
+        duplicate_of: duplicate.suggestion_id
+      };
+    }
+
+    this.saveLearningSuggestion(suggestion);
+    return {
+      inserted: true,
+      suggestion
+    };
+  }
+
   getLearningSuggestion(id: string): LearningSuggestion | undefined {
     return this.suggestions.get(id);
   }

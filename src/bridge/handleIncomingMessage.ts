@@ -131,6 +131,11 @@ function ownerPlatformUpdateQueuedReply(ref?: string): string {
   return `Bunu inceleme kuyruguna aldim${refText}. Onaylaninca aktif bilgiye donusecek; su an app/config otomatik guncellenmedi.`;
 }
 
+function ownerPlatformUpdateAlreadyQueuedReply(ref?: string): string {
+  const refText = ref ? ` (${ref})` : "";
+  return `Bu not zaten inceleme kuyrugunda${refText}. Yeni duplicate kayit acmadim; onaylaninca aktif bilgiye donusecek.`;
+}
+
 const OWNER_PLATFORM_UPDATE_QUEUE_FAILED_REPLY =
   "Bu notu aktif bilgiye yazmadim. Inceleme kuyrugu kaydi olusmadi; elle kontrol gerekiyor.";
 
@@ -1062,6 +1067,7 @@ export async function handleIncomingMessage(
       (backendContext.sender_role === "owner" || backendContext.sender_role === "manager") &&
       parsed.value.internal_boss_note?.includes("owner_platform_update_candidate") === true;
     let ownerPlatformSuggestionCreated = false;
+    let ownerPlatformSuggestionDuplicate = false;
     let ownerPlatformSuggestionRef: string | undefined;
     let ownerPlatformSuggestionFailed = false;
 
@@ -1082,17 +1088,30 @@ export async function handleIncomingMessage(
               status: "pending_owner_review",
               created_at: new Date().toISOString(),
               source_type: "live_owner_interaction",
+              source_message_safe_ref: message.message_id,
               suggested_category: "owner_platform_update"
             };
-            deps.ingestionStore.saveLearningSuggestion(suggestion);
-            ownerPlatformSuggestionCreated = true;
-            ownerPlatformSuggestionRef = suggestion.short_ref ?? suggestion.safe_ref ?? suggestionId;
-            logger.info({
-              event_type: "OWNER_PLATFORM_UPDATE_SUGGESTION_CREATED",
-              suggestion_id: suggestionId,
-              suggestion_ref: ownerPlatformSuggestionRef,
-              app_name: noteObj.app_name
-            });
+            const saveResult = deps.ingestionStore.saveLearningSuggestionIfNew(suggestion);
+            ownerPlatformSuggestionCreated = saveResult.inserted;
+            ownerPlatformSuggestionDuplicate = !saveResult.inserted;
+            ownerPlatformSuggestionRef = saveResult.suggestion.short_ref ?? saveResult.suggestion.safe_ref ?? saveResult.suggestion.suggestion_id;
+            if (saveResult.inserted) {
+              logger.info({
+                event_type: "OWNER_PLATFORM_UPDATE_SUGGESTION_CREATED",
+                suggestion_id: suggestionId,
+                suggestion_ref: ownerPlatformSuggestionRef,
+                source_message_safe_ref: message.message_id,
+                app_name: noteObj.app_name
+              });
+            } else {
+              logger.info({
+                event_type: "OWNER_PLATFORM_UPDATE_SUGGESTION_DUPLICATE_SKIPPED",
+                suggestion_id: saveResult.suggestion.suggestion_id,
+                suggestion_ref: ownerPlatformSuggestionRef,
+                source_message_safe_ref: message.message_id,
+                duplicate_of: saveResult.duplicate_of
+              });
+            }
           } else {
             ownerPlatformSuggestionFailed = true;
           }
@@ -1115,6 +1134,8 @@ export async function handleIncomingMessage(
     });
     const publicReply = ownerPlatformSuggestionCreated
       ? ownerPlatformUpdateQueuedReply(ownerPlatformSuggestionRef)
+      : ownerPlatformSuggestionDuplicate
+        ? ownerPlatformUpdateAlreadyQueuedReply(ownerPlatformSuggestionRef)
       : ownerPlatformSuggestionFailed
         ? OWNER_PLATFORM_UPDATE_QUEUE_FAILED_REPLY
         : qualityGuard.reply;
