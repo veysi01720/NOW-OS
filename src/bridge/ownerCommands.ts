@@ -23,6 +23,63 @@ function commandResult(replyText: string, skipReason: string): OwnerCommandResul
   };
 }
 
+function normalizeOwnerCommandText(text: string): string {
+  return text
+    .trim()
+    .toLowerCase()
+    .replace(/^#komut\s*/, "")
+    .replace(/\u0131/g, "i")
+    .replace(/\u0130/g, "i")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function isPendingLearningListRequest(text: string, includeCommandAliases = false): boolean {
+  const directRequests = [
+    "beklemedeki onerileri goster",
+    "bekleyen onerileri goster",
+  ];
+  const commandAliases = [
+    "bekleyen ogrenme onerilerini goster",
+    "ogrenme kuyrugunu goster",
+    "ogrenme onerilerini goster",
+  ];
+  return (includeCommandAliases ? [...directRequests, ...commandAliases] : directRequests).includes(text);
+}
+
+function compactPreview(value: string, maxLength = 120): string {
+  const compact = value.replace(/\s+/g, " ").trim();
+  if (compact.length <= maxLength) return compact;
+  return `${compact.slice(0, maxLength - 3)}...`;
+}
+
+function pendingLearningSuggestionsReply(ingestionStore: PersistentIngestionStore | undefined): string {
+  if (!ingestionStore) {
+    return "Ogrenme servisi aktif degil.";
+  }
+
+  const pending = ingestionStore
+    .listLearningSuggestions()
+    .filter((suggestion) => suggestion.status === "pending_owner_review")
+    .sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime());
+
+  if (pending.length === 0) {
+    return "Bekleyen ogrenme onerisi yok. Aktif bilgi/config degismedi.";
+  }
+
+  const lines = pending.slice(0, 10).map((suggestion, index) => {
+    const ref = suggestion.short_ref ?? suggestion.safe_ref ?? `LRN-${index + 1}`;
+    const type = suggestion.proposed_knowledge_type || "unknown";
+    const preview = compactPreview(suggestion.evidence_preview_sanitized || suggestion.proposed_text);
+    return `- ${ref}: ${type} - ${preview}`;
+  });
+  const suffix = pending.length > 10 ? `\n- Ilk 10 kayit gosterildi; toplam ${pending.length} bekleyen oneri var.` : "";
+
+  return `Bekleyen Ogrenme Onerileri (${pending.length}):\n${lines.join("\n")}${suffix}\nOnaylanmadan aktif bilgi/config degismez.`;
+}
+
 export function handleOwnerCommand(
   message: NormalizedIncomingMessage,
   senderRole: string,
@@ -36,7 +93,14 @@ export function handleOwnerCommand(
   }
 
   const prefix = detectCommandPrefix(message.text);
+  const text = normalizeOwnerCommandText(message.text);
   if (!prefix) {
+    if (message.chat_type === "private" && isPendingLearningListRequest(text)) {
+      return commandResult(
+        pendingLearningSuggestionsReply(ingestionStore),
+        "owner_pending_learning_list_command"
+      );
+    }
     return { is_command: false };
   }
 
@@ -55,8 +119,6 @@ export function handleOwnerCommand(
       skip_reason: route.skip_reason
     };
   }
-
-  const text = message.text.trim().toLowerCase().replace(/^#komut\s*/, "");
 
   if (text === "sistem durumu") {
     const memoryUsage = process.memoryUsage();
@@ -120,6 +182,13 @@ export function handleOwnerCommand(
     return commandResult(
       "Sistem bakim modundan cikarildi. Normal akisa donuldu.",
       "owner_maintenance_command"
+    );
+  }
+
+  if (isPendingLearningListRequest(text, true)) {
+    return commandResult(
+      pendingLearningSuggestionsReply(ingestionStore),
+      "owner_pending_learning_list_command"
     );
   }
 

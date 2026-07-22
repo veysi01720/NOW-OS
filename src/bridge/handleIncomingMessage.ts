@@ -18,6 +18,7 @@ import type { MemoryStore } from "../storage/memoryStore.js";
 import type { MessageDedupeStore } from "../storage/messageDedupeStore.js";
 import type { ThreadStore } from "../storage/threadStore.js";
 import type { PersistentIngestionStore } from "../storage/ingestionStore.js";
+import type { LearningSuggestion } from "../storage/ingestionTypes.js";
 import type {
   EventLogStore,
   QueueStore,
@@ -124,6 +125,14 @@ function dedupeKey(message: NormalizedIncomingMessage): string {
 function isGroupCommand(text: string): boolean {
   return text.trim().startsWith("#");
 }
+
+function ownerPlatformUpdateQueuedReply(ref?: string): string {
+  const refText = ref ? ` (${ref})` : "";
+  return `Bunu inceleme kuyruguna aldim${refText}. Onaylaninca aktif bilgiye donusecek; su an app/config otomatik guncellenmedi.`;
+}
+
+const OWNER_PLATFORM_UPDATE_QUEUE_FAILED_REPLY =
+  "Bu notu aktif bilgiye yazmadim. Inceleme kuyrugu kaydi olusmadi; elle kontrol gerekiyor.";
 
 function groupCommandAllowed(senderRole: string): boolean {
   return senderRole === "owner" || senderRole === "manager";
@@ -380,25 +389,24 @@ export async function handleIncomingMessage(
           error_layer: "EvolutionSendText",
         };
   }
-  /* 3) Owner Emergency Commands */ if (deps.maintenanceStore) {
-    const ownerCommandRes = handleOwnerCommand(
-      message,
-      senderRole,
-      deps.env,
-      deps.queueStore,
-      deps.ingestionStore,
-      deps.maintenanceStore,
-    );
-    if (ownerCommandRes.is_command && ownerCommandRes.reply_text) {
-      logger.info({
-        event_type: "OWNER_COMMAND_EXECUTED",
-        correlation_id: message.correlation_id,
-        message_id: message.message_id,
-        command_text: message.text.trim().toLowerCase(),
-      });
-      await sendReply(message, ownerCommandRes.reply_text, deps);
-      return { status: "sent", correlation_id: message.correlation_id };
-    }
+  /* 3) Owner Emergency Commands */
+  const ownerCommandRes = handleOwnerCommand(
+    message,
+    senderRole,
+    deps.env,
+    deps.queueStore,
+    deps.ingestionStore,
+    deps.maintenanceStore,
+  );
+  if (ownerCommandRes.is_command && ownerCommandRes.reply_text) {
+    logger.info({
+      event_type: "OWNER_COMMAND_EXECUTED",
+      correlation_id: message.correlation_id,
+      message_id: message.message_id,
+      command_text: message.text.trim().toLowerCase(),
+    });
+    await sendReply(message, ownerCommandRes.reply_text, deps);
+    return { status: "sent", correlation_id: message.correlation_id };
   }
   return deps.userRunLock.runExclusive(conversationKey, async () => {
     const stateMachineResult =
@@ -1050,13 +1058,19 @@ export async function handleIncomingMessage(
       internal_boss_note_logged: true,
     });
 
-    if (backendContext.sender_role === "owner" || backendContext.sender_role === "manager") {
-      if (parsed.value.internal_boss_note && parsed.value.internal_boss_note.includes("owner_platform_update_candidate")) {
-        try {
+    const ownerPlatformUpdateNote =
+      (backendContext.sender_role === "owner" || backendContext.sender_role === "manager") &&
+      parsed.value.internal_boss_note?.includes("owner_platform_update_candidate") === true;
+    let ownerPlatformSuggestionCreated = false;
+    let ownerPlatformSuggestionRef: string | undefined;
+    let ownerPlatformSuggestionFailed = false;
+
+    if (ownerPlatformUpdateNote) {
+      try {
           const noteObj = JSON.parse(parsed.value.internal_boss_note);
           if (noteObj.type === "owner_platform_update_candidate" && deps.ingestionStore) {
             const suggestionId = `SUG-${Math.random().toString(36).substring(2, 10).toUpperCase()}`;
-            deps.ingestionStore.saveLearningSuggestion({
+            const suggestion: LearningSuggestion = {
               suggestion_id: suggestionId,
               source_job_id: "live_owner_interaction",
               platform: "whatsapp",
@@ -1069,19 +1083,25 @@ export async function handleIncomingMessage(
               created_at: new Date().toISOString(),
               source_type: "live_owner_interaction",
               suggested_category: "owner_platform_update"
-            });
+            };
+            deps.ingestionStore.saveLearningSuggestion(suggestion);
+            ownerPlatformSuggestionCreated = true;
+            ownerPlatformSuggestionRef = suggestion.short_ref ?? suggestion.safe_ref ?? suggestionId;
             logger.info({
               event_type: "OWNER_PLATFORM_UPDATE_SUGGESTION_CREATED",
               suggestion_id: suggestionId,
+              suggestion_ref: ownerPlatformSuggestionRef,
               app_name: noteObj.app_name
             });
+          } else {
+            ownerPlatformSuggestionFailed = true;
           }
-        } catch (err) {
+      } catch (err) {
+          ownerPlatformSuggestionFailed = true;
           logger.warn({
             event_type: "INTERNAL_BOSS_NOTE_PARSE_ERROR",
             error: err instanceof Error ? err.message : String(err)
           });
-        }
       }
     }
 
@@ -1093,18 +1113,17 @@ export async function handleIncomingMessage(
       conversationKey,
       correlationId: message.correlation_id,
     });
-    const guard = checkApprovedAppGate(qualityGuard.reply, backendContext);
-    
-    // Bypass guard if the owner/manager triggered a platform update
-    let isOwnerUpdate = false;
-    if ((backendContext.sender_role === "owner" || backendContext.sender_role === "manager") && parsed.value.internal_boss_note?.includes("owner_platform_update_candidate")) {
-      isOwnerUpdate = true;
-    }
+    const publicReply = ownerPlatformSuggestionCreated
+      ? ownerPlatformUpdateQueuedReply(ownerPlatformSuggestionRef)
+      : ownerPlatformSuggestionFailed
+        ? OWNER_PLATFORM_UPDATE_QUEUE_FAILED_REPLY
+        : qualityGuard.reply;
+    const guard = checkApprovedAppGate(publicReply, backendContext);
 
-    const replyText = (guard.ok || isOwnerUpdate)
-      ? qualityGuard.reply
+    const replyText = guard.ok
+      ? publicReply
       : SAFE_APPROVED_APP_GATE_REPLY;
-    if (!guard.ok && !isOwnerUpdate) {
+    if (!guard.ok) {
       logger.warn({
         event_type: "UNAPPROVED_APP_SUGGESTION",
         correlation_id: message.correlation_id,

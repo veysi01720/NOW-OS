@@ -13,6 +13,7 @@ import {
   FailingSender,
   FakeAssistantClient,
   FakeSender,
+  InMemoryIngestionStore,
   InMemoryReportDataSource
 } from "./testDoubles.js";
 
@@ -505,5 +506,82 @@ describe("handleIncomingMessage", () => {
         expect.objectContaining({ event_type: "OWNER_REPORT_CONTEXT_SKIPPED", sender_role: "candidate" })
       ])
     );
+  });
+
+  it("queues owner platform update notes with a deterministic pending-review reply", async () => {
+    const internalBossNote = JSON.stringify({
+      type: "owner_platform_update_candidate",
+      app_name: "NewApp",
+      invite_code: "INV-1",
+      target_action: "create_pending_learning_suggestion",
+      requires_owner_review: true
+    });
+    const testDeps = deps(JSON.stringify({
+      contract_version: "1.0",
+      reply: "Tamam patron, guncellendi.",
+      internal_boss_note: internalBossNote
+    }));
+    const ingestionStore = new InMemoryIngestionStore();
+
+    const result = await handleIncomingMessage(
+      message({
+        sender_id: "905111111111",
+        phone_number: "905111111111",
+        remote_jid: "905111111111@s.whatsapp.net",
+        text: "NewApp'i de ekledik"
+      }),
+      { ...testDeps, ingestionStore: ingestionStore as any }
+    );
+
+    expect(result.status).toBe("sent");
+    expect(testDeps.sender.sends).toHaveLength(1);
+    expect(testDeps.sender.sends[0]?.text).toBe(
+      "Bunu inceleme kuyruguna aldim (LRN-1). Onaylaninca aktif bilgiye donusecek; su an app/config otomatik guncellenmedi."
+    );
+    expect(testDeps.sender.sends[0]?.text).not.toContain("guncellendi");
+    const suggestions = ingestionStore.listLearningSuggestions();
+    expect(suggestions).toHaveLength(1);
+    expect(suggestions[0]?.status).toBe("pending_owner_review");
+    expect(suggestions[0]?.short_ref).toBe("LRN-1");
+  });
+
+  it("shows pending owner learning suggestions through a deterministic command without Assistant", async () => {
+    const testDeps = deps("{}");
+    const ingestionStore = new InMemoryIngestionStore();
+    ingestionStore.saveLearningSuggestion({
+      suggestion_id: "sug_pending",
+      source_job_id: "live_owner_interaction",
+      platform: "whatsapp",
+      suggestion_class: "unknown",
+      evidence_preview_sanitized: "App: NewApp, Invite: INV-1",
+      proposed_knowledge_type: "approved_app_update",
+      proposed_text: "Uygulama Adi: NewApp",
+      confidence: 0.99,
+      status: "pending_owner_review",
+      created_at: "2026-07-22T00:00:00.000Z"
+    });
+
+    const result = await handleIncomingMessage(
+      message({
+        sender_id: "905111111111",
+        phone_number: "905111111111",
+        remote_jid: "905111111111@s.whatsapp.net",
+        text: "beklemedeki onerileri goster"
+      }),
+      {
+        ...testDeps,
+        ingestionStore: ingestionStore as any,
+        maintenanceStore: {
+          isEnabled: () => false,
+          setEnabled: () => undefined
+        }
+      }
+    );
+
+    expect(result.status).toBe("sent");
+    expect(testDeps.assistantClient.runCalls).toHaveLength(0);
+    expect(testDeps.sender.sends[0]?.text).toContain("Bekleyen Ogrenme Onerileri (1)");
+    expect(testDeps.sender.sends[0]?.text).toContain("LRN-1: approved_app_update");
+    expect(testDeps.sender.sends[0]?.text).toContain("Onaylanmadan aktif bilgi/config degismez.");
   });
 });
