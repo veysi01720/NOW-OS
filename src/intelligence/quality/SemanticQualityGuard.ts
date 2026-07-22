@@ -27,6 +27,13 @@ function tokenOverlap(a: string, b: string): number {
   return shared / Math.min(left.size, right.size);
 }
 
+function shouldCheckRecentReplyRepetition(context: ConversationDecisionContext): boolean {
+  if (!latestAssistantReply(context)) return false;
+  if (!context.derived_state.intake_complete) return false;
+  if (!isFirstContactIntent(context.latest_message.inferred_intent)) return true;
+  return context.derived_state.dialogue_phase !== "NEW_LEAD";
+}
+
 function latestAssistantReply(context: ConversationDecisionContext): string | null {
   for (let index = context.recent_messages.length - 1; index >= 0; index -= 1) {
     const item = context.recent_messages[index];
@@ -141,6 +148,15 @@ export function validateSemanticQuality(reply: string, context: ConversationDeci
       const previousText = normalize(previous);
       if (text === previousText || tokenOverlap(reply, previous) >= 0.72) {
         reasons.push("CLARIFICATION_REPLY_REPEATED");
+      }
+    }
+  }
+  if (shouldCheckRecentReplyRepetition(context)) {
+    const previous = latestAssistantReply(context);
+    if (previous) {
+      const previousText = normalize(previous);
+      if (previousText.length >= 40 && (text === previousText || tokenOverlap(reply, previous) >= 0.95)) {
+        reasons.push("RECENT_REPLY_REPEATED");
       }
     }
   }

@@ -233,21 +233,76 @@ describe("Quality Pack 1 V2 golden skeletons", () => {
     expect(decisionContext.facts_extracted_from_current_message).toContain("model_acceptance");
   });
 
-  it("provides a draft harness for detecting exact parrot replies across two different candidate messages", async () => {
-    const duplicateReply =
-      "Layla mesajlasma agirlikli ilerlemek isteyen adaylar icin uygundur; once bu model sana uygun mu?";
+  it("repairs a live work-model parrot reply instead of sending the same answer again", async () => {
+    const liveDuplicateReply =
+      "Bilgilerini aldim. Onayli uygulama icinde temel is, gelen sohbet veya mesajlara yaziyla duzenli cevap vermek. Kamera ya da goruntulu calisma zorunlu diye bir kural soylemiyoruz; mesajlasma agirlikli ilerleyebilirsin. Kuruluma gecmeden once bu calisma modeli sana uygun mu?";
+    const repeatSafeFastPathReply =
+      "Selam, buradayim. Calisma modeli mesajlara yaziyla cevap verme uzerine; hangi nokta takildiysa onu netlestireyim. Bu model sana uygunsa 'uygun' yazman yeterli.";
+    const deps = makeDeps([], workModelAcceptanceState());
+    deps.memoryStore.appendBotReply(CANDIDATE_PHONE, liveDuplicateReply);
+
+    await handleIncomingMessage(candidateMessage("Selam", "live-parrot-work-model"), deps);
+
+    expect(deps.sender.sends).toHaveLength(1);
+    expect(deps.sender.sends[0]?.text).toBe(repeatSafeFastPathReply);
+    expect(deps.sender.sends[0]?.text).not.toBe(liveDuplicateReply);
+    expect(deps.assistantClient.runCalls).toHaveLength(0);
+    expect(deps.logger.events).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        event_type: "CONVERSATION_DECISION_V2_TRACE",
+        final_reply_origin: "deterministic_work_model_acceptance_fast_path",
+        model_call_count: 0,
+      }),
+    ]));
+  });
+
+  it("repairs a live frustration parrot reply before repeating the stale setup template", async () => {
+    const liveDuplicateReply = "Tamam, bilgiler tamam. Simdi kurulum adimina gecebiliriz.";
+    const repairedReply =
+      "Haklisin, once net anlatayim: is mesajlara yaziyla cevap verme uzerine. Hesap veya profil icin dogrulanmis kural yoksa onu soylemem.";
     const deps = makeDeps([
-      decision({ text: duplicateReply, intent: "ask_how_work_is_done", actions: ["answer_user_question"], direct: true }),
-      decision({ text: duplicateReply, intent: "clarify_previous_explanation", actions: ["answer_user_question"], direct: true }),
-    ], workModelAcceptanceState());
+      decision({
+        text: liveDuplicateReply,
+        intent: "candidate_next_step",
+        actions: ["answer_user_question"],
+        facts: ["candidate_work_steps_chat_based"],
+      }),
+      decision({
+        text: repairedReply,
+        intent: "candidate_next_step",
+        actions: ["answer_user_question", "handle_user_frustration"],
+        facts: ["candidate_work_steps_chat_based"],
+      }),
+    ], {
+      current_state: "READY_FOR_INSTALLATION",
+      age: 25,
+      gender: "erkek",
+      daily_hours: 7,
+      eligibility_status: "eligible",
+      work_model_disclosed: true,
+      model_acceptance: "accepted",
+      selected_app: "Layla",
+      phone_type: "android",
+      installation_status: "not_started",
+      training_status: "not_started",
+      missing_fields: [],
+      expected_next_step: "start_installation",
+    });
+    deps.memoryStore.appendBotReply(CANDIDATE_PHONE, liveDuplicateReply);
 
-    await handleIncomingMessage(candidateMessage("Bu isi nasil yapacagim?", "parrot-1"), deps);
-    await handleIncomingMessage(candidateMessage("Daha basit anlatir misin?", "parrot-2"), deps);
+    await handleIncomingMessage(candidateMessage("Dalga mi geciyorsunuz efendim", "live-parrot-frustration"), deps);
 
-    const sentReplies = deps.sender.sends.map((send) => normalizedText(send.text));
-    expect(sentReplies).toHaveLength(2);
-    expect(sentReplies[0]).toBe(sentReplies[1]);
+    expect(deps.sender.sends).toHaveLength(1);
+    expect(deps.sender.sends[0]?.text).toBe(repairedReply);
+    expect(deps.sender.sends[0]?.text).not.toBe(liveDuplicateReply);
     expect(deps.assistantClient.runCalls).toHaveLength(2);
+    expect(deps.logger.events).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        event_type: "CONVERSATION_DECISION_V2_TRACE",
+        quality_reason_codes: expect.arrayContaining(["RECENT_REPLY_REPEATED"]),
+        mutation_source: "model_repair",
+      }),
+    ]));
   });
 
   it("captures the owner tone override in the legacy Assistants prompt until live examples define assertions", async () => {

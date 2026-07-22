@@ -98,6 +98,7 @@ function buildDecisionPrompt(context: ConversationDecisionContext, repairInput?:
     "Treat canonical_policy_facts as atomic facts, not as a ready-made reply.",
     "Do not ask known age/gender/daily_hours again.",
     "If latest_message.inferred_intent is clarify_previous_explanation, do not repeat the previous assistant reply; explain it in simpler, more concrete words.",
+    "Do not repeat the most recent assistant reply word-for-word; if the user pushes back or sends a different message, answer that latest message with a fresh, concrete sentence.",
     "If the user says they did not understand, answer the unclear point directly before asking anything.",
     "If latest_message.inferred_intent is ask_job_definition, set intent.primary to ask_job_definition and answer what the work is in concrete terms.",
     "For ask_job_definition, include the user's basic task, the interaction mode, required/optional work mode boundaries, and the next logical step from candidate_state.",
@@ -131,6 +132,9 @@ function buildDecisionPrompt(context: ConversationDecisionContext, repairInput?:
     repairInput?.reasonCodes.includes("GENERIC_CONVERSATION_CLOSER")
       ? "For GENERIC_CONVERSATION_CLOSER repair, remove the generic closing and replace it with the concrete next operational step only."
       : "",
+    repairInput?.reasonCodes.includes("RECENT_REPLY_REPEATED")
+      ? "For RECENT_REPLY_REPEATED repair, do not reuse the previous reply. Acknowledge the latest user message and give a fresh, specific answer in different words."
+      : "",
     repairInput ? "<previous_model_output>" : "",
     repairInput ? repairInput.previousRawText : "",
     repairInput ? "</previous_model_output>" : "",
@@ -145,6 +149,18 @@ function latestLooksLikeDirectQuestion(text: string): boolean {
   return /(nasil|nasÄ±l|ne|mi|mu|mÄ±|mÃ¼|hesap|hesabÄ±|hesabi|kamera|para|kazanc|kazanÃ§|odeme|Ã¶deme|\?)/u.test(
     text.toLocaleLowerCase("tr-TR"),
   );
+}
+
+function normalizeForRepeatCheck(text: string): string {
+  return text.toLocaleLowerCase("tr-TR").normalize("NFKD").replace(/\p{M}/gu, "").replace(/Ä±/gu, "i").trim();
+}
+
+function repeatsLatestAssistantReply(reply: string, context: ConversationDecisionContext): boolean {
+  const normalizedReply = normalizeForRepeatCheck(reply);
+  return context.recent_messages
+    .slice()
+    .reverse()
+    .some((message) => message.role === "assistant" && normalizeForRepeatCheck(message.text) === normalizedReply);
 }
 
 function buildWorkModelAcceptanceFastPathDecision(context: ConversationDecisionContext): ConversationDecision | null {
@@ -169,10 +185,14 @@ function buildWorkModelAcceptanceFastPathDecision(context: ConversationDecisionC
 
   if (!eligible) return null;
 
-  const reply =
+  const defaultReply =
     "Bilgilerini aldim. Onayli uygulama icinde temel is, gelen sohbet veya mesajlara yaziyla duzenli cevap vermek. " +
     "Kamera ya da goruntulu calisma zorunlu diye bir kural soylemiyoruz; mesajlasma agirlikli ilerleyebilirsin. " +
     "Kuruluma gecmeden once bu calisma modeli sana uygun mu?";
+  const repeatSafeReply =
+    "Selam, buradayim. Calisma modeli mesajlara yaziyla cevap verme uzerine; hangi nokta takildiysa onu netlestireyim. " +
+    "Bu model sana uygunsa 'uygun' yazman yeterli.";
+  const reply = repeatsLatestAssistantReply(defaultReply, context) ? repeatSafeReply : defaultReply;
 
   return {
     decision_version: "2.0",
