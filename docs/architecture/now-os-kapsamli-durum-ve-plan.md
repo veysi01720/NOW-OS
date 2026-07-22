@@ -172,6 +172,25 @@ sunset oluyor, zorunlu deadline bu.
   execution ve WhatsApp send confirmation PASS oldu. Owner approval/Package 13
   canary acilmadi.
 
+### 6.7 Package 15 - Security Hardening (tamamlandi)
+
+- Incident sonrasi kalici hardening uygulandi: Postgres public port mapping'i
+  kapali kaldi; Evolution `8080`, backend `3000` ve cloaker `80/443`
+  localhost-only yapildi. UFW deny-by-default aktif; public allow list sadece
+  SSH `22/tcp`, Docker `DOCKER-USER` zinciri de external-to-Docker trafiği
+  default deny olarak kalici systemd script'iyle kuruludur.
+- `fail2ban` SSH jail aktif edildi. `now_os_backend`, `nowakademi_evolution`
+  ve `nowakademi_db` privileged=false; uc serviste `no-new-privileges:true`
+  aktif, DB ayrica `read_only:true` ve `/tmp` + `/var/run/postgresql` tmpfs
+  ile calisir. Gunluk cron monitor'u beklenmeyen container, `/tmp` executable
+  ve Postgres CPU anomalilerini `/var/log/now-os-security-hardening.log`
+  dosyasina yazar.
+- Secret hijyeni tamamlandi: live secret-bearing dosyalar ve backup/dump
+  artefact'leri root-only izinlere cekildi; eski rotate secret degerleri live
+  config, group/world-readable dosyalar ve son 24 saat Docker loglarinda
+  bulunmadi. Son dogrulamada SSH erisimi devam ediyor, healthz/readyz 200,
+  Evolution `open`, disaridan 5432/8080/3000/80/443 kapali.
+
 ## 7. Backlog — Now OS Stabil Olduktan Sonra Sırayla
 
 Öncelik sırasına göre, hiçbiri şu an aktif değil:
