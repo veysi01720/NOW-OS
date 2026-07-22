@@ -16,6 +16,10 @@ export interface NormalizedIncomingMessage {
   is_group: boolean;
   received_at: string;
   media?: NormalizedMediaAttachment;
+  telemetry?: {
+    webhook_received_at_ms?: number;
+    normalized_at_ms?: number;
+  };
 }
 
 export interface NormalizedMediaAttachment {

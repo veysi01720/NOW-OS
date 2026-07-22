@@ -92,6 +92,7 @@ export interface HandleIncomingMessageDeps {
   maintenanceStore?: MaintenanceStore;
   userRunLock: UserRunLock;
   logger: Logger;
+  nowMs?: () => number;
 }
 export interface HandleIncomingMessageResult {
   status:
@@ -272,21 +273,98 @@ function recordEvent(
     internal_boss_note_logged: input.internalBossNoteLogged,
   });
 }
+
+interface RequestLatencyTracker {
+  markStateMachineDone(): void;
+  markRouteSelected(): void;
+  markModelStart(): void;
+  markModelResult(): void;
+  clearModel(): void;
+  markSendStart(): void;
+  markSendConfirmed(): void;
+  finish<T extends HandleIncomingMessageResult>(result: T): T;
+}
+
+function createRequestLatencyTracker(
+  message: NormalizedIncomingMessage,
+  deps: HandleIncomingMessageDeps,
+): RequestLatencyTracker {
+  const nowMs = deps.nowMs ?? Date.now;
+  const webhookReceivedAtMs = message.telemetry?.webhook_received_at_ms ?? nowMs();
+  const normalizedAtMs = message.telemetry?.normalized_at_ms ?? webhookReceivedAtMs;
+  let stateMachineDoneAtMs: number | undefined;
+  let routeSelectedAtMs: number | undefined;
+  let modelStartAtMs: number | undefined;
+  let modelResultAtMs: number | undefined;
+  let sendStartAtMs: number | undefined;
+  let sendConfirmedAtMs: number | undefined;
+  let logged = false;
+
+  const duration = (from: number | undefined, to: number | undefined): number | null =>
+    from !== undefined && to !== undefined ? Math.max(0, to - from) : null;
+
+  return {
+    markStateMachineDone(): void {
+      stateMachineDoneAtMs ??= nowMs();
+    },
+    markRouteSelected(): void {
+      routeSelectedAtMs ??= nowMs();
+    },
+    markModelStart(): void {
+      modelStartAtMs ??= nowMs();
+    },
+    markModelResult(): void {
+      modelResultAtMs ??= nowMs();
+    },
+    clearModel(): void {
+      modelStartAtMs = undefined;
+      modelResultAtMs = undefined;
+    },
+    markSendStart(): void {
+      sendStartAtMs ??= nowMs();
+    },
+    markSendConfirmed(): void {
+      sendConfirmedAtMs = nowMs();
+    },
+    finish<T extends HandleIncomingMessageResult>(result: T): T {
+      if (logged) return result;
+      logged = true;
+      const finishedAtMs = nowMs();
+      deps.logger.info({
+        event_type: "REQUEST_LATENCY_BREAKDOWN",
+        correlation_id: message.correlation_id,
+        message_id: message.message_id,
+        chat_type: message.chat_type,
+        status: result.status,
+        webhook_received_to_normalized_ms: duration(webhookReceivedAtMs, normalizedAtMs),
+        normalized_to_state_machine_done_ms: duration(normalizedAtMs, stateMachineDoneAtMs),
+        state_machine_to_route_selected_ms: duration(stateMachineDoneAtMs, routeSelectedAtMs),
+        model_start_to_model_result_ms: duration(modelStartAtMs, modelResultAtMs),
+        route_selected_to_send_start_ms: duration(routeSelectedAtMs, sendStartAtMs),
+        send_start_to_send_confirmed_ms: duration(sendStartAtMs, sendConfirmedAtMs),
+        total_duration_ms: Math.max(0, finishedAtMs - webhookReceivedAtMs),
+      });
+      return result;
+    },
+  };
+}
+
 export async function handleIncomingMessage(
   message: NormalizedIncomingMessage,
   deps: HandleIncomingMessageDeps,
 ): Promise<HandleIncomingMessageResult> {
   const { logger } = deps;
+  const latencyTracker = createRequestLatencyTracker(message, deps);
   if (message.is_from_me) {
     logger.info({
       event_type: "MESSAGE_IGNORED_FROM_ME",
       correlation_id: message.correlation_id,
       message_id: message.message_id,
     });
-    return {
+    return latencyTracker.finish({
       status: "ignored_from_me",
       correlation_id: message.correlation_id,
-    };
+    });
   }
   if (message.text.trim() === "" && message.media === undefined) {
     logger.info({
@@ -294,7 +372,7 @@ export async function handleIncomingMessage(
       correlation_id: message.correlation_id,
       message_id: message.message_id,
     });
-    return { status: "ignored_empty", correlation_id: message.correlation_id };
+    return latencyTracker.finish({ status: "ignored_empty", correlation_id: message.correlation_id });
   }
   const messageDedupeKey = dedupeKey(message);
   if (deps.messageDedupeStore.isDuplicate(messageDedupeKey)) {
@@ -303,10 +381,10 @@ export async function handleIncomingMessage(
       correlation_id: message.correlation_id,
       message_id: message.message_id,
     });
-    return {
+    return latencyTracker.finish({
       status: "duplicate_ignored",
       correlation_id: message.correlation_id,
-    };
+    });
   }
   deps.messageDedupeStore.markSeen(messageDedupeKey, {
     message_id: message.message_id,
@@ -324,18 +402,18 @@ export async function handleIncomingMessage(
   const zipRouting = detectZipRouting({ message, senderRole });
   if (zipRouting.document_message_detected) {
     if (zipRouting.unsupported_archive_detected) {
-      await sendReply(message, "Bu islemde sadece .zip dosyasi kabul ediliyor.", deps);
-      return { status: "sent", correlation_id: message.correlation_id };
+      await sendReply(message, "Bu islemde sadece .zip dosyasi kabul ediliyor.", deps, latencyTracker);
+      return latencyTracker.finish({ status: "sent", correlation_id: message.correlation_id });
     }
 
     if (zipRouting.zip_candidate_detected && !zipRouting.sender_authorized) {
-      await sendReply(message, "Bu dosya islemi yetkili ekip tarafindan yapilabiliyor.", deps);
-      return { status: "sent", correlation_id: message.correlation_id };
+      await sendReply(message, "Bu dosya islemi yetkili ekip tarafindan yapilabiliyor.", deps, latencyTracker);
+      return latencyTracker.finish({ status: "sent", correlation_id: message.correlation_id });
     }
 
     if (zipRouting.zip_candidate_detected && !zipRouting.caption_prefix_detected) {
-      await sendReply(message, "ZIP islemi icin dosyayi #zip notuyla gondermelisin.", deps);
-      return { status: "sent", correlation_id: message.correlation_id };
+      await sendReply(message, "ZIP islemi icin dosyayi #zip notuyla gondermelisin.", deps, latencyTracker);
+      return latencyTracker.finish({ status: "sent", correlation_id: message.correlation_id });
     }
 
     if (
@@ -350,6 +428,7 @@ export async function handleIncomingMessage(
           ? "Tamam patron, ZIP'i aldim. Guvenli sekilde cozip inceleme kuyruguna aliyorum."
           : "Tamam dayi, ZIP'i aldim. Guvenli sekilde cozip inceleme kuyruguna aliyorum.",
         deps,
+        latencyTracker,
       );
       const zipBuffer = message.media?.base64
         ? Buffer.from(message.media.base64, "base64")
@@ -367,11 +446,12 @@ export async function handleIncomingMessage(
         message,
         `${senderRole === "owner" ? "Patron" : "Dayi"} ZIP cozuldu. ${zipResult.entries.length} dosya okundu, ${zipResult.candidates.length} kayit inceleme kuyruguna alindi. Knowledge'a otomatik yazmadim.`,
         deps,
+        latencyTracker,
       );
-      return {
+      return latencyTracker.finish({
         status: "zip_ingestion_started",
         correlation_id: message.correlation_id,
-      };
+      });
     }
   }
   /* 2) Maintenance Mode Guard */ if (
@@ -385,14 +465,14 @@ export async function handleIncomingMessage(
     });
     const replyText =
       "Sistemimizde kısa süreli bir bakım çalışması yapılıyor. Ekip birazdan yardımcı olacak.";
-    const fallbackSent = await sendReply(message, replyText, deps);
-    return fallbackSent
+    const fallbackSent = await sendReply(message, replyText, deps, latencyTracker);
+    return latencyTracker.finish(fallbackSent
       ? { status: "fallback_sent", correlation_id: message.correlation_id }
       : {
           status: "reply_send_failed",
           correlation_id: message.correlation_id,
           error_layer: "EvolutionSendText",
-        };
+        });
   }
   /* 3) Owner Emergency Commands */
   const ownerCommandRes = handleOwnerCommand(
@@ -410,10 +490,10 @@ export async function handleIncomingMessage(
       message_id: message.message_id,
       command_text: message.text.trim().toLowerCase(),
     });
-    await sendReply(message, ownerCommandRes.reply_text, deps);
-    return { status: "sent", correlation_id: message.correlation_id };
+    await sendReply(message, ownerCommandRes.reply_text, deps, latencyTracker);
+    return latencyTracker.finish({ status: "sent", correlation_id: message.correlation_id });
   }
-  return deps.userRunLock.runExclusive(conversationKey, async () => {
+  const lockedResult: HandleIncomingMessageResult = await deps.userRunLock.runExclusive(conversationKey, async () => {
     const stateMachineResult =
       message.chat_type === "private"
           ? applyCandidateIntakeStateMachine(
@@ -491,6 +571,7 @@ export async function handleIncomingMessage(
         skipped_reason: stateMachineResult.skipped_reason,
       });
     }
+    latencyTracker.markStateMachineDone();
     const reportIntent = detectOwnerReportIntent(message.text);
     if (reportIntent) {
       logger.info({
@@ -657,6 +738,7 @@ export async function handleIncomingMessage(
           message,
           "Bu komut icin yetki gerekiyor.",
           deps,
+          latencyTracker,
         );
         return sent
           ? { status: "sent", correlation_id: message.correlation_id }
@@ -701,6 +783,7 @@ export async function handleIncomingMessage(
       chat_type: backendContext.chat_type,
       model_route: modelRoute,
     });
+    latencyTracker.markRouteSelected();
     if (backendContext.knowledge_publish && deps.ingestionStore) {
       const intent = detectKnowledgePublishIntent(message.text);
       if (
@@ -772,7 +855,7 @@ export async function handleIncomingMessage(
     ) {
       const intakeReply =
         "Merhaba, doğru yönlendirme yapabilmem için yaşını, cinsiyetini ve günlük ortalama kaç saat ayırabileceğini yazar mısın?";
-      const sent = await sendReply(message, intakeReply, deps);
+      const sent = await sendReply(message, intakeReply, deps, latencyTracker);
       if (sent) {
         deps.memoryStore.appendBotReply(conversationKey, intakeReply);
       }
@@ -796,6 +879,7 @@ export async function handleIncomingMessage(
     }
     if (modelRoute === "conversation_decision_v2") {
       try {
+        latencyTracker.markModelStart();
         const decisionResult = await executeConversationDecisionV2({
           message,
           backendContext: budgetResult.context,
@@ -805,6 +889,11 @@ export async function handleIncomingMessage(
           modelExecutionService,
           logger,
         });
+        if (decisionResult.model_call_count > 0) {
+          latencyTracker.markModelResult();
+        } else {
+          latencyTracker.clearModel();
+        }
         const canaryObservation = {
           ...emptyModelAdapterCanaryObservation(),
           unsafe_claim_count: decisionResult.quality_reason_codes.includes("UNSUPPORTED_CLAIM") ? 1 : 0,
@@ -850,7 +939,7 @@ export async function handleIncomingMessage(
           source: "conversation_decision_v2",
           authority: authorityContext,
         });
-        const replySent = await sendReply(message, decisionResult.finalReply, deps);
+        const replySent = await sendReply(message, decisionResult.finalReply, deps, latencyTracker);
         if (!replySent) {
           recordEvent(deps, {
             message,
@@ -890,6 +979,7 @@ export async function handleIncomingMessage(
           message,
           ASSISTANT_SAFE_FALLBACK_REPLY,
           deps,
+          latencyTracker,
         );
         recordEvent(deps, {
           message,
@@ -916,6 +1006,7 @@ export async function handleIncomingMessage(
         correlation_id: message.correlation_id,
         model_adapter_layer_enabled: deps.env.modelAdapterLayerEnabled,
       });
+      latencyTracker.markModelStart();
       try {
         const modelOutput = await modelExecutionService.execute({
           tenantId: "now_os",
@@ -943,6 +1034,7 @@ export async function handleIncomingMessage(
           },
         });
         rawAssistantResponse = modelOutput.rawText;
+        latencyTracker.markModelResult();
       } catch (err) {
         const errMessage = err instanceof Error ? err.message : String(err);
         if (errMessage.includes("rate_limit_exceeded")) {
@@ -987,6 +1079,7 @@ export async function handleIncomingMessage(
             },
           });
           rawAssistantResponse = retryOutput.rawText;
+          latencyTracker.markModelResult();
         } else {
           throw err;
         }
@@ -1003,6 +1096,7 @@ export async function handleIncomingMessage(
         message,
         ASSISTANT_SAFE_FALLBACK_REPLY,
         deps,
+        latencyTracker,
       );
       recordEvent(deps, {
         message,
@@ -1036,6 +1130,7 @@ export async function handleIncomingMessage(
         message,
         ASSISTANT_SAFE_FALLBACK_REPLY,
         deps,
+        latencyTracker,
       );
       recordEvent(deps, {
         message,
@@ -1154,7 +1249,7 @@ export async function handleIncomingMessage(
         term_count: guard.term_count,
       });
     }
-    const replySent = await sendReply(message, replyText, deps);
+    const replySent = await sendReply(message, replyText, deps, latencyTracker);
     if (!replySent) {
       recordEvent(deps, {
         message,
@@ -1185,13 +1280,16 @@ export async function handleIncomingMessage(
     });
     return { status: qualityGuard.status, correlation_id: message.correlation_id };
   });
+  return latencyTracker.finish(lockedResult);
 }
 async function sendReply(
   message: NormalizedIncomingMessage,
   text: string,
   deps: HandleIncomingMessageDeps,
+  latencyTracker?: RequestLatencyTracker,
 ): Promise<boolean> {
   try {
+    latencyTracker?.markSendStart();
     if (isOutboundShadowEnabled(deps.env.outboundQueueMode)) {
       enqueueOutboundShadow({
         store: deps.reliabilityQueueStore,
@@ -1203,8 +1301,9 @@ async function sendReply(
     await deps.sender.sendText({ message, text });
     deps.connectionHealthMonitor?.recordSendConfirmed({
       correlation_id: message.correlation_id,
-      message_id: message.message_id,
+        message_id: message.message_id,
     });
+    latencyTracker?.markSendConfirmed();
     deps.logger.info({
       event_type: "WHATSAPP_SEND_SUCCESS",
       correlation_id: message.correlation_id,

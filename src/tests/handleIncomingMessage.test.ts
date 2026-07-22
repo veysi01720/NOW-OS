@@ -124,6 +124,45 @@ describe("handleIncomingMessage", () => {
     expect(testDeps.assistantClient.runCalls[0]?.content).toContain('"backend_context_version":"1.0"');
   });
 
+  it("logs one structured request latency breakdown with phase durations", async () => {
+    const testDeps = {
+      ...deps('{"contract_version":"1.0","reply":"Cevap","internal_boss_note":""}'),
+      nowMs: (() => {
+        const marks = [1030, 1040, 1050, 1080, 1090, 1100, 1110];
+        let index = 0;
+        return () => marks[index++] ?? 1110;
+      })()
+    };
+
+    const result = await handleIncomingMessage(
+      message({
+        telemetry: {
+          webhook_received_at_ms: 1000,
+          normalized_at_ms: 1010
+        }
+      }),
+      testDeps
+    );
+
+    expect(result.status).toBe("sent");
+    const breakdown = testDeps.logger.events.filter((event) => event.event_type === "REQUEST_LATENCY_BREAKDOWN");
+    expect(breakdown).toHaveLength(1);
+    expect(breakdown[0]).toEqual(expect.objectContaining({
+      event_type: "REQUEST_LATENCY_BREAKDOWN",
+      correlation_id: "corr_test",
+      message_id: "msg_test",
+      chat_type: "private",
+      status: "sent",
+      webhook_received_to_normalized_ms: 10,
+      normalized_to_state_machine_done_ms: 20,
+      state_machine_to_route_selected_ms: 10,
+      model_start_to_model_result_ms: 30,
+      route_selected_to_send_start_ms: 50,
+      send_start_to_send_confirmed_ms: 10,
+      total_duration_ms: 110
+    }));
+  });
+
   it("sends fallback for invalid Assistant response", async () => {
     const testDeps = deps("plain text");
 
