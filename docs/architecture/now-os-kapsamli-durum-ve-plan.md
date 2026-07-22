@@ -142,6 +142,20 @@ sunset oluyor, zorunlu deadline bu.
    sonrası SIRADA. İlk iş 10 golden test + deterministik/model ayrımı; bu
    bitmeden Package 13 canary yeniden açılmayacak.
 
+### 6.5 Açık Risk: Owner Learning Queue birikimi ve duplicate adayları
+
+- Owner canlı doğrulamasında false acknowledgement düzeltmesi ve
+  `beklemedeki onerileri goster` komutu PASS oldu.
+- Aynı doğrulamada 106 bekleyen öğrenme önerisi olduğu görüldü. İlk
+  kayıtlardan bazıları birebir duplicate adayı gibi duruyor:
+  `LRN-4/LRN-8`, `LRN-5/LRN-9`, `LRN-6/LRN-10`, `LRN-7/LRN-11`
+  aynı içerik ve aynı zaman damgasıyla ikişer kez kaydedilmiş görünüyor.
+- Bu bugün araştırılmadı; ayrı bir günde iki ayrı karar gerektiriyor:
+  (1) duplicate'in gerçek bir dedupe bug'ı mı, yoksa tekrar işleme/eski
+  birikim sonucu mu olduğunu teşhis et; (2) owner'ın 106 kaydı toplu
+  inceleyip onaylayabileceği/reddedebileceği dashboard veya komut
+  mekanizması kur. Şu an sadece listeleme var; aksiyon alma komutu yok.
+
 ## 7. Backlog — Now OS Stabil Olduktan Sonra Sırayla
 
 Öncelik sırasına göre, hiçbiri şu an aktif değil:
