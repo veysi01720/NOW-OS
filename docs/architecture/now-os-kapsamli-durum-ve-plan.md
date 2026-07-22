@@ -123,8 +123,8 @@ sunset oluyor, zorunlu deadline bu.
 
 ## 6. Kalan Adımlar — Kısa Vade Roadmap
 
-1. **Package 13 owner approval/canary**: BEKLEMEDE. Quality Pack 1 bitene
-   kadar owner approval tetiklenmeyecek ve canary açılmayacak.
+1. **Package 13 owner approval/canary**: BEKLEMEDE. Package 14 ve Quality
+   Pack 1 bitene kadar owner approval tetiklenmeyecek ve canary açılmayacak.
 2. **Package 13.5 latency/P0 fast-path**: TAMAMLANDI. WORK_MODEL_ACCEPTANCE
    direct-question olmayan cevaplarda canlı gözlem 1.7-1.9s bandına indi.
 3. **Package 13.6 canonical chat id / LID alias normalizasyonu**:
@@ -132,39 +132,40 @@ sunset oluyor, zorunlu deadline bu.
    geldiğinde candidate state/conversation identity telefon JID alternatifiyle
    sabitlenir; group mantığına dokunulmaz. Full suite PASS ve P0 deploy gate
    PASS ile canlıya alındı.
-4. **Quality Pack 1: Real Candidate Conversation Quality**: SIRADA. İlk iş
-   10 golden test + deterministik/model ayrımı; bu bitmeden Package 13 canary
-   yeniden açılmayacak.
+4. **Package 14: `unknown_app_missing_info`**: SIRADA. Dar offline
+   Responses/V3 golden replay scope'unda `unknown_app_policy_missing`
+   davranışı netleştirilecek; canlıya, canary'ye ve owner approval'a
+   dokunulmayacak.
+5. **Quality Pack 1: Real Candidate Conversation Quality**: Package 14
+   sonrası SIRADA. İlk iş 10 golden test + deterministik/model ayrımı; bu
+   bitmeden Package 13 canary yeniden açılmayacak.
 
 ## 7. Backlog — Now OS Stabil Olduktan Sonra Sırayla
 
 Öncelik sırasına göre, hiçbiri şu an aktif değil:
 
-1. **Package 14**: `p12_unknown_app_missing_info` — ayrı dar scope
-   (`unknown_app_policy_missing` gibi) + ayrı replay gate + ayrı owner
-   approval ile çözülecek. Tasarım yönü zaten Codex'ten alındı.
-2. **İkinci model sağlayıcısı** (Claude/Gemini gibi): yeni adapter +
+1. **İkinci model sağlayıcısı** (Claude/Gemini gibi): yeni adapter +
    23 senaryo qualification + ayrı canary turu. Tahmini 3-5 iş günü
    (altyapı hazır olduğu için hızlı). Deadline'a dokunmadan yapılabilir.
-3. **Zeka/öğrenme katmanı**: candidate geçmişinden örüntü çıkarıp owner'a
+2. **Zeka/öğrenme katmanı**: candidate geçmişinden örüntü çıkarıp owner'a
    öneri sunan, ONAYLANINCA deterministik kurala dönüşen sistem — modelin
    kendi kendine davranış değiştirmesi DEĞİL. Postgres migrasyonuyla
    (aşağıdaki Faz 8) birlikte, gerçek trafik birikince planlanmalı.
-4. **Instagram/TikTok reklam karşılama**: aynı chatbot mantığının,
+3. **Instagram/TikTok reklam karşılama**: aynı chatbot mantığının,
    sadece reklam karşılama rolünde diğer platformlara taşınması.
-5. **Modern dashboard**: yukarıdakilerin hepsini görünür/yönetilebilir
+4. **Modern dashboard**: yukarıdakilerin hepsini görünür/yönetilebilir
    kılan arayüz — en son aşama.
-6. **Deploy script'i**: `.env` + build + health + approval adımlarını tek
+5. **Deploy script'i**: `.env` + build + health + approval adımlarını tek
    komutta birleştiren script — güvenlik sınırını bozmadan (hâlâ owner'ın
    SSH ile elle tetiklemesi gerekir) sürtünmeyi azaltır.
-7. **SaaS/genel pazar konumlandırması**: pazar araştırması kalabalık çıktı
+6. **SaaS/genel pazar konumlandırması**: pazar araştırması kalabalık çıktı
    (Wati, Botpress, Gupshup, Respond.io zaten var) — ertelendi, Now
    bitince somut bir şeyle tekrar değerlendirilecek. Gerçek SaaS'a
    dönüşüm için eksik olanlar: (a) yapılandırılabilir state machine
    (şu an Now Akademi'ye özel elle yazılmış), (b) otomatik prompt/config
    üretimi (şu an aylarca elle ince ayar), (c) çoklu WhatsApp instance
    yönetimi, (d) gerçek multi-tenant veri izolasyonu.
-8. **Ertelenen fazlar** (orijinal master plan'dan, henüz başlanmadı):
+7. **Ertelenen fazlar** (orijinal master plan'dan, henüz başlanmadı):
    - Faz 7: Trace'i sorgulanabilir hale getirme
    - Faz 8: JSON store (`data/now-os-store.json`) → Postgres
    - Faz 9: Queue/worker cutover (şu an `WORKERS_ENABLED=false`)
