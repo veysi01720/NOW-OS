@@ -156,6 +156,22 @@ sunset oluyor, zorunlu deadline bu.
   inceleyip onaylayabileceği/reddedebileceği dashboard veya komut
   mekanizması kur. Şu an sadece listeleme var; aksiyon alma komutu yok.
 
+### 6.6 Incident kapanis notu: PostgreSQL port maruziyeti ve container compromise
+
+- 22 Temmuz 2026'da `nowakademi_db` 5432 portunun disariya acik oldugu ve
+  DB container `/tmp` altinda supheli miner/tor artefact'leri bulundugu
+  dogrulandi; forensic image ve pre-incident `pg_dumpall` kaniti korundu.
+- Recovery kapsaminda 5432 compose port mapping'i kaldirildi, Postgres
+  password ile dashboard owner/admin/manager token'lari rotate edildi, temiz
+  DB container ayni pgdata volume ile recreate edildi, Evolution ve backend
+  yeniden baslatildi; `/tmp` ve supheli process taramasi temiz, healthz/readyz
+  200 ve Evolution `open` olarak dogrulandi.
+- OpenAI service account key owner tarafindan rotate edildi; read-only
+  `assistants.retrieve` 200 dondu ve canli owner komutu
+  `beklemedeki onerileri goster` icin inbound/private normalize, owner command
+  execution ve WhatsApp send confirmation PASS oldu. Owner approval/Package 13
+  canary acilmadi.
+
 ## 7. Backlog — Now OS Stabil Olduktan Sonra Sırayla
 
 Öncelik sırasına göre, hiçbiri şu an aktif değil:
