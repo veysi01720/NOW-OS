@@ -160,6 +160,12 @@ sunset oluyor, zorunlu deadline bu.
   Package 11B'deki gibi V2 context builder'ın bu structured kaynakları nasıl
   kullanacağını önce DESIGN dokümanıyla bağla, sonra kodla ve golden testlerle
   kilitle.
+- **Quality Pack 1 - İkinci Bulgu: Safety fallback tekrar guard'ı.**
+  `deterministic_safety_response` ve `deterministic_transport_failure` kod
+  yolu recent-reply parrot guard'dan geçmiyor. Rate-limit gibi geçici model
+  hatalarında candidate'e art arda aynı "ekip kontrol etsin" mesajı gidebilir.
+  Yarın: fallback seçim noktasına da aynı `%95` overlap guard'ını ekle; tekrar
+  ederse intent-aware alternatif template seç.
 
 ### 6.6 Açık Risk: Owner Learning Queue birikimi ve duplicate adayları
 
