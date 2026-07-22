@@ -142,7 +142,26 @@ sunset oluyor, zorunlu deadline bu.
    sonrası SIRADA. İlk iş 10 golden test + deterministik/model ayrımı; bu
    bitmeden Package 13 canary yeniden açılmayacak.
 
-### 6.5 Açık Risk: Owner Learning Queue birikimi ve duplicate adayları
+### 6.5 Quality Pack 1 - Ana Bulgu: V2 job-definition grounding gap
+
+- Production `data/knowledge_bank/` altında `app_facts_structured.json` ve
+  `app_routing_rules.md` hiç yok; canlıda sadece `app_facts.md` ve
+  `approved_learning.*` dosyaları gözlendi.
+- Teşhis: owner learning `knowledgeSync.ts` akışı çalışsa bile yalnızca
+  `approved_learning.json` ve `approved_learning.md` üretir. `knowledgePublish.ts`
+  de sadece mevcut `approved_learning.*` kaynağını publish etmeye çalışır;
+  `app_facts_structured.json` veya `app_routing_rules.md` üretmez.
+- V2 karar bağlamı structured dosya yokluğunda gerçek app facts ile
+  ground edilmiyor; conversation decision tarafı statik/sparse
+  `CandidatePolicyResolver` policy facts'e düşüyor. Son canlı job-definition
+  örneğinde bot tekrar etmedi ama iş tanımını eksik/yanlış zeminde anlattı.
+- Yarınki Quality Pack 1 planı: (a) publish/source akışını çalıştırıp resmi
+  `app_facts_structured.json` ve `app_routing_rules.md` dosyalarını üret; (b)
+  Package 11B'deki gibi V2 context builder'ın bu structured kaynakları nasıl
+  kullanacağını önce DESIGN dokümanıyla bağla, sonra kodla ve golden testlerle
+  kilitle.
+
+### 6.6 Açık Risk: Owner Learning Queue birikimi ve duplicate adayları
 
 - Owner canlı doğrulamasında false acknowledgement düzeltmesi ve
   `beklemedeki onerileri goster` komutu PASS oldu.
@@ -156,7 +175,7 @@ sunset oluyor, zorunlu deadline bu.
   inceleyip onaylayabileceği/reddedebileceği dashboard veya komut
   mekanizması kur. Şu an sadece listeleme var; aksiyon alma komutu yok.
 
-### 6.6 Incident kapanis notu: PostgreSQL port maruziyeti ve container compromise
+### 6.7 Incident kapanis notu: PostgreSQL port maruziyeti ve container compromise
 
 - 22 Temmuz 2026'da `nowakademi_db` 5432 portunun disariya acik oldugu ve
   DB container `/tmp` altinda supheli miner/tor artefact'leri bulundugu
@@ -172,7 +191,7 @@ sunset oluyor, zorunlu deadline bu.
   execution ve WhatsApp send confirmation PASS oldu. Owner approval/Package 13
   canary acilmadi.
 
-### 6.7 Package 15 - Security Hardening (tamamlandi)
+### 6.8 Package 15 - Security Hardening (tamamlandi)
 
 - Incident sonrasi kalici hardening uygulandi: Postgres public port mapping'i
   kapali kaldi; Evolution `8080`, backend `3000` ve cloaker `80/443`
