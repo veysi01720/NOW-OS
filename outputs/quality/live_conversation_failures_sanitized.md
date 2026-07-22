@@ -11,10 +11,32 @@ Scope: read-only mining from production `now-os-store.json`, backend logs, and e
 - B) Re-asking known candidate info after it was provided: 0 usable live examples found.
 - C) Generic job-definition answer missing app/policy specifics: 1 usable live example recorded, not yet converted.
 - D) Owner tone/jargon override ignored: 0 usable live examples found.
+- E) Fallback/safety response duplicate: 1 paired live observation recorded, not yet converted.
 
 Quality Pack 1 live conversion is partial: 2/10 real golden assertions were added. No synthetic examples were created.
 
 ## Recorded Candidate Examples Pending Conversion
+
+### QP1-LIVE-E1 - Fallback/Safety Response Duplicate Appears Outside Parrot Guard
+
+- Category: `E_FALLBACK_SAFETY_DUPLICATE`
+- Source: live backend logs and owner-provided screenshot, private candidate conversation.
+- Observation time: 2026-07-22 22:06-22:09 UTC / 2026-07-23 01:06-01:09 Europe/Istanbul.
+- Deploy timing check: `now_os_backend` was recreated at 2026-07-22 21:34:34 UTC / 2026-07-23 00:34:34 Europe/Istanbul, so both candidate turns happened after the parrot guard deployment.
+- Correlation 1: `corr_929041fa-6606-4d1a-8262-e5d7b871fb84`.
+  - Candidate prompt, sanitized: short frustration/critique about bot wording.
+  - Runtime path: `MESSAGE_NORMALIZED` private, `ASSISTANT_RUN_STARTED`, primary model error, repair model error, `CONVERSATION_DECISION_V2_TRACE`, `SEND_CONFIRMED`, `WHATSAPP_SEND_SUCCESS`.
+  - Trace fields: `intent=candidate_next_step`, `dialogue_phase=WORK_MODEL_ACCEPTANCE`, `final_reply_origin=deterministic_safety_response`, `mutation_source=final_validation_safety_response`, `model_call_count=2`, `reply_mutated_after_model=true`.
+  - Reason codes: `WORK_MODEL_NOT_DISCLOSED` appeared in both quality and validation reason arrays.
+- Correlation 2: `corr_8fb82afe-4584-4258-bc7f-8c8527c31806`.
+  - Candidate prompt, sanitized: short question asking which apps are available.
+  - Runtime path: `MESSAGE_NORMALIZED` private, `ASSISTANT_RUN_STARTED`, primary model error, repair model error, `CONVERSATION_DECISION_V2_TRACE`, `SEND_CONFIRMED`, `WHATSAPP_SEND_SUCCESS`.
+  - Trace fields: `intent=candidate_next_step`, `dialogue_phase=WORK_MODEL_ACCEPTANCE`, `final_reply_origin=deterministic_safety_response`, `mutation_source=final_validation_safety_response`, `model_call_count=2`, `reply_mutated_after_model=true`.
+  - Reason codes: `WORK_MODEL_NOT_DISCLOSED` appeared in both quality and validation reason arrays.
+- Bot reply, shortened/sanitized: both turns sent the same deterministic safety fallback meaning "I could not clarify this safely; team should check."
+- Quality concern: this is not the normal model-response parrot pattern. The duplicate appears to come from the fixed safety fallback template after primary+repair model failure/final validation failure.
+- Code finding: `ConversationDecisionEngine.ts` validates the model/repair decision, then replaces it with `buildDeterministicSafetyDecision(...)` when final quality or schema validation fails. The replacement fallback is not re-run through a second recent-reply repetition check before send.
+- Scope note: this is a Quality Pack 1 follow-up distinct from the NEW_LEAD parrot guard. Candidate-facing fallback templates need repeat-aware behavior or contextual variants so two different questions do not receive identical "team check" replies.
 
 ### QP1-LIVE-C1 - Job Definition Answer Overstates Sparse Policy Facts
 
