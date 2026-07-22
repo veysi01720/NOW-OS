@@ -347,6 +347,71 @@ describe("Quality Pack 1 V2 golden skeletons", () => {
     ]));
   });
 
+  it("uses deterministic fallback variants when final safety fallback would repeat", async () => {
+    const invalidPrimaryOrRepair = decision({
+      text: "Tamam, ekip kontrol etsin.",
+      intent: "candidate_next_step",
+      actions: ["answer_user_question"],
+      facts: ["male_candidate_work_model"],
+    });
+    const deps = makeDeps([
+      invalidPrimaryOrRepair,
+      invalidPrimaryOrRepair,
+      invalidPrimaryOrRepair,
+      invalidPrimaryOrRepair,
+      invalidPrimaryOrRepair,
+      invalidPrimaryOrRepair,
+    ], workModelAcceptanceState());
+
+    await handleIncomingMessage(candidateMessage("Hangi uygulamalar var", "fallback-repeat-safety-1"), deps);
+    await handleIncomingMessage(candidateMessage("Hangi uygulamalar var", "fallback-repeat-safety-2"), deps);
+    await handleIncomingMessage(candidateMessage("Hangi uygulamalar var", "fallback-repeat-safety-3"), deps);
+
+    const replies = deps.sender.sends.map((send) => send.text);
+    expect(replies).toHaveLength(3);
+    expect(new Set(replies).size).toBe(3);
+    expect(normalizedText(replies[0] ?? "")).toContain("bu cevabi guvenli sekilde netlestiremedim");
+    expect(normalizedText(replies[1] ?? "")).toContain("az once de uygulama bilgisi");
+    expect(normalizedText(replies[2] ?? "")).toContain("uygulama bilgisi hakkinda dogrulanmamis cevap vermeyecegim");
+    expect(deps.assistantClient.runCalls).toHaveLength(6);
+    const traces = deps.logger.events.filter((event) => event.event_type === "CONVERSATION_DECISION_V2_TRACE");
+    expect(traces).toHaveLength(3);
+    expect(traces).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        final_reply_origin: "deterministic_safety_response",
+        mutation_source: "final_validation_safety_response",
+      }),
+    ]));
+  });
+
+  it("uses deterministic fallback variants when transport fallback would repeat", async () => {
+    const deps = makeDeps([], workModelAcceptanceState());
+    deps.assistantClient.runAssistant = async (threadId: string, content: string): Promise<string> => {
+      deps.assistantClient.runCalls.push({ threadId, content });
+      throw Object.assign(new Error("rate_limit"), { status: 429 });
+    };
+
+    await handleIncomingMessage(candidateMessage("Nasil ilerleyecegim?", "fallback-repeat-transport-1"), deps);
+    await handleIncomingMessage(candidateMessage("Nasil ilerleyecegim?", "fallback-repeat-transport-2"), deps);
+    await handleIncomingMessage(candidateMessage("Nasil ilerleyecegim?", "fallback-repeat-transport-3"), deps);
+
+    const replies = deps.sender.sends.map((send) => send.text);
+    expect(replies).toHaveLength(3);
+    expect(new Set(replies).size).toBe(3);
+    expect(normalizedText(replies[0] ?? "")).toContain("su an yaniti guvenli sekilde olusturamadim");
+    expect(normalizedText(replies[1] ?? "")).toContain("az once de bu konu");
+    expect(normalizedText(replies[2] ?? "")).toContain("bu konu hakkinda dogrulanmamis cevap vermeyecegim");
+    expect(deps.assistantClient.runCalls).toHaveLength(3);
+    const traces = deps.logger.events.filter((event) => event.event_type === "CONVERSATION_DECISION_V2_TRACE");
+    expect(traces).toHaveLength(3);
+    expect(traces).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        final_reply_origin: "deterministic_transport_failure",
+        mutation_source: "provider_unavailable",
+      }),
+    ]));
+  });
+
   it("captures the owner tone override in the legacy Assistants prompt until live examples define assertions", async () => {
     const deps = makeDeps([
       JSON.stringify({

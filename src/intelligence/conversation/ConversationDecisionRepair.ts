@@ -4,6 +4,58 @@ function normalize(value: string): string {
   return value.toLocaleLowerCase("tr-TR").normalize("NFKD").replace(/\p{M}/gu, "").replace(/ı/gu, "i");
 }
 
+const FALLBACK_REPEAT_MIN_CHARS = 40;
+const FALLBACK_REPEAT_OVERLAP = 0.95;
+
+function tokens(value: string): string[] {
+  return normalize(value)
+    .replace(/[^\p{L}\p{N}\s]/gu, " ")
+    .split(/\s+/)
+    .filter((token) => token.length > 2);
+}
+
+function tokenOverlap(a: string, b: string): number {
+  const left = new Set(tokens(a));
+  const right = new Set(tokens(b));
+  if (left.size === 0 || right.size === 0) return 0;
+  let shared = 0;
+  for (const token of left) {
+    if (right.has(token)) shared += 1;
+  }
+  return shared / Math.min(left.size, right.size);
+}
+
+function fallbackTopic(context: ConversationDecisionContext): string {
+  const intent = context.latest_message.inferred_intent;
+  const latest = normalize(context.latest_message.text);
+  if (intent === "ask_job_definition" || intent === "ask_how_work_is_done") return "işin nasıl ilerlediği";
+  if (/(uygulama|app|platform)/u.test(latest)) return "uygulama bilgisi";
+  if (/(kazanc|kazan.|para|odeme|puan)/u.test(latest)) return "kazanç veya ödeme";
+  if (/(kamera|hesap|profil|video|goruntulu)/u.test(latest)) return "kamera, hesap veya profil";
+  if (intent === "clarify_previous_explanation") return "önceki açıklama";
+  return "bu konu";
+}
+
+function repeatsRecentAssistantReply(reply: string, context: ConversationDecisionContext): boolean {
+  return context.recent_messages
+    .filter((message) => message.role === "assistant")
+    .some((message) => {
+      const previous = normalize(message.text);
+      const current = normalize(reply);
+      return previous.length >= FALLBACK_REPEAT_MIN_CHARS
+        && (current === previous || tokenOverlap(reply, message.text) >= FALLBACK_REPEAT_OVERLAP);
+    });
+}
+
+function selectRepeatSafeFallbackReply(
+  context: ConversationDecisionContext,
+  baseReply: string,
+  alternateReplies: string[],
+): string {
+  const candidates = [baseReply, ...alternateReplies];
+  return candidates.find((reply) => !repeatsRecentAssistantReply(reply, context)) ?? candidates[candidates.length - 1];
+}
+
 function hasWorkQuestion(text: string): boolean {
   const normalized = normalize(text);
   return /(nasil|ne yapacagim|hesap|profil|is|calisma|kamera|mesajlasma|anlamadim|kazanc|para|odeme|puan|garanti|kesin)/u.test(normalized);
@@ -171,11 +223,16 @@ export function buildDeterministicSafetyDecision(
     return buildJobDefinitionSafetyDecision(context);
   }
 
-  const reply = reason === "provider_unavailable"
+  const baseReply = reason === "provider_unavailable"
     ? "Şu an yanıtı güvenli şekilde oluşturamadım. Yanlış yönlendirmemek için ekip bu mesajı netleştirsin."
     : reason === "policy_missing"
       ? "Bu konuda doğrulanmış bilgi eksik. Yanlış yönlendirmemek için ekip netleştirsin."
       : "Bu cevabı güvenli şekilde netleştiremedim. Yanlış yönlendirmemek için ekip kontrol etsin.";
+  const topic = fallbackTopic(context);
+  const reply = selectRepeatSafeFallbackReply(context, baseReply, [
+    `Az önce de ${topic} için ekip kontrolü istemiştim. Yanlış yönlendirmemek için bu mesajı da aynı güvenli kontrolde tutuyorum.`,
+    `${topic} hakkında doğrulanmamış cevap vermeyeceğim. Ekip netleştirene kadar güvenli sınırı koruyorum.`
+  ]);
   return baseDecision(
     reply,
     context,
