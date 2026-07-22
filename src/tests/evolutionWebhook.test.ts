@@ -167,12 +167,83 @@ describe("POST /webhooks/evolution", () => {
     };
 
     const idempotencyKey = buildEvolutionIdempotencyKey("evolution", "905333333333@s.whatsapp.net", "msg_duplicate");
-    expect(idempotencyKey).toMatch(/^evolution_[a-f0-9]{16}_[a-f0-9]{16}$/);
+    expect(idempotencyKey).toMatch(/^evolution_[a-f0-9]{16}$/);
 
     const first = await app.inject({ method: "POST", url: "/webhooks/evolution", payload });
     const second = await app.inject({ method: "POST", url: "/webhooks/evolution", payload });
 
     expect(first.statusCode).toBe(200);
+    expect(second.statusCode).toBe(200);
+    expect(second.json()).toEqual({ status: "ignored", reason: "duplicate" });
+    expect(assistantClient.runCalls).toHaveLength(1);
+    expect(sender.sends).toHaveLength(1);
+    expect(logger.events).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          event_type: "DUPLICATE_MESSAGE_IGNORED",
+        }),
+      ]),
+    );
+
+    await app.close();
+  });
+
+  it("deduplicates the same provider message id across lid and phone jid aliases", async () => {
+    const app = Fastify({ logger: false });
+    const assistantClient = new FakeAssistantClient([
+      '{"contract_version":"1.0","reply":"Webhook cevabi","internal_boss_note":"log"}',
+      '{"contract_version":"1.0","reply":"Duplicate should not run","internal_boss_note":"log"}',
+    ]);
+    const sender = new FakeSender();
+    const logger = createSilentLogger();
+    registerEvolutionWebhook(app, {
+      env: createTestEnv(),
+      assistantClient,
+      sender,
+      threadStore: new InMemoryThreadStore(),
+      memoryStore: new InMemoryStore(),
+      messageDedupeStore: new InMemoryMessageDedupeStore(),
+      userStateStore: new InMemoryUserStateStore(),
+      userRunLock: new UserRunLock(),
+      logger,
+    });
+
+    const firstPayload = {
+      event: "MESSAGES_UPSERT",
+      data: {
+        key: {
+          remoteJid: "111111111111111@lid",
+          remoteJidAlt: "905333333333@s.whatsapp.net",
+          addressingMode: "lid",
+          fromMe: false,
+          id: "msg_lid_alias_duplicate",
+        },
+        messageType: "conversation",
+        message: {
+          conversation: "25 kadin 4 saat Selam",
+        },
+      },
+    };
+    const aliasPayload = {
+      event: "MESSAGES_UPSERT",
+      data: {
+        key: {
+          remoteJid: "905333333333@s.whatsapp.net",
+          fromMe: false,
+          id: "msg_lid_alias_duplicate",
+        },
+        messageType: "conversation",
+        message: {
+          conversation: "25 kadin 4 saat Selam",
+        },
+      },
+    };
+
+    const first = await app.inject({ method: "POST", url: "/webhooks/evolution", payload: firstPayload });
+    const second = await app.inject({ method: "POST", url: "/webhooks/evolution", payload: aliasPayload });
+
+    expect(first.statusCode).toBe(200);
+    expect(first.json().status).toBe("sent");
     expect(second.statusCode).toBe(200);
     expect(second.json()).toEqual({ status: "ignored", reason: "duplicate" });
     expect(assistantClient.runCalls).toHaveLength(1);

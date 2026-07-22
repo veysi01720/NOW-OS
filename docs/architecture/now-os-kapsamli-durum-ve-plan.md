@@ -82,6 +82,20 @@ sunset oluyor, zorunlu deadline bu.
   olcmek, DB memory limit/host swap durumunu incelemek, gerekiyorsa yalnizca
   ilgili servis icin kontrollu kaynak artirimi planlamak.
 
+### 4.2 Ertelenen LID/canonical chat id isi (22 Temmuz 2026)
+
+- Evolution/Baileys 2.3.7 hattinda WhatsApp Business veya LID modunda
+  private DM icin `remoteJid=@lid`, `remoteJidAlt=@s.whatsapp.net`,
+  `addressingMode=lid` gelebiliyor. Group event'lerinde ise `remoteJid`
+  `@g.us` kalirken `participant=@lid` ve `participantAlt=@s.whatsapp.net`
+  gelebiliyor.
+- Bugunku dar P0 duzeltme sadece webhook idempotency key'ini provider
+  `message_id` uzerinden kurar; derin alias merge veya conversation state
+  migrasyonu yapmaz.
+- Ayrica planlanacak kucuk paket: private DM conversation/canonical chat id
+  seciminde `remoteJidAlt`/LID alias bilgisini kontrollu ele almak, mevcut
+  state'i resetlemeden ve group participant mantigini bozmadan testlemek.
+
 ## 5. Mimari Özet (Codex'in her yeni oturumda bilmesi gereken)
 
 - **Model-agnostik adapter katmanı** (`IModelAdapter`): OpenAI ailesi
