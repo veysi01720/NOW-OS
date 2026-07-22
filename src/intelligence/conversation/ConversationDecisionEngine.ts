@@ -104,6 +104,8 @@ function buildDecisionPrompt(context: ConversationDecisionContext, repairInput?:
     "For ask_job_definition, mention earnings/points/payment only if canonical_policy_facts include that information; otherwise do not invent it.",
     "For ask_job_definition, do not answer only with 'team will guide', 'ekip yönlendirecek', or 'ekip kontrol etsin'; those are incomplete unless the concrete writing/chat task and next step are also included.",
     "If the user asks about earnings/points/payment but canonical_policy_facts do not contain verified earnings details, say that verified earnings/payment detail is not available instead of inventing it, then still answer the high-level work model and next step.",
+    "If the user asks for guaranteed earnings, guaranteed payment, exact amounts, references, or safety guarantees and canonical_policy_facts do not contain verified details, do not promise or repeat guarantee language; answer that verified earnings/payment detail is not available and avoid unsupported claims.",
+    "If the user asks about camera, video, account, or profile requirements, answer only from canonical_policy_facts; do not say a male account/profile is required unless a canonical fact explicitly says so.",
     "If the user says they do not understand what the work is, simplify the same concrete work model instead of escalating to the team.",
     "Never end with generic conversation closers like 'Başka sormak istediğin var mı?' or similar.",
     "Use at most one question.",

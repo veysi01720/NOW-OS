@@ -92,6 +92,7 @@ function makeDeps(responses: string[] = [], initialState?: Partial<UserState>): 
   assistantClient: FakeAssistantClient;
   sender: FakeSender;
   userStateStore: InMemoryUserStateStore;
+  logger: ReturnType<typeof createSilentLogger>;
 } {
   const userStateStore = new InMemoryUserStateStore();
   if (initialState) {
@@ -104,6 +105,7 @@ function makeDeps(responses: string[] = [], initialState?: Partial<UserState>): 
 
   const assistantClient = new FakeAssistantClient(responses);
   const sender = new FakeSender();
+  const logger = createSilentLogger();
 
   return {
     env: createTestEnv({
@@ -117,7 +119,25 @@ function makeDeps(responses: string[] = [], initialState?: Partial<UserState>): 
     messageDedupeStore: new InMemoryMessageDedupeStore(),
     userStateStore,
     userRunLock: new UserRunLock(),
-    logger: createSilentLogger(),
+    logger,
+  };
+}
+
+function workModelAcceptanceState(): Partial<UserState> {
+  return {
+    current_state: "WORK_MODEL_ACCEPTANCE",
+    age: 27,
+    gender: "erkek",
+    daily_hours: 4,
+    eligibility_status: "eligible",
+    work_model_disclosed: true,
+    model_acceptance: "pending",
+    selected_app: null,
+    phone_type: null,
+    installation_status: "not_started",
+    training_status: "not_started",
+    missing_fields: ["model_acceptance"],
+    expected_next_step: "ask_work_model_acceptance",
   };
 }
 
@@ -219,21 +239,7 @@ describe("Quality Pack 1 V2 golden skeletons", () => {
     const deps = makeDeps([
       decision({ text: duplicateReply, intent: "ask_how_work_is_done", actions: ["answer_user_question"], direct: true }),
       decision({ text: duplicateReply, intent: "clarify_previous_explanation", actions: ["answer_user_question"], direct: true }),
-    ], {
-      current_state: "WORK_MODEL_ACCEPTANCE",
-      age: 27,
-      gender: "erkek",
-      daily_hours: 4,
-      eligibility_status: "eligible",
-      work_model_disclosed: true,
-      model_acceptance: "pending",
-      selected_app: null,
-      phone_type: null,
-      installation_status: "not_started",
-      training_status: "not_started",
-      missing_fields: ["model_acceptance"],
-      expected_next_step: "ask_work_model_acceptance",
-    });
+    ], workModelAcceptanceState());
 
     await handleIncomingMessage(candidateMessage("Bu isi nasil yapacagim?", "parrot-1"), deps);
     await handleIncomingMessage(candidateMessage("Daha basit anlatir misin?", "parrot-2"), deps);
@@ -261,5 +267,73 @@ describe("Quality Pack 1 V2 golden skeletons", () => {
     expect(backendContext.sender_role).toBe("owner");
     expect(backendContext.owner_instruction_override).toBeDefined();
     expect(backendContext.owner_instruction_override.rule).toContain("internal_boss_note");
+  });
+
+  it("answers guarantee and payment pressure with the deterministic V2 safety boundary", async () => {
+    const deps = makeDeps([
+      decision({
+        text: "Garanti kazanc var, kesin odeme alirsin.",
+        intent: "payment_question",
+        actions: ["answer_user_question"],
+        direct: true,
+      }),
+      decision({
+        text: "Haftalik 10000 TL kesin odeme var.",
+        intent: "payment_question",
+        actions: ["answer_user_question"],
+        direct: true,
+      }),
+    ], workModelAcceptanceState());
+
+    await handleIncomingMessage(candidateMessage("Garanti kazanc var mi, kesin odeme alir miyim?", "payment-boundary"), deps);
+
+    const reply = deps.sender.sends[0]?.text ?? "";
+    expect(reply).toContain("Dogrulanmis kazanc veya odeme detayi yok");
+    expect(reply).toContain("Vaat vermeden ekip netlestirsin");
+    expect(normalizedText(reply)).not.toMatch(/garanti|kesin|haftalik|aylik|\btl\b/u);
+    expect(deps.logger.events).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          event_type: "CONVERSATION_DECISION_V2_TRACE",
+          final_reply_origin: "deterministic_safety_response",
+          mutation_source: "deterministic_safety_response",
+          quality_reason_codes: expect.arrayContaining(["UNSUPPORTED_CLAIM"]),
+        }),
+      ])
+    );
+  });
+
+  it("answers camera, account, and profile pressure with the deterministic V2 policy boundary", async () => {
+    const deps = makeDeps([
+      decision({
+        text: "Kamera acman ve erkek profil acman gerekiyor.",
+        intent: "account_profile_question",
+        actions: ["answer_user_question"],
+        direct: true,
+      }),
+      decision({
+        text: "Erkek hesap acilacak, kamera zorunlu.",
+        intent: "account_profile_question",
+        actions: ["answer_user_question"],
+        direct: true,
+      }),
+    ], workModelAcceptanceState());
+
+    await handleIncomingMessage(candidateMessage("Kamera acacak miyim, erkek hesap veya profil zorunlu mu?", "camera-account-boundary"), deps);
+
+    const reply = deps.sender.sends[0]?.text ?? "";
+    expect(reply).toContain("Kamera veya goruntulu calisma zorunlu diye onayli kural soylemiyoruz");
+    expect(reply).toContain("Erkek hesap/profil acma zorunlulugu da dogrulanmis degil");
+    expect(normalizedText(reply)).not.toMatch(/acman gerekiyor|kamera acmalisin|erkek hesap acilacak/u);
+    expect(deps.logger.events).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          event_type: "CONVERSATION_DECISION_V2_TRACE",
+          final_reply_origin: "deterministic_safety_response",
+          mutation_source: "deterministic_safety_response",
+          quality_reason_codes: expect.arrayContaining(["MODEL_ACCEPTANCE_BYPASSED"]),
+        }),
+      ])
+    );
   });
 });

@@ -6,7 +6,7 @@ function normalize(value: string): string {
 
 function hasWorkQuestion(text: string): boolean {
   const normalized = normalize(text);
-  return /(nasil|ne yapacagim|hesap|is|calisma|kamera|mesajlasma|anlamadim)/u.test(normalized);
+  return /(nasil|ne yapacagim|hesap|profil|is|calisma|kamera|mesajlasma|anlamadim|kazanc|para|odeme|puan|garanti|kesin)/u.test(normalized);
 }
 
 function baseDecision(reply: string, context: ConversationDecisionContext, origin: ConversationDecision["origin"]): ConversationDecision {
@@ -109,10 +109,64 @@ function buildJobDefinitionSafetyDecision(context: ConversationDecisionContext):
   };
 }
 
+function asksPaymentOrGuarantee(text: string): boolean {
+  return /(kazanc|kazanÃ§|para|odeme|Ã¶deme|puan|garanti|kesin)/u.test(normalize(text));
+}
+
+function asksCameraAccountOrProfile(text: string): boolean {
+  return /(kamera|goruntulu|gÃ¶rÃ¼ntÃ¼lÃ¼|video|hesap|hesabi|hesabÄ±|profil)/u.test(normalize(text));
+}
+
+function buildPaymentBoundarySafetyDecision(context: ConversationDecisionContext): ConversationDecision {
+  const reply =
+    "Dogrulanmis kazanc veya odeme detayi yok. Vaat vermeden ekip netlestirsin; biz yalnizca onayli uygulama icindeki mesajlasma surecini anlatabiliriz.";
+  return {
+    ...baseDecision(reply, context, "deterministic_safety_response"),
+    intent: { primary: "payment_question", secondary: [], confidence: 1 },
+    direct_question: {
+      present: true,
+      question_summary: "Aday kazanc veya odeme guvencesi soruyor",
+      answered_in_reply: true,
+    },
+    chosen_actions: ["answer_user_question"],
+    policy_facts_used: context.canonical_policy_facts.map((fact) => fact.id),
+    next_action: "none",
+    requires_escalation: true,
+    escalation_reason: "payment_policy_missing",
+  };
+}
+
+function buildCameraAccountBoundarySafetyDecision(context: ConversationDecisionContext): ConversationDecision {
+  const reply =
+    "Kamera veya goruntulu calisma zorunlu diye onayli kural soylemiyoruz. Erkek hesap/profil acma zorunlulugu da dogrulanmis degil; ekip bu detayi uydurmadan netlestirsin.";
+  return {
+    ...baseDecision(reply, context, "deterministic_safety_response"),
+    intent: { primary: "account_profile_question", secondary: [], confidence: 1 },
+    direct_question: {
+      present: true,
+      question_summary: "Aday kamera, hesap veya profil zorunlulugunu soruyor",
+      answered_in_reply: true,
+    },
+    chosen_actions: ["answer_user_question"],
+    policy_facts_used: context.canonical_policy_facts.map((fact) => fact.id),
+    next_action: "none",
+    requires_escalation: false,
+    escalation_reason: null,
+  };
+}
+
 export function buildDeterministicSafetyDecision(
   context: ConversationDecisionContext,
   reason: "invalid_model_decision" | "provider_unavailable" | "policy_missing"
 ): ConversationDecision {
+  if (reason === "invalid_model_decision" && asksPaymentOrGuarantee(context.latest_message.text)) {
+    return buildPaymentBoundarySafetyDecision(context);
+  }
+
+  if (reason === "invalid_model_decision" && asksCameraAccountOrProfile(context.latest_message.text)) {
+    return buildCameraAccountBoundarySafetyDecision(context);
+  }
+
   if (reason === "invalid_model_decision" && context.latest_message.inferred_intent === "ask_job_definition") {
     return buildJobDefinitionSafetyDecision(context);
   }

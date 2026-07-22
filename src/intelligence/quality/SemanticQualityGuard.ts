@@ -81,6 +81,24 @@ function jobExplanationComplete(reply: string, context: ConversationDecisionCont
   return hasInteraction && hasUserTask && hasModeBoundary && hasNextStep && earningOk;
 }
 
+function hasUnsupportedGuaranteeOrEarningsClaim(text: string): boolean {
+  return (
+    /(garanti|kesin guven|sorun yasamazsiniz|kazanc kaniti|referans paylasabilirim|referans gosterebilirim)/u.test(text) ||
+    /((kesin|net|garanti).{0,30}(kazanc|kazanÃ§|odeme|Ã¶deme|para|puan)|(kazanc|kazanÃ§|odeme|Ã¶deme|para|puan).{0,30}(kesin|net|garanti))/u.test(text) ||
+    /(haftalik|haftalÄ±k|aylik|aylÄ±k).{0,20}(\d+|tl|lira)/u.test(text)
+  );
+}
+
+function hasUnsupportedCameraAccountProfileRequirement(text: string): boolean {
+  const boundary =
+    /(zorunlu\s+(degil|deÄŸil)|zorunlu.{0,40}kural.{0,30}(soylemiyoruz|sÃ¶ylemiyoruz|yok|degil|deÄŸil)|kamera.{0,60}zorunlu.{0,40}(soylemiyoruz|sÃ¶ylemiyoruz|yok|degil|deÄŸil)|doÄŸrulanmÄ±ÅŸ\s+degil|dogrulanmis\s+degil|doÄŸrulanmÄ±ÅŸ\s+kural\s+yok|dogrulanmis\s+kural\s+yok|uydurmadan|uydurmuyoruz|uydurmayalim|uydurmayalÄ±m)/u.test(text);
+  if (boundary) return false;
+  return (
+    /((kamera|goruntulu|gÃ¶rÃ¼ntÃ¼lÃ¼|video).{0,30}(zorunlu|sart|ÅŸart|gerek|acmalisin|aÃ§malÄ±sÄ±n|acman|aÃ§man)|(zorunlu|sart|ÅŸart|gerek).{0,30}(kamera|goruntulu|gÃ¶rÃ¼ntÃ¼lÃ¼|video))/u.test(text) ||
+    /((erkek\s+)?(hesap|profil).{0,30}(acilacak|aÃ§Ä±lacak|acman|aÃ§man|gerek|zorunlu|sart|ÅŸart)|(zorunlu|sart|ÅŸart|gerek).{0,30}(erkek\s+)?(hesap|profil))/u.test(text)
+  );
+}
+
 export function validateSemanticQuality(reply: string, context: ConversationDecisionContext): SemanticQualityResult {
   const text = normalize(reply);
   const reasons: string[] = [];
@@ -96,8 +114,11 @@ export function validateSemanticQuality(reply: string, context: ConversationDeci
   if (setupMentioned && !setupBoundaryAnswer && context.candidate_state.work_model_acceptance !== "accepted") {
     reasons.push("MODEL_ACCEPTANCE_BYPASSED");
   }
-  if (/(garanti|kesin guven|sorun yasamazsiniz|kazanc kaniti|referans paylasabilirim|referans gosterebilirim)/u.test(text)) {
+  if (hasUnsupportedGuaranteeOrEarningsClaim(text)) {
     reasons.push("UNSUPPORTED_CLAIM");
+  }
+  if (hasUnsupportedCameraAccountProfileRequirement(text)) {
+    reasons.push("UNSUPPORTED_POLICY_FACT");
   }
   if (!appMentionGrounded(text, context)) {
     reasons.push("UNGROUNDED_APP_SELECTION");
