@@ -9,10 +9,32 @@ Scope: read-only mining from production `now-os-store.json`, backend logs, and e
 - A) Parrot/repeated bot reply: 4 sanitized observations found.
 - A) Candidate-scope observations converted to regression tests: 2.
 - B) Re-asking known candidate info after it was provided: 0 usable live examples found.
-- C) Generic job-definition answer missing app/policy specifics: 0 usable live examples found.
+- C) Generic job-definition answer missing app/policy specifics: 1 usable live example recorded, not yet converted.
 - D) Owner tone/jargon override ignored: 0 usable live examples found.
 
 Quality Pack 1 live conversion is partial: 2/10 real golden assertions were added. No synthetic examples were created.
+
+## Recorded Candidate Examples Pending Conversion
+
+### QP1-LIVE-C1 - Job Definition Answer Overstates Sparse Policy Facts
+
+- Category: `C_JOB_DEFINITION_MISSING_POLICY_SPECIFICS`
+- Source: live memory snapshot and backend logs, private candidate conversation.
+- Observation time: 2026-07-22 21:36 UTC / 2026-07-23 00:36 Europe/Istanbul.
+- Runtime evidence: inbound private candidate message reached V2 path, `SEND_CONFIRMED` and `WHATSAPP_SEND_SUCCESS` were logged; no `SEND_TEXT_FAILED` was logged for this turn.
+- State at observation: `WORK_MODEL_ACCEPTANCE`; selected app appears as Layla in recent conversation memory.
+- Candidate prompt, sanitized: short direct job-definition question.
+- Bot reply, shortened/sanitized: `Burada işin, Layla uygulamasında sadece yazışarak sohbetlere cevap vermek. Kamera açmak veya görüntülü görüşme zorunlu değil. Sadece mesajlara yazılı olarak yanıt veriyorsun...`
+- Policy evidence available in live knowledge bank: `app_facts.md` contains Layla/NIVI with `Text-only`; `app_facts_structured.json` and `app_routing_rules.md` were not present in the mounted live knowledge bank snapshot.
+- Quality concern: the answer used the sparse `Text-only` fact as if it were the full job definition (`sadece mesajlara cevap veriyorsun`). The live policy source did not provide enough structured job-definition detail to ground that full explanation.
+- Scope note: this is not a parrot-guard failure; the reply was different. It belongs to Quality Pack 1 job-definition grounding.
+
+#### QP1-LIVE-C1 Root-Cause Notes
+
+- VPS inventory check: mounted runtime path `/app/data/knowledge_bank` contained `app_facts.md`, `approved_learning.json`, and `approved_learning.md`; it did not contain `app_facts_structured.json`, `app_routing_rules.md`, `full_approved_knowledge_bundle.md`, or `publish_manifest.json`.
+- Runtime structured facts check: `loadStructuredAppFacts()` would return `source_status=missing` because `/app/data/knowledge_bank/app_facts_structured.json` does not exist.
+- V2 path code finding: `buildBackendContext.ts` includes `structured_facts`, but `ConversationContextBuilder.ts` builds `canonical_policy_facts` through `resolveCandidatePolicy(state, approvedApps)`, not from `structured_facts` or `app_routing_rules.md`.
+- Likely root cause: live V2 job-definition grounding is operating from sparse static candidate policy plus `app_facts.md`, while the structured Package 11B-style source files are absent from the VPS runtime knowledge bank. This is the V2 analogue of the earlier structured-facts context gap and should be handled as a deliberate Quality Pack 1 design/fix, not as a parrot-guard issue.
 
 ## Converted Candidate Examples
 
