@@ -121,22 +121,20 @@ sunset oluyor, zorunlu deadline bu.
   senaryosu aralıklı başarısız oluyor ama canary'nin intent kapsamına
   hiç girmiyor (fail-closed selector ile kanıtlandı) — Package 14 adayı.
 
-## 6. Kalan Adımlar — Kısa Vade (Package 13 tamamlama)
+## 6. Kalan Adımlar — Kısa Vade Roadmap
 
-1. Owner approval süresi kontrol edilsin, dolmuşsa yeniden tetiklensin.
-2. Gerçek, kontrollü bir WhatsApp mesajı gönderilsin (candidate
-   numarasından, "selam iş için yazdım" gibi).
-3. `connection-doctor` ve loglar izlensin:
-   ```
-   curl -s http://localhost:3000/healthz/connection-doctor
-   docker logs --since 2m now_os_backend | grep -i "canary\|model_adapter\|responses"
-   ```
-4. Başarı kriteri: `canary_reservation_count` artmalı, `unsafe_claim_count=0`
-   kalmalı, `canary_stop_latched=false` kalmalı.
-5. %10 bucket olduğu için tek mesaj yetmeyebilir — birkaç kontrollü mesaj
-   denenebilir, normaldir.
-6. 20 event tamamlanınca (sıfır hata ile), owner (Eray) genişletme kararı
-   verir — otomatik genişleme YOKTUR, her seferinde açık onay gerekir.
+1. **Package 13 owner approval/canary**: BEKLEMEDE. Quality Pack 1 bitene
+   kadar owner approval tetiklenmeyecek ve canary açılmayacak.
+2. **Package 13.5 latency/P0 fast-path**: TAMAMLANDI. WORK_MODEL_ACCEPTANCE
+   direct-question olmayan cevaplarda canlı gözlem 1.7-1.9s bandına indi.
+3. **Package 13.6 canonical chat id / LID alias normalizasyonu**:
+   TAMAMLANDI. Private DM'de `remoteJid=@lid` + `remoteJidAlt=@s.whatsapp.net`
+   geldiğinde candidate state/conversation identity telefon JID alternatifiyle
+   sabitlenir; group mantığına dokunulmaz. Full suite PASS ve P0 deploy gate
+   PASS ile canlıya alındı.
+4. **Quality Pack 1: Real Candidate Conversation Quality**: SIRADA. İlk iş
+   10 golden test + deterministik/model ayrımı; bu bitmeden Package 13 canary
+   yeniden açılmayacak.
 
 ## 7. Backlog — Now OS Stabil Olduktan Sonra Sırayla
 
