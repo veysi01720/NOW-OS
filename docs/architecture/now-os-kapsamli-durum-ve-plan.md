@@ -166,6 +166,16 @@ sunset oluyor, zorunlu deadline bu.
   hatalarında candidate'e art arda aynı "ekip kontrol etsin" mesajı gidebilir.
   Yarın: fallback seçim noktasına da aynı `%95` overlap guard'ını ekle; tekrar
   ederse intent-aware alternatif template seç.
+- **Quality Pack 1 - Üçüncü Bulgu: Candidate ton/sınır yönetimi eksik.**
+  Owner test senaryosunda candidate rolü simüle edilerek gönderilen saygısız/
+  hakaret içeren mesajda bot güvenlik açısından kötüleşmedi ve bağlamsal kaldı;
+  ancak sistemde bu tonu algılayıp nazik ama net bir sınır koyan deterministik
+  cevap kategorisi yok. Her şey aynı genel fallback havuzuna düşüyor. Yarınki
+  tasarımda genel fallback'ten ayrı bir "candidate_boundary_tone" davranışı
+  değerlendirilmeli; Package 06/12'deki `guarantee_pressure` ve
+  `payment_unverified` sınır mantığına benzer şekilde güvenli, kısa ve net bir
+  cevap üretilmeli. Öncelik: job-definition grounding ve fallback guard'dan
+  sonra.
 
 ### 6.6 Açık Risk: Owner Learning Queue birikimi ve duplicate adayları
 
