@@ -29,9 +29,17 @@ function tokenOverlap(a: string, b: string): number {
 
 function shouldCheckRecentReplyRepetition(context: ConversationDecisionContext): boolean {
   if (!latestAssistantReply(context)) return false;
-  if (!context.derived_state.intake_complete) return false;
-  if (!isFirstContactIntent(context.latest_message.inferred_intent)) return true;
-  return context.derived_state.dialogue_phase !== "NEW_LEAD";
+  if (context.derived_state.intake_complete) return true;
+  return isEarlyStageRepeatRisk(context);
+}
+
+function isEarlyStageRepeatRisk(context: ConversationDecisionContext): boolean {
+  const intent = context.latest_message.inferred_intent;
+  if (intent === "ask_job_definition" || intent === "ask_how_work_is_done" || intent === "clarify_previous_explanation") {
+    return true;
+  }
+  const latest = normalize(context.latest_message.text);
+  return /(nasil|ne|is|calisma|kamera|hesap|profil|para|kazanc|odeme|guven|anlamadim|dalga|sinir|olmuyor|\?)/u.test(latest);
 }
 
 function latestAssistantReply(context: ConversationDecisionContext): string | null {

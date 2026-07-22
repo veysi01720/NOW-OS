@@ -181,7 +181,7 @@ describe("Quality Pack 1 V2 golden skeletons", () => {
         text: reply,
         intent: "ask_job_definition",
         actions: ["answer_user_question", "explain_work_model", "ask_missing_age", "ask_missing_gender", "ask_missing_daily_hours"],
-        facts: ["candidate_work_steps_chat_based"],
+        facts: ["candidate_default_work_model"],
         nextAction: "ask_missing_age",
         direct: true,
       }),
@@ -299,6 +299,48 @@ describe("Quality Pack 1 V2 golden skeletons", () => {
     expect(deps.logger.events).toEqual(expect.arrayContaining([
       expect.objectContaining({
         event_type: "CONVERSATION_DECISION_V2_TRACE",
+        quality_reason_codes: expect.arrayContaining(["RECENT_REPLY_REPEATED"]),
+        mutation_source: "model_repair",
+      }),
+    ]));
+  });
+
+  it("repairs repeated NEW_LEAD job-definition replies instead of parroting the stale first answer", async () => {
+    const liveDuplicateReply =
+      "Isin temel kismi Layla icinde gelen sohbetlere yaziyla cevap vermek. Kamera zorunlu diye bir kural soylemiyoruz; once yas, cinsiyet ve gunluk saat bilgisini netlestirelim.";
+    const repairedReply =
+      "Kisa anlatayim: Layla icinde gorev, gelen mesajlara yaziyla duzenli yanit vermek. Kamera veya goruntulu calisma zorunlu degil. Devam icin yasini, cinsiyetini ve gunluk kac saat ayirabilecegini yaz.";
+    const deps = makeDeps([
+      decision({
+        text: liveDuplicateReply,
+        intent: "ask_job_definition",
+        actions: ["answer_user_question", "explain_work_model", "ask_missing_age", "ask_missing_gender", "ask_missing_daily_hours"],
+        facts: ["candidate_default_work_model"],
+        nextAction: "ask_missing_age",
+        direct: true,
+      }),
+      decision({
+        text: repairedReply,
+        intent: "ask_job_definition",
+        actions: ["answer_user_question", "explain_work_model", "ask_missing_age", "ask_missing_gender", "ask_missing_daily_hours"],
+        facts: ["candidate_default_work_model"],
+        nextAction: "ask_missing_age",
+        direct: true,
+      }),
+    ]);
+    deps.memoryStore.appendBotReply(CANDIDATE_PHONE, liveDuplicateReply);
+
+    await handleIncomingMessage(candidateMessage("is nedir?", "new-lead-parrot"), deps);
+
+    expect(deps.sender.sends).toHaveLength(1);
+    expect(deps.sender.sends[0]?.text).toBe(repairedReply);
+    expect(deps.sender.sends[0]?.text).not.toBe(liveDuplicateReply);
+    expect(deps.assistantClient.runCalls).toHaveLength(2);
+    expect(deps.logger.events).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        event_type: "CONVERSATION_DECISION_V2_TRACE",
+        dialogue_phase: "NEW_LEAD",
+        intent: "ask_job_definition",
         quality_reason_codes: expect.arrayContaining(["RECENT_REPLY_REPEATED"]),
         mutation_source: "model_repair",
       }),
