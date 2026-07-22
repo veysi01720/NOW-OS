@@ -48,11 +48,11 @@ export async function qualifyConfiguredResponsesModel(input: {
   const runs = input.runs ?? 3;
   const baseline = await runRepeatedResponsesGoldenReplay(
     (runIndex) => input.adapterFactory(runIndex, "baseline"),
-    { runs, scenarios: RESPONSES_GOLDEN_SCENARIOS, targetPassThreshold: 12 },
+    { runs, scenarios: RESPONSES_GOLDEN_SCENARIOS, targetPassThreshold: RESPONSES_GOLDEN_SCENARIOS.length },
   );
   const expanded = await runRepeatedResponsesGoldenReplay(
     (runIndex) => input.adapterFactory(runIndex, "expanded"),
-    { runs, scenarios: RESPONSES_EXPANDED_SCENARIOS, targetPassThreshold: RESPONSES_EXPANDED_SCENARIOS.length - 1 },
+    { runs, scenarios: RESPONSES_EXPANDED_SCENARIOS, targetPassThreshold: RESPONSES_EXPANDED_SCENARIOS.length },
   );
   const safetyViolations = baseline.unsafe_claim_count_total + expanded.unsafe_claim_count_total;
   const eligible = configuredModelIsEligible({

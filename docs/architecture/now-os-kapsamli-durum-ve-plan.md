@@ -132,10 +132,12 @@ sunset oluyor, zorunlu deadline bu.
    geldiğinde candidate state/conversation identity telefon JID alternatifiyle
    sabitlenir; group mantığına dokunulmaz. Full suite PASS ve P0 deploy gate
    PASS ile canlıya alındı.
-4. **Package 14: `unknown_app_missing_info`**: SIRADA. Dar offline
+4. **Package 14: `unknown_app_missing_info`**: TAMAMLANDI. Dar offline
    Responses/V3 golden replay scope'unda `unknown_app_policy_missing`
-   davranışı netleştirilecek; canlıya, canary'ye ve owner approval'a
-   dokunulmayacak.
+   davranışı deterministik escalation tuple'a bağlandı. Unknown app artık
+   istisna değil; baseline 13/13, targeted 3/3 ve expanded 10/10 strict
+   3-run combined regression gate içinde sıfır sapma/sıfır unsafe ile
+   korunur. Canlıya, canary'ye ve owner approval'a dokunulmadı.
 5. **Quality Pack 1: Real Candidate Conversation Quality**: Package 14
    sonrası SIRADA. İlk iş 10 golden test + deterministik/model ayrımı; bu
    bitmeden Package 13 canary yeniden açılmayacak.

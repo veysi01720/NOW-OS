@@ -85,7 +85,7 @@ describe("Responses decision context boundary", () => {
     expect(instructions).toMatch(/Yalnizca dogrulanmis bilgileri kullanmaliyiz; desteklenmeyen vaatlerde bulunmamaliyiz/i);
     expect(instructions).toMatch(/do not invent app names, links, codes, earnings/i);
     expect(instructions).toMatch(/compare that app or platform name with allowed_apps/i);
-    expect(instructions).toMatch(/unknown-app rule only when decision_context.latest_message.inferred_intent is app_fact_question or app_selection_question/i);
+    expect(instructions).toMatch(/unknown-app rule only when decision_context.latest_message.inferred_intent is app_fact_question, app_selection_question, or unknown_app_policy_missing/i);
     expect(instructions).toMatch(/earnings, payment, safety, work, and instruction words are never app names/i);
     expect(instructions).toMatch(/outbound allowlist check is mandatory/i);
     expect(instructions).toMatch(/Bu uygulama icin dogrulanmis bilgi yok/i);

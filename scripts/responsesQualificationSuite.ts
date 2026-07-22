@@ -1,7 +1,6 @@
 import { createOpenAIResponsesAdapter } from "../src/modelAdapter/ResponsesAdapter.js";
 import {
   RESPONSES_COMBINED_SCENARIOS,
-  RESPONSES_CANARY_EXCLUDED_SCENARIO_IDS,
   RESPONSES_EXPANDED_SCENARIOS,
   RESPONSES_GOLDEN_SCENARIOS,
   RESPONSES_TARGETED_SCENARIO_IDS,
@@ -13,9 +12,6 @@ import {
 const BASELINE_IDS = new Set(RESPONSES_GOLDEN_SCENARIOS.map((scenario) => scenario.id));
 const TARGETED_IDS = new Set<string>(RESPONSES_TARGETED_SCENARIO_IDS);
 const EXPANDED_IDS = new Set(RESPONSES_EXPANDED_SCENARIOS.map((scenario) => scenario.id));
-const CANARY_EXCLUDED_IDS = new Set<string>(RESPONSES_CANARY_EXCLUDED_SCENARIO_IDS);
-const CANARY_TARGETED_IDS = new Set([...TARGETED_IDS].filter((id) => !CANARY_EXCLUDED_IDS.has(id)));
-const CANARY_EXPANDED_IDS = new Set([...EXPANDED_IDS].filter((id) => !CANARY_EXCLUDED_IDS.has(id)));
 
 interface SuiteScore {
   passed: number;
@@ -86,9 +82,9 @@ async function main(): Promise<void> {
         console.log(`[${ordinal}/${totalCalls}] ${event.scenarioId} - ${elapsedSeconds}s elapsed (${event.phase}, attempt=${event.attempt})${suffix}`);
       },
     });
-    const baseline = scoreSuite(report.results, BASELINE_IDS, 12);
-    const targeted = scoreSuite(report.results, CANARY_TARGETED_IDS, CANARY_TARGETED_IDS.size);
-    const expanded = scoreSuite(report.results, CANARY_EXPANDED_IDS, CANARY_EXPANDED_IDS.size);
+    const baseline = scoreSuite(report.results, BASELINE_IDS, BASELINE_IDS.size);
+    const targeted = scoreSuite(report.results, TARGETED_IDS, TARGETED_IDS.size);
+    const expanded = scoreSuite(report.results, EXPANDED_IDS, EXPANDED_IDS.size);
     runs.push({
       run: index + 1,
       unique_scenarios_executed: report.scenarios_total,
@@ -120,13 +116,11 @@ async function main(): Promise<void> {
     runs_requested: runsCount,
     catalog_membership: {
       baseline: BASELINE_IDS.size,
-      targeted: CANARY_TARGETED_IDS.size,
-      expanded: CANARY_EXPANDED_IDS.size,
-      catalog_targeted: TARGETED_IDS.size,
-      catalog_expanded: EXPANDED_IDS.size,
-      targeted_is_expanded_subset: [...CANARY_TARGETED_IDS].every((id) => CANARY_EXPANDED_IDS.has(id)),
-      canary_excluded_scenarios: [...CANARY_EXCLUDED_IDS],
-      canary_intent_scope: ["greeting_or_first_contact", "candidate_first_contact"],
+      targeted: TARGETED_IDS.size,
+      expanded: EXPANDED_IDS.size,
+      targeted_is_expanded_subset: [...TARGETED_IDS].every((id) => EXPANDED_IDS.has(id)),
+      package_14_unknown_app_included: TARGETED_IDS.has("p12_unknown_app_missing_info")
+        && EXPANDED_IDS.has("p12_unknown_app_missing_info"),
     },
     runs,
     all_runs_meet_all_suite_targets: allRunsMeetTarget,

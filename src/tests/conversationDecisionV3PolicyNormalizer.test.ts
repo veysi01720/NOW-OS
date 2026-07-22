@@ -89,6 +89,7 @@ describe("ConversationDecisionV3 missing-policy canonicalizer", () => {
     const input = unknownAppInput();
     const result = normalizeConversationDecisionV3MissingPolicy(decision(), input);
 
+    expect(input.metadata.inferredIntent).toBe("unknown_app_policy_missing");
     expect(result.applied).toBe(true);
     expect(result.normalization_id).toBe(MISSING_POLICY_NORMALIZATION_ID);
     expect(result.decision.chosen_actions).toEqual(["escalate_policy_missing"]);

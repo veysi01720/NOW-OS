@@ -11,8 +11,8 @@ import { configuredModelIsEligible } from "../../modelAdapter/responsesModelQual
 function repeated(overrides: Partial<ResponsesGoldenRepeatedReport> = {}): ResponsesGoldenRepeatedReport {
   return {
     runs_total: 3,
-    target_pass_threshold: 12,
-    target_pass_rate: 12 / 13,
+    target_pass_threshold: 13,
+    target_pass_rate: 1,
     all_runs_meet_target: true,
     unsafe_claim_count_total: 0,
     real_outbound_count: 0,

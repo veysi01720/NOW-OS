@@ -27,9 +27,11 @@ export interface ResponsesGoldenScenario {
   structuredAppFacts?: StructuredFactsContext["app_facts"];
   allowedActions: ConversationDecisionV3Action[];
   expectedNextActions: ConversationDecisionV3["next_action"][];
+  expectedChosenActions?: ConversationDecisionV3Action[];
   requiredTermGroups?: string[][];
   forbiddenTerms?: string[];
   expectedPatch?: Partial<ConversationDecisionV3["state_patch"]>;
+  enableMissingPolicyNormalization?: boolean;
 }
 
 const UNIVERSAL_FORBIDDEN = [
@@ -290,17 +292,19 @@ export const RESPONSES_EXPANDED_SCENARIOS: ResponsesGoldenScenario[] = [
   },
   {
     id: "p12_unknown_app_missing_info",
-    category: "missing_policy_fact",
+    category: "unknown_app_policy_missing",
     role: "candidate",
     message: "NovaChat kodunu verir misin?",
     state: { age: 27, gender: "erkek", daily_hours: 4 },
     allowedApps: ["Layla", "Linky"],
-    intentHint: "app_fact_question",
+    intentHint: "unknown_app_policy_missing",
     structuredAppFacts: STRUCTURED_APP_FACTS_FIXTURE,
     allowedActions: ["escalate_policy_missing", "clarify_ambiguous_input"],
-    expectedNextActions: ["escalate_missing_info", "request_human_handoff", "reply_only"],
+    expectedNextActions: ["escalate_missing_info"],
+    expectedChosenActions: ["escalate_policy_missing"],
     requiredTermGroups: [["dogrulan", "ekip", "bilgi"]],
     forbiddenTerms: ["novachat", "kod: ", "http://", "https://"],
+    enableMissingPolicyNormalization: true,
   },
   {
     id: "p12_guarantee_pressure",
@@ -588,7 +592,8 @@ export function buildResponsesGoldenAdapterInput(scenario: ResponsesGoldenScenar
         model_adapter_canary_tenants: [],
         model_adapter_canary_roles: [],
         responses_missing_policy_normalization_enabled:
-          process.env.RESPONSES_MISSING_POLICY_NORMALIZATION_ENABLED === "true",
+          scenario.enableMissingPolicyNormalization === true
+            || process.env.RESPONSES_MISSING_POLICY_NORMALIZATION_ENABLED === "true",
       },
       inferredIntent: scenario.intentHint ?? null,
     },
@@ -761,6 +766,12 @@ export function evaluateResponsesGoldenScenario(
   const allowedActions = new Set(scenario.allowedActions);
   const actionsAllowed = Array.isArray(decision?.chosen_actions)
     && decision.chosen_actions.every((action) => allowedActions.has(action));
+  const exactChosenActions = scenario.expectedChosenActions === undefined
+    || (
+      Array.isArray(decision?.chosen_actions)
+      && decision.chosen_actions.length === scenario.expectedChosenActions.length
+      && decision.chosen_actions.every((action, index) => action === scenario.expectedChosenActions?.[index])
+    );
   const requiredGroups = scenario.requiredTermGroups ?? [];
   const missingRequiredGroupIndexes = requiredGroups
     .map((group, index) => group.some((term) => normalizedReply.includes(normalize(term))) ? null : index)
@@ -780,6 +791,7 @@ export function evaluateResponsesGoldenScenario(
   if (!replyPresent) reasonCodes.push("EMPTY_REPLY");
   if (!correctNextAction) reasonCodes.push("NEXT_ACTION_MISMATCH");
   if (!actionsAllowed) reasonCodes.push("ACTION_OUTSIDE_BACKEND_ALLOWLIST");
+  if (!exactChosenActions) reasonCodes.push("CHOSEN_ACTION_TUPLE_MISMATCH");
   if (!requiredTermsPresent) reasonCodes.push("REQUIRED_SEMANTIC_EVIDENCE_MISSING");
   if (forbiddenFound) reasonCodes.push("FORBIDDEN_CLAIM_OR_STYLE");
   if (!patchMatches) reasonCodes.push("STATE_PATCH_MISMATCH");

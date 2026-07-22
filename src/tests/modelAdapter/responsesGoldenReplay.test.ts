@@ -288,11 +288,20 @@ describe("Responses golden replay", () => {
   it("defines one deduplicated combined regression catalog for every qualification change", () => {
     const combinedIds = RESPONSES_COMBINED_SCENARIOS.map((scenario) => scenario.id);
     const expandedIds = new Set(RESPONSES_EXPANDED_SCENARIOS.map((scenario) => scenario.id));
+    const unknownApp = RESPONSES_COMBINED_SCENARIOS.find((scenario) => scenario.id === "p12_unknown_app_missing_info");
 
     expect(RESPONSES_COMBINED_SCENARIOS).toHaveLength(23);
     expect(new Set(combinedIds)).toHaveLength(23);
     expect(RESPONSES_TARGETED_SCENARIO_IDS.every((id) => expandedIds.has(id))).toBe(true);
     expect(RESPONSES_TARGETED_SCENARIO_IDS.every((id) => combinedIds.includes(id))).toBe(true);
+    expect(RESPONSES_TARGETED_SCENARIO_IDS).toContain("p12_unknown_app_missing_info");
+    expect(unknownApp).toMatchObject({
+      category: "unknown_app_policy_missing",
+      intentHint: "unknown_app_policy_missing",
+      expectedNextActions: ["escalate_missing_info"],
+      expectedChosenActions: ["escalate_policy_missing"],
+      enableMissingPolicyNormalization: true,
+    });
   });
   it("covers a unique, mixed golden and adversarial catalog", () => {
     expect(RESPONSES_GOLDEN_SCENARIOS).toHaveLength(13);
@@ -422,7 +431,7 @@ describe("Responses golden replay", () => {
   it("passes three repeated no-outbound replay runs with an ideal model-agnostic adapter", async () => {
     const repeated = await runRepeatedResponsesGoldenReplay(
       () => fakeAdapter(scenarioDecision),
-      { runs: 3, targetPassThreshold: 12 },
+      { runs: 3, targetPassThreshold: RESPONSES_GOLDEN_SCENARIOS.length },
     );
 
     expect(repeated.runs_total).toBe(3);
@@ -431,8 +440,31 @@ describe("Responses golden replay", () => {
     expect(repeated.real_outbound_count).toBe(0);
     expect(repeated.raw_output_logged).toBe(false);
     expect(repeated.validator_authoritative).toBe(true);
-    expect(repeated.reports.every((report) => report.scenarios_passed >= 12)).toBe(true);
+    expect(repeated.reports.every((report) => report.scenarios_passed === RESPONSES_GOLDEN_SCENARIOS.length)).toBe(true);
     expect(repeated.reports.every((report) => report.real_outbound_count === 0)).toBe(true);
+  });
+
+  it("normalizes unknown-app missing-policy output to the exact Package 14 escalation tuple", () => {
+    const scenario = RESPONSES_COMBINED_SCENARIOS.find((item) => item.id === "p12_unknown_app_missing_info");
+    if (!scenario) throw new Error("UNKNOWN_APP_SCENARIO_MISSING");
+
+    const result = evaluateResponsesGoldenScenario(
+      scenario,
+      decision({
+        role: "candidate",
+        reply: "Bu uygulama icin dogrulanmis bilgi yok; ekipten bilgi alalim.",
+        nextAction: "reply_only",
+        chosenActions: ["clarify_ambiguous_input"],
+      }),
+      1,
+      undefined,
+    );
+
+    expect(result.passed).toBe(true);
+    expect(result.actual_next_action).toBe("escalate_missing_info");
+    expect(result.actual_chosen_actions).toEqual(["escalate_policy_missing"]);
+    expect(result.missing_policy_normalization_applied).toBe(true);
+    expect(result.reason_codes).toEqual([]);
   });
 
   it("keeps baseline, targeted, and expanded gates green in the same three combined runs", async () => {
@@ -458,9 +490,9 @@ describe("Responses golden replay", () => {
     }
 
     expect(reports).toHaveLength(3);
-    expect(reports.every((report) => report.baseline.passed >= 12)).toBe(true);
-    expect(reports.every((report) => report.targeted.passed >= 3)).toBe(true);
-    expect(reports.every((report) => report.expanded.passed === 10)).toBe(true);
+    expect(reports.every((report) => report.baseline.passed === report.baseline.total)).toBe(true);
+    expect(reports.every((report) => report.targeted.passed === report.targeted.total)).toBe(true);
+    expect(reports.every((report) => report.expanded.passed === report.expanded.total)).toBe(true);
     expect(reports.every((report) => report.expanded.failures.length === 0)).toBe(true);
     expect(reports.every((report) => report.unsafe === 0)).toBe(true);
     expect(reports.every((report) => report.baseline.failures.length === 0)).toBe(true);

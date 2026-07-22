@@ -175,7 +175,7 @@ export function normalizeConversationDecisionV3MissingPolicy(
   if (input.senderRole !== "candidate") return unchanged(decision, "ROLE_NOT_CANDIDATE");
   if (input.channelType !== "private") return unchanged(decision, "CHANNEL_NOT_PRIVATE");
   const intent = inferredIntent(input);
-  const appIntent = ["app_fact_question", "app_selection_question"].includes(intent ?? "");
+  const appIntent = ["app_fact_question", "app_selection_question", "unknown_app_policy_missing"].includes(intent ?? "");
   const paymentTrustIntent = isPaymentTrustIntent(intent) && !hasVerifiedPolicyFacts(input);
   if (!appIntent && !paymentTrustIntent) {
     return unchanged(decision, "INTENT_NOT_MISSING_POLICY_APP");
