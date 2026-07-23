@@ -254,7 +254,17 @@ sunset oluyor, zorunlu deadline bu.
 7. **Ertelenen fazlar** (orijinal master plan'dan, henüz başlanmadı):
    - Faz 7: Trace'i sorgulanabilir hale getirme
    - Faz 8: JSON store (`data/now-os-store.json`) → Postgres
-   - Faz 9: Queue/worker cutover (şu an `WORKERS_ENABLED=false`)
+   - Faz 9: Queue/worker cutover (şu an `WORKERS_ENABLED=false`) — owner'ın
+     talep ettiği 100+ eşzamanlı mesaj kapasitesi bu faza bağlı; şu an
+     senkron işleme modeli bu ölçekte riskli.
+8. **Gerçek insan devralması (escalation) eksikliği**: bot şu an ısrarcı/
+   zorlu candidate, tekrarlayan hakaret veya çözülemeyen sorun gibi
+   durumlarda sadece güvenli şablon cevap veriyor (bkz. `candidate_boundary_tone`
+   fast-path, Quality Pack 1), ama owner/ekibe gerçek bir bildirim veya
+   eskalasyon göndermiyor. Mevcut `human_handoff`/`request_human_handoff`
+   action'ının (`ConversationDecisionV3Schema.ts`) kapsamı, bu durumları
+   tespit edip gerçek bir insan bildirimi tetikleyecek şekilde
+   genişletilmeli.
 
 ## 8. Devir Teslim Protokolü (Codex↔Codex, PC değişimi için)
 
