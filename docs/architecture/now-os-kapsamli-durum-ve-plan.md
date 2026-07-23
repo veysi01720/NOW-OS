@@ -142,6 +142,54 @@ sunset oluyor, zorunlu deadline bu.
    sonrası SIRADA. İlk iş 10 golden test + deterministik/model ayrımı; bu
    bitmeden Package 13 canary yeniden açılmayacak.
 
+### 6.4 Package 13 Resume — "Hazır mıyız?" değerlendirmesi (23 Temmuz 2026)
+
+Bu bölüm sadece değerlendirmedir; canary AÇILMADI, owner approval TETİKLENMEDİ.
+
+1. **Owner approval controller / 20-event persistence / auto-stop / scope —
+   SAĞLAM.** `modelAdapterCanaryApprovalController.ts`, `modelAdapterCanaryControl.ts`,
+   `modelAdapterCanaryStateStore.ts` kod incelemesi + hedefli test çalıştırması
+   ile doğrulandı:
+   - Scope hardcoded ve doğrulanıyor: `channel: "private"`, `sender_role: "candidate"`,
+     intents sadece `greeting_or_first_contact` / `candidate_first_contact`
+     ([modelAdapterCanaryApprovalController.ts:18](../../src/modelAdapter/modelAdapterCanaryApprovalController.ts#L18),
+     :87-93, :122-136).
+   - `maximum_observed_messages` tam olarak `20` olmak zorunda, aksi halde
+     `MESSAGE_BUDGET_MUST_EQUAL_20` ile reddediliyor ([:134](../../src/modelAdapter/modelAdapterCanaryApprovalController.ts#L134)).
+   - Persistence + otomatik durdurma: `terminal_window_target: 20`, reservation
+     budget kontrolü, threshold-tetiklemeli `stop_latched` + approval
+     invalidation, state store'a persist ([modelAdapterCanaryControl.ts:80-176](../../src/modelAdapter/modelAdapterCanaryControl.ts#L80-L176)).
+   - Hedefli test çalıştırması: `modelAdapterCanaryApprovalEndpoint.test.ts`,
+     `modelAdapterCanaryPersistence.test.ts`, `modelAdapterCanaryRuntimeStop.test.ts`,
+     `package13CandidateCanary.test.ts` → **4 dosya, 15/15 test PASS**. Scope
+     testleri (`channel:"private"`, `sender_role:"candidate"`, 20 mesaj budget,
+     19 ile reddedilme) dosyada mevcut ve geçiyor.
+2. **VPS'te çalışan commit: `7059928`** — bu oturumun başında owner tarafından
+   manuel SSH ile doğrulandı (`git log -1`, `docker inspect --format='{{.Image}}'`
+   image digest tam eşleşme, `healthz`/`readyz` HTTP 200). Bu turda VPS'e
+   yeniden SSH erişimi olmadığı için bağımsız bir re-confirm yapılmadı; ama
+   madde 3'teki bulgu bu boşluğu önemsiz kılıyor (aşağıya bakın).
+3. **Bugün deploy edilmemiş ama commit'lenmiş kod: YOK.** `git diff --stat
+   7059928..HEAD -- 'src/*' '*.ts' '*.js' package.json package-lock.json
+   Dockerfile docker-compose*` **boş çıktı** verdi — yani `7059928`'den bu yana
+   atılan tüm commit'ler (`7941d0c`, `cd65f6c`, `0f9291c`, `ad894e7`, `545ac80`)
+   sadece dokümantasyon/handover dosyalarına dokunuyor, hiçbir uygulama
+   kodu/build girdisi değişmedi. VPS'te 7059928 çalışıyor olması ile HEAD
+   arasında davranışsal fark yok.
+4. **Sonuç: Package 13 canary'yi bugün açmaya hazır mıyız? EVET (teknik/kod
+   açısından blocker yok).**
+   - Quality Pack 1'in üç bulgusu kapandı: grounding canlıda kanıtlandı, ton
+     sınırı canlıda kanıtlandı, fallback rotasyon boşluğu teşhis edildi ve
+     bilinçli olarak ertelendi (Seçenek A, bkz. 6.9).
+   - Owner approval altyapısı (scope, 20-event budget, persistence, auto-stop)
+     kod ve testte sağlam.
+   - Deploy/commit driftı yok.
+   - **Eksik olan tek şey**: yukarıdaki VPS commit doğrulaması bu oturumun
+     BAŞINDAN kalma; canary'yi fiilen açmadan hemen önce owner'ın 10 saniyelik
+     bir taze re-confirm (`git log -1` + `healthz`) yapması öneriliyor — bu bir
+     blocker değil, sadece "tetiği çekmeden önce son bakış" temkinliliği.
+   - Nihai açma/açmama kararı owner'a ait; bu sadece hazırlık değerlendirmesidir.
+
 ### 6.5 Quality Pack 1 - Ana Bulgu: V2 job-definition grounding gap
 
 - Production `data/knowledge_bank/` altında `app_facts_structured.json` ve
