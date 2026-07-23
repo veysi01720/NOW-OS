@@ -252,6 +252,11 @@ sunset oluyor, zorunlu deadline bu.
 - **Not:** Fallback repeat-guard kapsamı sadece deterministic_safety_response
   içindi, payment/guarantee boundary'ye henüz uygulanmadı - genişletme kararı
   bekliyor.
+- **Karar:** A seçeneği - kapsam genişletilmeyecek, şimdilik kod değişikliği
+  yok. Owner notu: eğer gerçek candidate'lerden bu üç kategoride "bot
+  gibi/robotik" geri bildirimi gelirse, repeat-guard'ı bu dallara da
+  genişletme kararı yeniden değerlendirilecek. Bu, aktif bir görev değil,
+  gözlem tetikleyicili bir backlog maddesi.
 
 ## 7. Backlog — Now OS Stabil Olduktan Sonra Sırayla
 
