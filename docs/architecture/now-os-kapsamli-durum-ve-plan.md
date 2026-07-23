@@ -226,6 +226,33 @@ sunset oluyor, zorunlu deadline bu.
   bulunmadi. Son dogrulamada SSH erisimi devam ediyor, healthz/readyz 200,
   Evolution `open`, disaridan 5432/8080/3000/80/443 kapali.
 
+### 6.9 Quality Pack 1 canlı doğrulama - fallback repeat-guard kapsam boşluğu (23 Temmuz 2026)
+
+- Canlı testte "Garanti kazanç var mı, kesin ödeme alır mıyım?" sorusu aynı
+  candidate konuşmasında art arda 3 kez soruldu. Beklenen 3 farklı rotasyon
+  şablonu yerine 3 cevap neredeyse birebir aynı çıktı (küçük kelime
+  farklarıyla).
+- Kod incelemesiyle doğrulanan kök neden: `ConversationDecisionRepair.ts`
+  içindeki `buildDeterministicSafetyDecision()` fonksiyonu `invalid_model_decision`
+  nedeninde önce `asksPaymentOrGuarantee()`/`asksCameraAccountOrProfile()`/
+  `ask_job_definition` özel dallarını kontrol ediyor ([ConversationDecisionRepair.ts:265-275](../../src/intelligence/conversation/ConversationDecisionRepair.ts#L265-L275));
+  bu üç özel dal (`buildPaymentBoundarySafetyDecision`,
+  `buildCameraAccountBoundarySafetyDecision`, `buildJobDefinitionSafetyDecision`)
+  sabit/statik metin döndürüyor ve hiçbiri `selectRepeatSafeFallbackReply()`
+  repeat-guard mekanizmasını çağırmıyor. Repeat-guard rotasyonu sadece bu üç
+  dalın HİÇBİRİ eşleşmediğinde çalışan genel fallback dalında var
+  ([ConversationDecisionRepair.ts:277-292](../../src/intelligence/conversation/ConversationDecisionRepair.ts#L277-L292)).
+  Mevcut golden testler (`qualityPack1V2GoldenSkeleton.test.ts`) da sadece bu
+  genel dalı tetikleyen mesajlarla yazılmış; payment/camera/job-definition
+  özel dalları hiç repeat-guard testi görmedi.
+- Ayrıca `final_reply_origin`/`mutation_source` trace alanları bu üç özel dal
+  ile genel dalı log seviyesinde ayırt etmiyor - hepsi aynı
+  `deterministic_safety_response` değerini taşıyor; fark sadece üretilen
+  cevap metninde görülüyor.
+- **Not:** Fallback repeat-guard kapsamı sadece deterministic_safety_response
+  içindi, payment/guarantee boundary'ye henüz uygulanmadı - genişletme kararı
+  bekliyor.
+
 ## 7. Backlog — Now OS Stabil Olduktan Sonra Sırayla
 
 Öncelik sırasına göre, hiçbiri şu an aktif değil:
