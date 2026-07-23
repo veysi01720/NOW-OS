@@ -190,6 +190,27 @@ Bu bölüm sadece değerlendirmedir; canary AÇILMADI, owner approval TETİKLENM
      blocker değil, sadece "tetiği çekmeden önce son bakış" temkinliliği.
    - Nihai açma/açmama kararı owner'a ait; bu sadece hazırlık değerlendirmesidir.
 
+5. **Canary izleme uyarısı (23 Temmuz 2026, kod incelemesiyle kesinleştirildi):**
+   connection-doctor canary durumu, sadece GERÇEK model çağrısı yapan
+   mesajlardan sonra güncel kabul edilmeli - fast-path/deterministik
+   cevaplardan sonraki kontrol taze olmayabilir. Kanıt:
+   `ModelExecutionService.snapshot()` ([modelExecutionService.ts:394-398](../../src/modelAdapter/modelExecutionService.ts#L394-L398))
+   `this.lastDecision`'ı döner, ve bu alan SADECE `executeCore()` çalıştığında
+   güncellenir ([modelExecutionService.ts:244](../../src/modelAdapter/modelExecutionService.ts#L244)).
+   `executeCore()` ise SADECE `ConversationDecisionEngine.ts`'teki
+   `runModelDecision()` çağrıldığında tetiklenir
+   ([ConversationDecisionEngine.ts:413](../../src/intelligence/conversation/ConversationDecisionEngine.ts#L413),
+   fonksiyon tanımı :238, model çağrısı :290) — bu çağrı ise `if (!decision)`
+   kapısının ARKASINDA ([ConversationDecisionEngine.ts:406](../../src/intelligence/conversation/ConversationDecisionEngine.ts#L406)),
+   yani SADECE iki fast-path (`buildCandidateToneBoundaryDecision` :382,
+   `buildWorkModelAcceptanceFastPathDecision` :393) da `null` dönerse
+   çalışır. Bir mesaj ton-sınırı veya work-model-acceptance fast-path'ine
+   düşerse `runModelDecision` hiç çağrılmaz, dolayısıyla
+   `ModelExecutionService`'in tuttuğu `lastDecision` GÜNCELLENMEZ ve
+   connection-doctor bir önceki gerçek-model-çağrılı mesajın kararını
+   göstermeye devam eder. Detaylı teşhis:
+   [outputs/quality/model_adapter_canary_route_disconnect_diagnosis_20260723.md](../../outputs/quality/model_adapter_canary_route_disconnect_diagnosis_20260723.md).
+
 ### 6.5 Quality Pack 1 - Ana Bulgu: V2 job-definition grounding gap
 
 - Production `data/knowledge_bank/` altında `app_facts_structured.json` ve
