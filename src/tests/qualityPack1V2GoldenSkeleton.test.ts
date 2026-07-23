@@ -452,6 +452,32 @@ describe("Quality Pack 1 V2 golden skeletons", () => {
     ]));
   });
 
+  it("sets a deterministic polite boundary for disrespectful candidate tone", async () => {
+    const deps = makeDeps([], workModelAcceptanceState());
+
+    await handleIncomingMessage(candidateMessage("lan cakkal ne anlatiyon", "candidate-tone-boundary"), deps);
+
+    expect(deps.sender.sends).toHaveLength(1);
+    const reply = deps.sender.sends[0]?.text ?? "";
+    expect(reply).toBe(
+      "Sana yardimci olurum ama bu sekilde konusmayalim. Calisma modeli veya sorununu net yazarsan isi ve sonraki adimi kisa, dogru sekilde anlatirim."
+    );
+    expect(normalizedText(reply)).toContain("bu sekilde konusmayalim");
+    expect(deps.assistantClient.runCalls).toHaveLength(0);
+    expect(deps.logger.events).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        event_type: "CONVERSATION_DECISION_V2_FAST_PATH_SELECTED",
+        fast_path: "candidate_boundary_tone",
+        model_call_count: 0,
+      }),
+      expect.objectContaining({
+        event_type: "CONVERSATION_DECISION_V2_TRACE",
+        final_reply_origin: "deterministic_safety_response",
+        mutation_source: "deterministic_candidate_boundary_tone",
+      }),
+    ]));
+  });
+
   it("captures the owner tone override in the legacy Assistants prompt until live examples define assertions", async () => {
     const deps = makeDeps([
       JSON.stringify({

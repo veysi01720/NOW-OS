@@ -61,6 +61,14 @@ function hasWorkQuestion(text: string): boolean {
   return /(nasil|ne yapacagim|hesap|profil|is|calisma|kamera|mesajlasma|anlamadim|kazanc|para|odeme|puan|garanti|kesin)/u.test(normalized);
 }
 
+function hasDisrespectfulCandidateTone(text: string): boolean {
+  const normalized = normalize(text);
+  return (
+    /\b(ahraz|cakal|cakkal|salak|aptal|gerizekali|gerizekalı|mal|embesil|siktir|amk|aq|orospu|pic|piç)\b/u.test(normalized) ||
+    /\blan\b.{0,30}\b(cakal|cakkal|salak|aptal|mal|ne anlatiyon|ne anlatÄ±yon|ne anlatiyorsun)\b/u.test(normalized)
+  );
+}
+
 function baseDecision(reply: string, context: ConversationDecisionContext, origin: ConversationDecision["origin"]): ConversationDecision {
   const direct = hasWorkQuestion(context.latest_message.text);
   return {
@@ -220,6 +228,29 @@ function buildCameraAccountBoundarySafetyDecision(context: ConversationDecisionC
       answered_in_reply: true,
     },
     chosen_actions: ["answer_user_question"],
+    policy_facts_used: context.canonical_policy_facts.map((fact) => fact.id),
+    next_action: "none",
+    requires_escalation: false,
+    escalation_reason: null,
+  };
+}
+
+export function buildCandidateToneBoundaryDecision(context: ConversationDecisionContext): ConversationDecision | null {
+  if (context.role !== "candidate" || context.channel !== "private") return null;
+  if (!hasDisrespectfulCandidateTone(context.latest_message.text)) return null;
+
+  const reply =
+    "Sana yardimci olurum ama bu sekilde konusmayalim. Calisma modeli veya sorununu net yazarsan isi ve sonraki adimi kisa, dogru sekilde anlatirim.";
+
+  return {
+    ...baseDecision(reply, context, "deterministic_safety_response"),
+    intent: { primary: "candidate_boundary_tone", secondary: [], confidence: 1 },
+    direct_question: {
+      present: false,
+      question_summary: null,
+      answered_in_reply: true,
+    },
+    chosen_actions: ["handle_user_frustration", "explain_work_model"],
     policy_facts_used: context.canonical_policy_facts.map((fact) => fact.id),
     next_action: "none",
     requires_escalation: false,

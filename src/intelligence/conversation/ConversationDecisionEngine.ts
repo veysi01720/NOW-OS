@@ -15,7 +15,7 @@ import {
 } from "./ConversationDecisionV3SemanticValidator.js";
 import type { ConversationDecision, ConversationDecisionContext } from "./ConversationDecisionSchema.js";
 import { buildConversationDecisionContext } from "./ConversationContextBuilder.js";
-import { buildDeterministicSafetyDecision } from "./ConversationDecisionRepair.js";
+import { buildCandidateToneBoundaryDecision, buildDeterministicSafetyDecision } from "./ConversationDecisionRepair.js";
 import { parseConversationDecision, validateConversationDecision } from "./ConversationDecisionValidator.js";
 import { validateSemanticQuality } from "../quality/SemanticQualityGuard.js";
 import { validateAndApplyStatePatch } from "../candidate/StatePatchValidator.js";
@@ -379,15 +379,29 @@ export async function executeConversationDecisionV2(input: {
   let mutationSource: string | null = null;
 
   try {
-    decision = buildWorkModelAcceptanceFastPathDecision(context);
+    decision = buildCandidateToneBoundaryDecision(context);
     if (decision) {
-      mutationSource = "deterministic_work_model_acceptance_fast_path";
+      mutationSource = "deterministic_candidate_boundary_tone";
       input.logger.info({
         event_type: "CONVERSATION_DECISION_V2_FAST_PATH_SELECTED",
         correlation_id: context.request_id,
-        fast_path: "work_model_acceptance",
+        fast_path: "candidate_boundary_tone",
         model_call_count: 0,
       });
+    }
+    if (!decision) {
+      decision = buildWorkModelAcceptanceFastPathDecision(context);
+    }
+    if (decision) {
+      if (mutationSource === null) {
+        mutationSource = "deterministic_work_model_acceptance_fast_path";
+        input.logger.info({
+          event_type: "CONVERSATION_DECISION_V2_FAST_PATH_SELECTED",
+          correlation_id: context.request_id,
+          fast_path: "work_model_acceptance",
+          model_call_count: 0,
+        });
+      }
     }
     if (!decision) {
       modelCallCount += 1;
