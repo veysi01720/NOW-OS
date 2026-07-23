@@ -5,6 +5,10 @@ makinedeki Codex oturumu tarafından aynı şekilde takip edilir. Amaç:
 limit bittiğinde veya makine değiştiğinde, iş kaybı, çakışma veya
 karmaşa olmadan devir yapmak.
 
+## Push Kuralı
+
+Her commit sonrası otomatik push, PR akışı kullanılmıyor.
+
 ## Temel Kural
 
 **Aynı anda sadece BİR Codex bu repo üzerinde çalışabilir.** Bir taraf
