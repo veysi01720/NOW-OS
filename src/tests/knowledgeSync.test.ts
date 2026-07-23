@@ -1,9 +1,10 @@
 import { describe, it, expect, beforeEach, afterEach } from "vitest";
 import { join, resolve } from "node:path";
 import { tmpdir } from "node:os";
-import { rmSync, mkdirSync, readFileSync, existsSync, mkdtempSync } from "node:fs";
+import { rmSync, mkdirSync, readFileSync, existsSync, mkdtempSync, writeFileSync } from "node:fs";
 import { PersistentIngestionStore } from "../storage/ingestionStore.js";
 import { buildKnowledgeSyncContext, validatePatchSafety } from "../bridge/knowledgeSync.js";
+import { validAppFactsMarkdown } from "./fixtures/knowledgeBankFixture.js";
 
 describe("Knowledge Sync", () => {
   let rootDir: string;
@@ -51,6 +52,7 @@ describe("Knowledge Sync", () => {
 
   it("syncs approved items and writes idempotent target files", () => {
     const store = new PersistentIngestionStore(testDir);
+    writeFileSync(resolve(knowledgeBankDir, "app_facts.md"), validAppFactsMarkdown(true), "utf8");
     
     store.saveLearningSuggestion({
       suggestion_id: "s1",
@@ -75,6 +77,10 @@ describe("Knowledge Sync", () => {
     
     expect(existsSync(jsonPath)).toBe(true);
     expect(existsSync(mdPath)).toBe(true);
+    expect(existsSync(resolve(knowledgeBankDir, "app_facts_structured.json"))).toBe(true);
+    expect(existsSync(resolve(knowledgeBankDir, "app_routing_rules.md"))).toBe(true);
+    expect(readFileSync(resolve(knowledgeBankDir, "app_facts_structured.json"), "utf-8")).toContain("NIVI");
+    expect(readFileSync(resolve(knowledgeBankDir, "app_routing_rules.md"), "utf-8")).toContain("Layla (iPhone: NIVI)");
 
     const jsonContent = JSON.parse(readFileSync(jsonPath, "utf-8"));
     expect(jsonContent.length).toBe(1);

@@ -41,7 +41,11 @@ export function buildConversationDecisionContext(input: {
   const state = input.backendContext.state;
   const intakeComplete = state.age !== null && state.gender !== null && state.daily_hours !== null;
   const allowedActions = resolveAllowedActions(state);
-  const policy = resolveCandidatePolicy(state, input.env.approvedApps);
+  const policy = resolveCandidatePolicy(
+    state,
+    input.env.approvedApps,
+    input.backendContext.structured_facts?.app_facts ?? [],
+  );
   const recent: Array<{ role: "user" | "assistant"; text: string }> = [];
   const max = Math.max(
     input.backendContext.memory.last_5_user_messages.length,

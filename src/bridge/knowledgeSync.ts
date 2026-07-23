@@ -4,6 +4,7 @@ import { writeFileSync, mkdirSync, readFileSync } from "node:fs";
 import { logger } from "../observability/logger.js";
 import type { PersistentIngestionStore } from "../storage/ingestionStore.js";
 import type { LearningSuggestion, KnowledgePatch, KnowledgeSyncStatus } from "../storage/ingestionTypes.js";
+import { publishStructuredKnowledgeSources } from "./structuredKnowledgePublish.js";
 
 function knowledgeBankDir(): string {
   const dir = process.env.KNOWLEDGE_BANK_DIR
@@ -152,6 +153,20 @@ export function writeKnowledgeBankTarget(patches: KnowledgePatch[]): void {
   }
 
   writeFileSync(mdPath, mdContent, "utf-8");
+
+  const structuredPublish = publishStructuredKnowledgeSources({ knowledgeBankDir: knowledgeBankDir() });
+  logger.info({
+    event_type: "STRUCTURED_KNOWLEDGE_PUBLISH_AUDIT",
+    action: "publish_derived_structured_sources",
+    status: structuredPublish.status,
+    app_fact_count: structuredPublish.app_fact_count,
+    structured_hash_masked: structuredPublish.structured_hash
+      ? `${structuredPublish.structured_hash.slice(0, 4)}***${structuredPublish.structured_hash.slice(-4)}`
+      : null,
+    routing_rules_hash_masked: structuredPublish.routing_rules_hash
+      ? `${structuredPublish.routing_rules_hash.slice(0, 4)}***${structuredPublish.routing_rules_hash.slice(-4)}`
+      : null,
+  });
 }
 
 function logAudit(action: string, actorRole: string, patchRef: string, sourceRef: string, prevStatus: string, newStatus: string, result: string, err?: string) {

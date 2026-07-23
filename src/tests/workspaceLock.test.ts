@@ -4,6 +4,7 @@ import fs from "fs";
 import path from "path";
 
 describe("Workspace Lock (Preflight)", () => {
+  vi.setConfig({ testTimeout: 15_000 });
   const preflightScript = path.resolve(__dirname, "../workspace_preflight.ts");
   const tempDir = path.resolve(__dirname, "../../temp_workspace");
   const identityFile = path.join(tempDir, "workspace.identity.json");

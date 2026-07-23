@@ -1,4 +1,5 @@
 import type { UserState } from "../../storage/types.js";
+import type { StructuredAppFact } from "../../bridge/structuredAppFacts.js";
 import type { ConversationPolicyFact } from "../conversation/ConversationDecisionSchema.js";
 
 export interface CandidatePolicyResolution {
@@ -6,9 +7,67 @@ export interface CandidatePolicyResolution {
   policyMissing: boolean;
 }
 
-export function resolveCandidatePolicy(state: UserState, allowedApps: string[]): CandidatePolicyResolution {
+function normalize(value: string): string {
+  return value.toLocaleLowerCase("tr-TR").normalize("NFKD").replace(/\p{M}/gu, "").replace(/ı/gu, "i");
+}
+
+function appMatches(value: string | null | undefined, fact: StructuredAppFact): boolean {
+  if (!value) return false;
+  const target = normalize(value);
+  return [
+    fact.app,
+    fact.android_name,
+    fact.ios_name,
+    ...fact.aliases,
+  ].some((candidate) => normalize(candidate) === target);
+}
+
+function selectStructuredFact(
+  state: UserState,
+  allowedApps: string[],
+  structuredFacts: StructuredAppFact[],
+): StructuredAppFact | null {
+  const ownerApproved = structuredFacts.filter((fact) => normalize(fact.status).includes("owner_approved"));
+  if (ownerApproved.length === 0) return null;
+
+  const selected = ownerApproved.find((fact) => appMatches(state.selected_app, fact));
+  if (selected) return selected;
+
+  const textOnly = ownerApproved.find((fact) => fact.capabilities.text_only);
+  if (textOnly) return textOnly;
+
+  const allowed = ownerApproved.find((fact) => allowedApps.some((app) => appMatches(app, fact)));
+  return allowed ?? ownerApproved[0] ?? null;
+}
+
+function structuredJobDefinitionFact(fact: StructuredAppFact): ConversationPolicyFact {
+  const display = fact.app === fact.ios_name ? fact.app : `${fact.app} (iPhone: ${fact.ios_name})`;
+  const textOnlyBoundary = fact.capabilities.text_only
+    ? "Text/chat-oriented work is supported; do not present camera or video as required."
+    : "No text-only guarantee is encoded for this app; do not invent camera, account, or profile requirements.";
+  const invitePart = fact.invite_code ? ` Approved invite code: ${fact.invite_code}.` : "";
+  const content =
+    `Approved app: ${display}. Job definition: the candidate answers incoming chats/messages in writing inside the approved app. ` +
+    `${textOnlyBoundary}${invitePart} Do not invent earnings, setup links, account ownership, or hidden platform behavior.`;
+  return {
+    id: `structured_app_job_definition_${normalize(fact.app).replace(/[^a-z0-9]+/gu, "_")}`,
+    topic: "candidate_work_model",
+    fact: content,
+    content,
+    source: "knowledge_bank",
+    version: "app_facts_structured.json",
+  };
+}
+
+export function resolveCandidatePolicy(
+  state: UserState,
+  allowedApps: string[],
+  structuredFacts: StructuredAppFact[] = [],
+): CandidatePolicyResolution {
   const facts: ConversationPolicyFact[] = [];
-  const app = allowedApps.find((item) => item.toLocaleLowerCase("tr-TR") === "layla") ?? allowedApps[0] ?? null;
+  const structuredFact = selectStructuredFact(state, allowedApps, structuredFacts);
+  if (structuredFact) facts.push(structuredJobDefinitionFact(structuredFact));
+  const app = structuredFact?.app ?? allowedApps.find((item) => item.toLocaleLowerCase("tr-TR") === "layla") ?? allowedApps[0] ?? null;
 
   if (state.gender === "erkek" || state.gender === "male") {
     if (!app) {
@@ -56,7 +115,7 @@ export function resolveCandidatePolicy(state: UserState, allowedApps: string[]):
     });
   }
 
-  if (facts.length === 0 && app) {
+  if (!facts.some((fact) => fact.id === "candidate_default_work_model") && app) {
     facts.push({
       id: "candidate_default_work_model",
       topic: "candidate_work_model",

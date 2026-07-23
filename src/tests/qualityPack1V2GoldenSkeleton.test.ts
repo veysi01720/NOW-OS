@@ -196,8 +196,48 @@ describe("Quality Pack 1 V2 golden skeletons", () => {
     expect(backendContext.structured_facts.app_facts_source_status).toBe("loaded");
     expect(JSON.stringify(backendContext.structured_facts.app_facts)).toContain("NIVI");
     expect(decisionContext.latest_message.inferred_intent).toBe("ask_job_definition");
+    expect(decisionContext.canonical_policy_facts.map((fact: any) => fact.id)).toContain("structured_app_job_definition_layla");
     expect(decisionContext.canonical_policy_facts.map((fact: any) => fact.id)).toContain("candidate_default_work_model");
+    expect(JSON.stringify(decisionContext.canonical_policy_facts)).toContain("Layla (iPhone: NIVI)");
     expect(prompt).toContain("Use only canonical_policy_facts and candidate_state.");
+  });
+
+  it("grounds the deterministic V2 job-definition answer in structured facts", async () => {
+    const thinReply = "Ekip seni yonlendirecek, detaylari sonra netlestiririz.";
+    const deps = makeDeps([
+      decision({
+        text: thinReply,
+        intent: "ask_job_definition",
+        actions: ["answer_user_question"],
+        facts: [],
+        direct: true,
+      }),
+      decision({
+        text: thinReply,
+        intent: "ask_job_definition",
+        actions: ["answer_user_question"],
+        facts: [],
+        direct: true,
+      }),
+    ]);
+
+    await handleIncomingMessage(candidateMessage("is tam olarak nedir?", "job-definition-structured-repair"), deps);
+
+    const reply = deps.sender.sends[0]?.text ?? "";
+    const normalizedReply = normalizedText(reply);
+    expect(reply).toContain("Layla (iPhone: NIVI)");
+    expect(normalizedReply).toContain("gelen sohbet veya mesajlara yaziyla");
+    expect(normalizedReply).toContain("kamera");
+    expect(normalizedReply).toContain("zorunlu");
+    expect(normalizedReply).not.toMatch(/kazanc|odeme|garanti|kesin/u);
+    expect(deps.logger.events).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        event_type: "CONVERSATION_DECISION_V2_TRACE",
+        final_reply_origin: "deterministic_safety_response",
+        mutation_source: "deterministic_safety_response",
+        quality_reason_codes: expect.arrayContaining(["JOB_EXPLANATION_INCOMPLETE"]),
+      }),
+    ]));
   });
 
   it("carries candidate-provided prerequisites into the next V2 prompt context", async () => {

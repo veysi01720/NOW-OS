@@ -100,6 +100,11 @@ function baseDecision(reply: string, context: ConversationDecisionContext, origi
 }
 
 function approvedAppFromFacts(context: ConversationDecisionContext): string | null {
+  const structured = context.canonical_policy_facts.find((fact) => fact.id.startsWith("structured_app_job_definition_"));
+  if (structured) {
+    const match = structured.content.match(/Approved app:\s*([^.]+)\./i);
+    if (match?.[1]) return match[1].trim();
+  }
   const policyText = normalize(context.canonical_policy_facts.map((fact) => `${fact.fact} ${fact.content}`).join("\n"));
   return ["Layla", "Soyo", "Amar", "Timo", "Linky"].find((app) => policyText.includes(normalize(app))) ?? null;
 }
@@ -144,9 +149,24 @@ function buildJobDefinitionSafetyDecision(context: ConversationDecisionContext):
     "Kamera/görüntülü çalışma zorunlu diye bir kural söylemiyoruz; mesajlaşma ağırlıklı ilerleyebilirsin. " +
     earningsPart +
     nextPart;
+  const groundedMissing: string[] = [];
+  if (context.candidate_state.age === null) groundedMissing.push("yas");
+  if (context.candidate_state.gender === null) groundedMissing.push("cinsiyet");
+  if (context.candidate_state.daily_hours === null) groundedMissing.push("gunluk ayirabilecegin sure");
+  const groundedNextPart = groundedMissing.length > 0
+    ? `Devam edebilmem icin ${groundedMissing.join(", ")} bilgisini netlestirelim.`
+    : "Bu calisma modeli sana uygunsa kuruluma gecmeden once bunu netlestirelim.";
+  const groundedEarningsPart = asksEarnings
+    ? "Kazanc veya odeme detayi icin dogrulanmis bilgi yoksa bunu uydurmadan ekip netlestirir. "
+    : "";
+  const groundedReply =
+    `Isin temel kismi, ${app ? `${app} icinde ` : "onayli uygulama icinde "}gelen sohbet veya mesajlara yaziyla duzgun cevap vermek. ` +
+    "Kamera/goruntulu calisma zorunlu diye bir kural soylemiyoruz; mesajlasma agirlikli ilerleyebilirsin. " +
+    groundedEarningsPart +
+    groundedNextPart;
 
   return {
-    ...baseDecision(reply, context, "deterministic_safety_response"),
+    ...baseDecision(groundedReply, context, "deterministic_safety_response"),
     intent: { primary: "ask_job_definition", secondary: [], confidence: 1 },
     direct_question: {
       present: true,
