@@ -1,0 +1,30 @@
+﻿NOW-OS Current Status For Claude Strategy Review
+Generated: 2026-07-21
+
+HEAD:
+71e775f fix: use provider message ids for evolution dedupe
+
+Recent commits:
+71e775f fix: use provider message ids for evolution dedupe
+a0303b8 docs: capture full project state and backlog for session handover
+510e0d8 package12: finalize eligible-for-canary report fields
+59f3e63 handover: capture final protocol state
+cc5829b handover: add shared protocol state
+
+Git status short:
+ M src/bridge/handleIncomingMessage.ts
+ M src/intelligence/conversation/ConversationDecisionEngine.ts
+ M src/intelligence/conversation/ConversationDecisionSchema.ts
+ M src/tests/conversationDecisionV2.test.ts
+?? outputs/session_handover/
+?? outputs/strategy/
+
+Latency fix diff stat currently local/uncommitted:
+ src/bridge/handleIncomingMessage.ts                |  6 +-
+ .../conversation/ConversationDecisionEngine.ts     | 95 +++++++++++++++++++++-
+ .../conversation/ConversationDecisionSchema.ts     |  2 +-
+ src/tests/conversationDecisionV2.test.ts           | 70 ++++++++++++++++
+ 4 files changed, 166 insertions(+), 7 deletions(-)
+
+Important note:
+P0 production dedupe fix is committed/deployed at 71e775f. Latency/product-quality fix is local only, not committed/deployed.
