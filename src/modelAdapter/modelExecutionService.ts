@@ -9,7 +9,19 @@ import type { ModelAdapterInput, ModelAdapterOutput } from "./types.js";
 import type { ResponsesShadowObserver } from "./responsesShadowService.js";
 import type { ModelAdapterCanaryControl } from "./modelAdapterCanaryControl.js";
 import type { ModelAdapterCanaryTerminalObservation } from "./modelAdapterCanaryThresholds.js";
+import type { Logger } from "../observability/logger.js";
+import type { SenderRole } from "../config/roles.js";
+import type { ChatType } from "../contracts/backendContextPayload.js";
 import { createHash } from "node:crypto";
+
+export interface CanaryDecisionProbeInput {
+  tenantId: string;
+  senderRole: SenderRole;
+  channelType: ChatType;
+  inferredIntent: string | null;
+  traceId: string;
+  featureFlags: ModelAdapterInput["metadata"]["featureFlags"];
+}
 
 export type ModelAdapterLastErrorClass = "none" | "model_execution_error";
 
@@ -107,12 +119,14 @@ export class ModelExecutionService {
       responsesShadowObserver?: ResponsesShadowObserver;
       canaryControl?: ModelAdapterCanaryControl;
       canaryAdapter?: IModelAdapter;
+      logger?: Logger;
     },
   ) {
     this.adapterFactory = initialFlags?.adapterFactory ?? createModelAdapter;
     this.responsesShadowObserver = initialFlags?.responsesShadowObserver;
     this.canaryControl = initialFlags?.canaryControl;
     this.canaryAdapter = initialFlags?.canaryAdapter;
+    this.logger = initialFlags?.logger;
     if (initialFlags) {
       this.lastGlobalEnabled = initialFlags.modelAdapterLayerEnabled;
       this.lastCanaryMode = initialFlags.modelAdapterCanaryMode;
@@ -132,6 +146,7 @@ export class ModelExecutionService {
   private readonly responsesShadowObserver?: ResponsesShadowObserver;
   private readonly canaryControl?: ModelAdapterCanaryControl;
   private readonly canaryAdapter?: IModelAdapter;
+  private readonly logger?: Logger;
 
   finalizeCanaryObservation(
     traceId: string,
@@ -182,27 +197,78 @@ export class ModelExecutionService {
     }
   }
 
+  private computeCanaryDecision(input: {
+    tenantId: string;
+    senderRole: SenderRole;
+    channelType: ChatType;
+    mode: string;
+    inferredIntent: string | null | undefined;
+    traceId: string;
+    featureFlags: ModelAdapterInput["metadata"]["featureFlags"];
+  }): AdapterExecutionDecision {
+    const configuredMode = input.featureFlags.model_adapter_canary_mode;
+    const controlSnapshot = this.canaryControl?.snapshot();
+    const effectiveMode = this.canaryControl?.effectiveMode(configuredMode) ?? configuredMode;
+    return resolveModelAdapterExecution({
+      tenantId: input.tenantId,
+      senderRole: input.senderRole,
+      channelType: input.channelType,
+      mode: input.mode,
+      featureFlags: {
+        ...input.featureFlags,
+        model_adapter_canary_mode: effectiveMode,
+        model_adapter_stop_latched: controlSnapshot?.stop_latched ?? false,
+      },
+      inferredIntent: input.inferredIntent,
+      trafficBucket: Number.parseInt(createHash("sha256").update(input.traceId).digest("hex").slice(0, 8), 16) % 100,
+      traceId: input.traceId,
+    });
+  }
+
+  private emitCanaryDecisionLog(
+    correlationId: string,
+    decision: AdapterExecutionDecision,
+    evaluationPoint: "pre_dispatch" | "model_execution",
+  ): void {
+    this.logger?.info({
+      event_type: "CANARY_DECISION_LOGGED",
+      correlation_id: correlationId,
+      use_adapter_layer: decision.useAdapterLayer,
+      reason: decision.reason,
+      canary_scope: decision.canaryScope,
+      evaluation_point: evaluationPoint,
+    });
+  }
+
+  evaluateCanaryDecisionForMessage(input: CanaryDecisionProbeInput): AdapterExecutionDecision {
+    const decision = this.computeCanaryDecision({
+      tenantId: input.tenantId,
+      senderRole: input.senderRole,
+      channelType: input.channelType,
+      mode: "pre_dispatch_probe",
+      inferredIntent: input.inferredIntent,
+      traceId: input.traceId,
+      featureFlags: input.featureFlags,
+    });
+    this.emitCanaryDecisionLog(input.traceId, decision, "pre_dispatch");
+    return decision;
+  }
+
   private async executeCore(
     input: ModelExecutionServiceInput,
     executionId: number,
     signal: AbortSignal | undefined,
   ): Promise<ModelAdapterOutput> {
     const configuredMode = input.metadata.featureFlags.model_adapter_canary_mode;
-    const controlSnapshot = this.canaryControl?.snapshot();
     const effectiveMode = this.canaryControl?.effectiveMode(configuredMode) ?? configuredMode;
-    let decision = resolveModelAdapterExecution({
+    let decision = this.computeCanaryDecision({
       tenantId: input.tenantId,
       senderRole: input.senderRole,
       channelType: input.channelType,
       mode: input.mode,
-      featureFlags: {
-        ...input.metadata.featureFlags,
-        model_adapter_canary_mode: effectiveMode,
-        model_adapter_stop_latched: controlSnapshot?.stop_latched ?? false,
-      },
       inferredIntent: input.metadata.inferredIntent,
-      trafficBucket: Number.parseInt(createHash("sha256").update(input.metadata.traceId).digest("hex").slice(0, 8), 16) % 100,
       traceId: input.metadata.traceId,
+      featureFlags: input.metadata.featureFlags,
     });
     if (
       decision.useAdapterLayer
@@ -245,6 +311,7 @@ export class ModelExecutionService {
     this.lastGlobalEnabled = input.metadata.featureFlags.model_adapter_layer_enabled;
     this.lastConfiguredCanaryMode = configuredMode;
     this.lastCanaryMode = decision.reason === "disabled_stop_latched" ? "off" : effectiveMode;
+    this.emitCanaryDecisionLog(input.metadata.traceId, decision, "model_execution");
 
     try {
       if (signal?.aborted) {

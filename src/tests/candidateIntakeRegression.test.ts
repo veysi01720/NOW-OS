@@ -69,7 +69,9 @@ describe("Candidate Intake Regression Fixture", () => {
       userRunLock: new UserRunLock(),
       logger: { info: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn() } as any,
       modelExecutionService: {
-        execute: vi.fn().mockResolvedValue({ rawText: '{"contract_version":"1.0","reply":"Test","internal_boss_note":""}' })
+        execute: vi.fn().mockResolvedValue({ rawText: '{"contract_version":"1.0","reply":"Test","internal_boss_note":""}' }),
+        evaluateCanaryDecisionForMessage: vi.fn(),
+        finalizeCanaryObservation: vi.fn()
       } as any
     };
 

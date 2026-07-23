@@ -281,6 +281,7 @@ export async function buildServer() {
       responsesShadowObserver: responsesShadowService,
       canaryControl: modelAdapterCanaryControl,
       canaryAdapter: responsesAdapter,
+      logger,
     },
   );
   const connectionHealthMonitor = new ConnectionHealthMonitor({

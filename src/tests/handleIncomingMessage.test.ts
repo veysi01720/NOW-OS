@@ -124,6 +124,25 @@ describe("handleIncomingMessage", () => {
     expect(testDeps.assistantClient.runCalls[0]?.content).toContain('"backend_context_version":"1.0"');
   });
 
+  it("logs a CANARY_DECISION_LOGGED event for every processed message, independent of route", async () => {
+    const testDeps = deps('{"contract_version":"1.0","reply":"Cevap","internal_boss_note":""}');
+
+    await handleIncomingMessage(message(), testDeps);
+
+    expect(testDeps.logger.events).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          event_type: "CANARY_DECISION_LOGGED",
+          correlation_id: "corr_test",
+          use_adapter_layer: false,
+          reason: "disabled_mode_off",
+          canary_scope: "off",
+          evaluation_point: "pre_dispatch"
+        })
+      ])
+    );
+  });
+
   it("logs one structured request latency breakdown with phase durations", async () => {
     const testDeps = {
       ...deps('{"contract_version":"1.0","reply":"Cevap","internal_boss_note":""}'),

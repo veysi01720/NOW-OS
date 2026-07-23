@@ -220,9 +220,13 @@ describe("Package 13 candidate first-contact canary", () => {
       "utf8",
     );
 
-    expect(source.match(/model_adapter_canary_intents:\s*deps\.env\.modelAdapterCanaryIntents/g)).toHaveLength(2);
-    expect(source.match(/model_adapter_canary_percent:\s*deps\.env\.modelAdapterCanaryPercent/g)).toHaveLength(2);
-    expect(source.match(/inferredIntent:\s*inferConversationIntent\(message\.text\)/g)).toHaveLength(2);
+    const executeCallBlocks = source.split("modelExecutionService.execute({").slice(1);
+    expect(executeCallBlocks).toHaveLength(2);
+    for (const block of executeCallBlocks) {
+      expect(block).toMatch(/model_adapter_canary_intents:\s*deps\.env\.modelAdapterCanaryIntents/);
+      expect(block).toMatch(/model_adapter_canary_percent:\s*deps\.env\.modelAdapterCanaryPercent/);
+      expect(block).toMatch(/inferredIntent:\s*inferConversationIntent\(message\.text\)/);
+    }
   });
 
   it("keeps unknown-app missing-policy traffic outside the exact first-contact intent scope", () => {

@@ -214,6 +214,7 @@ function modelExecutionServiceFor(deps: HandleIncomingMessageDeps): ModelExecuti
     modelAdapterCanaryMode: deps.env.modelAdapterCanaryMode,
     modelExecutionTimeoutEnabled: deps.env.modelExecutionTimeoutEnabled,
     modelExecutionTimeoutMsConfigured: deps.env.modelExecutionTimeoutMs > 0,
+    logger: deps.logger,
   });
 }
 
@@ -789,6 +790,23 @@ export async function handleIncomingMessage(
       model_route: modelRoute,
     });
     latencyTracker.markRouteSelected();
+    const modelExecutionService = modelExecutionServiceFor(deps);
+    modelExecutionService.evaluateCanaryDecisionForMessage({
+      tenantId: "now_os",
+      senderRole: backendContext.sender_role,
+      channelType: backendContext.chat_type,
+      inferredIntent: inferConversationIntent(message.text),
+      traceId: message.correlation_id,
+      featureFlags: {
+        behavior_orchestrator_enabled: false,
+        model_adapter_layer_enabled: deps.env.modelAdapterLayerEnabled,
+        model_adapter_canary_mode: deps.env.modelAdapterCanaryMode,
+        model_adapter_canary_tenants: deps.env.modelAdapterCanaryTenants,
+        model_adapter_canary_roles: deps.env.modelAdapterCanaryRoles,
+        model_adapter_canary_intents: deps.env.modelAdapterCanaryIntents,
+        model_adapter_canary_percent: deps.env.modelAdapterCanaryPercent,
+      },
+    });
     if (backendContext.knowledge_publish && deps.ingestionStore) {
       const intent = detectKnowledgePublishIntent(message.text);
       if (
@@ -848,7 +866,6 @@ export async function handleIncomingMessage(
       correlation_id: message.correlation_id,
       ...budgetResult.metrics,
     });
-    const modelExecutionService = modelExecutionServiceFor(deps);
     const coreIntakeMissing =
       backendContext.sender_role === "candidate" &&
       backendContext.state.missing_fields.some((field) => field === "age" || field === "gender" || field === "daily_hours");
