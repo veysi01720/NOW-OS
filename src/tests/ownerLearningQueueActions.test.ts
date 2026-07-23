@@ -46,6 +46,34 @@ describe("owner learning queue deterministic actions", () => {
     rmSync(rootDir, { recursive: true, force: true });
   });
 
+  function savePendingSuggestion(
+    store: PersistentIngestionStore,
+    input: {
+      id: string;
+      text: string;
+      evidence?: string;
+      sourceMessageRef?: string;
+      sourceJobId?: string;
+      createdAt: string;
+    }
+  ): void {
+    store.saveLearningSuggestion({
+      suggestion_id: input.id,
+      source_job_id: input.sourceJobId ?? "live_owner_interaction",
+      platform: "whatsapp",
+      suggestion_class: "unknown",
+      evidence_preview_sanitized: input.evidence ?? input.text,
+      proposed_knowledge_type: "approved_app_update",
+      proposed_text: input.text,
+      confidence: 0.99,
+      status: "pending_owner_review",
+      created_at: input.createdAt,
+      source_type: "live_owner_interaction",
+      source_message_safe_ref: input.sourceMessageRef ?? "owner_msg_duplicate",
+      suggested_category: "owner_platform_update"
+    });
+  }
+
   it("approves one pending LRN and syncs it through approved_learning outputs", () => {
     const store = new PersistentIngestionStore(storeDir);
     store.saveLearningSuggestion({
@@ -119,5 +147,81 @@ describe("owner learning queue deterministic actions", () => {
     expect(store.getLearningSuggestion("sug_owner_reject")?.status).toBe("rejected");
     expect(store.listLearningSuggestions().filter((item) => item.status === "pending_owner_review")).toHaveLength(0);
     expect(existsSync(resolve(knowledgeBankDir, "approved_learning.json"))).toBe(false);
+  });
+
+  it("lists duplicate learning suggestion groups without changing records", () => {
+    const store = new PersistentIngestionStore(storeDir);
+    savePendingSuggestion(store, {
+      id: "dup_1_keep",
+      text: "Uygulama Adi: SameApp\nDavet Kodu: SAME",
+      sourceMessageRef: "owner_msg_same",
+      createdAt: "2026-07-22T00:00:00.000Z",
+    });
+    savePendingSuggestion(store, {
+      id: "dup_1_reject",
+      text: "Uygulama Adi: SameApp\nDavet Kodu: SAME",
+      sourceMessageRef: "owner_msg_same",
+      createdAt: "2026-07-22T00:00:01.000Z",
+    });
+    savePendingSuggestion(store, {
+      id: "unique",
+      text: "Uygulama Adi: UniqueApp",
+      sourceMessageRef: "owner_msg_unique",
+      createdAt: "2026-07-22T00:00:02.000Z",
+    });
+
+    const result = handleOwnerCommand(
+      ownerMessage("duplicate onerileri listele"),
+      "owner",
+      createTestEnv(),
+      undefined,
+      store
+    );
+
+    expect(result.is_command).toBe(true);
+    expect(result.skip_reason).toBe("owner_learning_duplicate_list_command");
+    expect(result.reply_text).toContain("Duplicate Ogrenme Onerileri (1 grup)");
+    expect(result.reply_text).toContain("DUP-1 exact");
+    expect(result.reply_text).toContain("koru=LRN-1");
+    expect(result.reply_text).toContain("reddedilecek=LRN-2");
+    expect(store.listLearningSuggestions().filter((item) => item.status === "pending_owner_review")).toHaveLength(3);
+  });
+
+  it("rejects only duplicate members of an owner-approved duplicate group", () => {
+    const store = new PersistentIngestionStore(storeDir);
+    savePendingSuggestion(store, {
+      id: "dup_keep",
+      text: "Uygulama Adi: SameApp\nDavet Kodu: SAME",
+      sourceMessageRef: "owner_msg_same",
+      createdAt: "2026-07-22T00:00:00.000Z",
+    });
+    savePendingSuggestion(store, {
+      id: "dup_reject_1",
+      text: "Uygulama Adi: SameApp\nDavet Kodu: SAME",
+      sourceMessageRef: "owner_msg_same",
+      createdAt: "2026-07-22T00:00:01.000Z",
+    });
+    savePendingSuggestion(store, {
+      id: "dup_reject_2",
+      text: "Uygulama Adi: SameApp\nDavet Kodu: SAME",
+      sourceMessageRef: "owner_msg_same",
+      createdAt: "2026-07-22T00:00:02.000Z",
+    });
+
+    const result = handleOwnerCommand(
+      ownerMessage("duplicate onerileri reddet DUP-1"),
+      "owner",
+      createTestEnv(),
+      undefined,
+      store
+    );
+
+    expect(result.is_command).toBe(true);
+    expect(result.skip_reason).toBe("owner_learning_duplicate_reject_command");
+    expect(result.reply_text).toContain("Korunan: LRN-1");
+    expect(result.reply_text).toContain("Reddedilen duplicate kayit: 2");
+    expect(store.getLearningSuggestion("dup_keep")?.status).toBe("pending_owner_review");
+    expect(store.getLearningSuggestion("dup_reject_1")?.status).toBe("rejected");
+    expect(store.getLearningSuggestion("dup_reject_2")?.status).toBe("rejected");
   });
 });

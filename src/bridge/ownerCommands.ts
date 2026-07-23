@@ -2,6 +2,7 @@ import type { EnvConfig } from "../config/env.js";
 import type { NormalizedIncomingMessage } from "./normalizeEvolutionMessage.js";
 import type { QueueStore } from "../storage/types.js";
 import type { PersistentIngestionStore } from "../storage/ingestionStore.js";
+import type { LearningSuggestion } from "../storage/ingestionTypes.js";
 import type { MaintenanceStore } from "../store/maintenanceStore.js";
 import { detectCommandPrefix, routeCoreMode, type CoreMode } from "./modeRouter.js";
 import { buildKnowledgeSyncContext } from "./knowledgeSync.js";
@@ -59,10 +60,143 @@ function learningQueueActionFromText(text: string): { ref: string; action: "appr
   };
 }
 
+function duplicateLearningListRequest(text: string): boolean {
+  return text === "duplicate onerileri listele" || text === "duplicate ogrenme onerilerini listele";
+}
+
+function duplicateLearningRejectFromText(text: string): { groupId: string } | null {
+  const match = text.match(/^duplicate onerileri reddet\s+(dup-\d+)$/);
+  return match ? { groupId: match[1].toUpperCase() } : null;
+}
+
+interface LearningDuplicateGroup {
+  group_id: string;
+  group_type: "exact" | "content_only";
+  keep_ref: string;
+  duplicate_refs: string[];
+  all_refs: string[];
+  preview: string;
+}
+
 function compactPreview(value: string, maxLength = 120): string {
   const compact = value.replace(/\s+/g, " ").trim();
   if (compact.length <= maxLength) return compact;
   return `${compact.slice(0, maxLength - 3)}...`;
+}
+
+function suggestionRef(suggestion: LearningSuggestion, fallbackIndex: number): string {
+  return suggestion.short_ref ?? suggestion.safe_ref ?? `LRN-${fallbackIndex + 1}`;
+}
+
+function duplicateKey(parts: Array<string | undefined>): string {
+  return parts.map((part) => (part ?? "").replace(/\s+/g, " ").trim()).join("\u001f");
+}
+
+function pendingDuplicateGroups(ingestionStore: PersistentIngestionStore | undefined): LearningDuplicateGroup[] {
+  if (!ingestionStore) return [];
+  const pending = ingestionStore
+    .listLearningSuggestions()
+    .filter((suggestion) => suggestion.status === "pending_owner_review")
+    .sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime());
+
+  const groups: Array<Omit<LearningDuplicateGroup, "group_id">> = [];
+  const exactBuckets = new Map<string, LearningSuggestion[]>();
+  const contentBuckets = new Map<string, LearningSuggestion[]>();
+
+  for (const suggestion of pending) {
+    const exactKey = duplicateKey([
+      suggestion.source_job_id,
+      suggestion.source_type,
+      suggestion.source_message_safe_ref,
+      suggestion.suggested_category,
+      suggestion.suggestion_class,
+      suggestion.proposed_knowledge_type,
+      suggestion.evidence_preview_sanitized,
+      suggestion.proposed_text,
+    ]);
+    const contentKey = duplicateKey([
+      suggestion.suggestion_class,
+      suggestion.proposed_knowledge_type,
+      suggestion.evidence_preview_sanitized,
+      suggestion.proposed_text,
+    ]);
+    exactBuckets.set(exactKey, [...(exactBuckets.get(exactKey) ?? []), suggestion]);
+    contentBuckets.set(contentKey, [...(contentBuckets.get(contentKey) ?? []), suggestion]);
+  }
+
+  const exactMemberSets = new Set<string>();
+  const toGroup = (items: LearningSuggestion[], groupType: "exact" | "content_only") => {
+    const refs = items.map((item, index) => suggestionRef(item, index));
+    return {
+      group_type: groupType,
+      keep_ref: refs[0] ?? "LRN-UNKNOWN",
+      duplicate_refs: refs.slice(1),
+      all_refs: refs,
+      preview: compactPreview(items[0]?.evidence_preview_sanitized || items[0]?.proposed_text || "duplicate", 80),
+    };
+  };
+
+  for (const items of exactBuckets.values()) {
+    if (items.length < 2) continue;
+    const group = toGroup(items, "exact");
+    exactMemberSets.add(group.all_refs.join("|"));
+    groups.push(group);
+  }
+
+  for (const items of contentBuckets.values()) {
+    if (items.length < 2) continue;
+    const group = toGroup(items, "content_only");
+    if (exactMemberSets.has(group.all_refs.join("|"))) continue;
+    groups.push(group);
+  }
+
+  return groups
+    .sort((a, b) => {
+      if (a.group_type !== b.group_type) return a.group_type === "exact" ? -1 : 1;
+      return a.keep_ref.localeCompare(b.keep_ref, "tr");
+    })
+    .map((group, index) => ({ ...group, group_id: `DUP-${index + 1}` }));
+}
+
+function duplicateLearningSuggestionsReply(ingestionStore: PersistentIngestionStore | undefined): string {
+  if (!ingestionStore) return "Ogrenme servisi aktif degil.";
+  const groups = pendingDuplicateGroups(ingestionStore);
+  if (groups.length === 0) return "Bekleyen duplicate oneri grubu yok. Hicbir kayit degismedi.";
+
+  const lines = groups.slice(0, 15).map((group) =>
+    `- ${group.group_id} ${group.group_type}: koru=${group.keep_ref}; reddedilecek=${group.duplicate_refs.join(", ")}; preview=${group.preview}`
+  );
+  const suffix = groups.length > 15 ? `\n- Ilk 15 grup gosterildi; toplam ${groups.length} duplicate grup var.` : "";
+  return `Duplicate Ogrenme Onerileri (${groups.length} grup):\n${lines.join("\n")}${suffix}\nTek grup reddetmek icin: duplicate onerileri reddet DUP-1`;
+}
+
+function rejectDuplicateLearningGroup(
+  ingestionStore: PersistentIngestionStore | undefined,
+  groupId: string,
+  actorRole: string
+): string {
+  if (!ingestionStore) return "Ogrenme servisi aktif degil.";
+  const groups = pendingDuplicateGroups(ingestionStore);
+  const group = groups.find((item) => item.group_id === groupId.toUpperCase());
+  if (!group) return `${groupId.toUpperCase()} bulunamadi. Hicbir kayit degismedi.`;
+
+  let rejected = 0;
+  const failed: string[] = [];
+  for (const ref of group.duplicate_refs) {
+    const suggestion = ingestionStore.getLearningSuggestionByShortRef(ref);
+    if (!suggestion || suggestion.status !== "pending_owner_review") {
+      failed.push(ref);
+      continue;
+    }
+    if (ingestionStore.updateLearningSuggestionStatus(suggestion.suggestion_id, "rejected", actorRole)) {
+      rejected += 1;
+    } else {
+      failed.push(ref);
+    }
+  }
+
+  const failedSuffix = failed.length > 0 ? ` Basarisiz: ${failed.join(", ")}.` : "";
+  return `${group.group_id} duplicate grubu islendi. Korunan: ${group.keep_ref}. Reddedilen duplicate kayit: ${rejected}.${failedSuffix} Aktif bilgi/config degismedi.`;
 }
 
 function pendingLearningSuggestionsReply(ingestionStore: PersistentIngestionStore | undefined): string {
@@ -158,11 +292,24 @@ export function handleOwnerCommand(
   const prefix = detectCommandPrefix(message.text);
   const text = normalizeOwnerCommandText(message.text);
   const learningQueueAction = learningQueueActionFromText(text);
+  const duplicateLearningReject = duplicateLearningRejectFromText(text);
   if (!prefix) {
     if (message.chat_type === "private" && learningQueueAction) {
       return commandResult(
         applyLearningQueueAction(ingestionStore, learningQueueAction.ref, learningQueueAction.action, senderRole),
         "owner_learning_queue_action_command"
+      );
+    }
+    if (message.chat_type === "private" && duplicateLearningListRequest(text)) {
+      return commandResult(
+        duplicateLearningSuggestionsReply(ingestionStore),
+        "owner_learning_duplicate_list_command"
+      );
+    }
+    if (message.chat_type === "private" && duplicateLearningReject) {
+      return commandResult(
+        rejectDuplicateLearningGroup(ingestionStore, duplicateLearningReject.groupId, senderRole),
+        "owner_learning_duplicate_reject_command"
       );
     }
     if (message.chat_type === "private" && isPendingLearningListRequest(text)) {
@@ -194,6 +341,20 @@ export function handleOwnerCommand(
     return commandResult(
       applyLearningQueueAction(ingestionStore, learningQueueAction.ref, learningQueueAction.action, senderRole),
       "owner_learning_queue_action_command"
+    );
+  }
+
+  if (duplicateLearningListRequest(text)) {
+    return commandResult(
+      duplicateLearningSuggestionsReply(ingestionStore),
+      "owner_learning_duplicate_list_command"
+    );
+  }
+
+  if (duplicateLearningReject) {
+    return commandResult(
+      rejectDuplicateLearningGroup(ingestionStore, duplicateLearningReject.groupId, senderRole),
+      "owner_learning_duplicate_reject_command"
     );
   }
 
