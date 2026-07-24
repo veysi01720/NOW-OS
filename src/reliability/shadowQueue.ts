@@ -1,13 +1,19 @@
-// @ts-nocheck
 import { createHash } from "node:crypto";
 import { redactSecrets } from "../utils/redaction.js";
+import { getConversationKey } from "../bridge/buildBackendContext.js";
 import type { NormalizedIncomingMessage } from "../bridge/normalizeEvolutionMessage.js";
 import type { ConnectionHealthMonitor } from "../observability/connectionHealthMonitor.js";
 import type { Logger } from "../observability/logger.js";
 import type { ReliabilityQueueStore } from "./queueTypes.js";
 
+const TENANT_ID = "now_os";
+
 function hash(value: string): string {
   return createHash("sha256").update(value).digest("hex").slice(0, 16);
+}
+
+function conversationKeyHash(message: NormalizedIncomingMessage): string {
+  return hash(getConversationKey(message));
 }
 
 export function buildInboundQueueIdempotencyKey(message: NormalizedIncomingMessage): string {
@@ -29,6 +35,10 @@ export function enqueueInboundShadow(input: {
     const job = input.store.enqueue({
       queue_name: "inbound",
       idempotency_key: buildInboundQueueIdempotencyKey(input.message),
+      tenant_id: TENANT_ID,
+      conversation_key_hash: conversationKeyHash(input.message),
+      source_event_hash: hash(input.message.text),
+      event_type: "inbound_message",
       payload: input.message as unknown as Record<string, unknown>,
     });
     input.connectionHealthMonitor?.recordQueueWrite({
@@ -39,7 +49,7 @@ export function enqueueInboundShadow(input: {
     input.logger.info({
       event_type: "INBOUND_QUEUE_SHADOW_WRITTEN",
       correlation_id: input.message.correlation_id,
-      queue_job_id: job.id,
+      queue_job_id: job.job_id,
       queue_status: job.status,
     });
   } catch (error) {
@@ -72,6 +82,10 @@ export function enqueueOutboundShadow(input: {
     const job = input.store.enqueue({
       queue_name: "outbound",
       idempotency_key: buildOutboundQueueIdempotencyKey(input.message, input.text),
+      tenant_id: TENANT_ID,
+      conversation_key_hash: conversationKeyHash(input.message),
+      source_event_hash: hash(input.text),
+      event_type: "outbound_reply",
       payload: {
         message: input.message,
         text: input.text,
@@ -85,7 +99,7 @@ export function enqueueOutboundShadow(input: {
     input.logger.info({
       event_type: "OUTBOUND_QUEUE_SHADOW_WRITTEN",
       correlation_id: input.message.correlation_id,
-      queue_job_id: job.id,
+      queue_job_id: job.job_id,
       queue_status: job.status,
       real_send_still_legacy_path: true,
     });

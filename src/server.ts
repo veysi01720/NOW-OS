@@ -27,6 +27,7 @@ import { ModelAdapterCanaryApprovalController } from "./modelAdapter/modelAdapte
 import { ModelAdapterCanaryStateStore } from "./modelAdapter/modelAdapterCanaryStateStore.js";
 import { ModelAdapterCanaryThresholdEvaluator } from "./modelAdapter/modelAdapterCanaryThresholds.js";
 import { ModelAdapterCanaryControl } from "./modelAdapter/modelAdapterCanaryControl.js";
+import { InMemoryReliabilityQueueStore } from "./reliability/inMemoryReliabilityQueueStore.js";
 
 const DEFAULT_RESPONSES_SHADOW_SNAPSHOT: ResponsesShadowSnapshot = {
   enabled: false,
@@ -343,11 +344,19 @@ export async function buildServer() {
     });
   });
 
+  // Phase 9 (queue/worker cutover): instantiated so a future phase can wire
+  // it in behind WEBHOOK_QUEUE_MODE/OUTBOUND_QUEUE_MODE. Both flags default
+  // to "off" in production, so passing this store changes nothing today -
+  // enqueueInboundShadow/enqueueOutboundShadow only write to it once one of
+  // those modes is explicitly turned on.
+  const reliabilityQueueStore = new InMemoryReliabilityQueueStore();
+
   registerEvolutionWebhook(app, {
     env,
     assistantClient,
     modelExecutionService,
     sender: new EvolutionApiSender(env),
+    reliabilityQueueStore,
     threadStore: persistentStore.threadStore,
     memoryStore: persistentStore.memoryStore,
     messageDedupeStore: persistentStore.messageDedupeStore,
