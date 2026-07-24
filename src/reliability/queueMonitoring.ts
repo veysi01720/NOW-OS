@@ -4,6 +4,12 @@ import type { QueueBacklogSnapshot, ReliabilityQueueStore } from "./queueTypes.j
 export interface QueueMonitorOptions {
   pendingThreshold?: number;
   deadLetterThreshold?: number;
+  // Without a running worker, jobs never leave QUEUED on their own - the
+  // store's TTL eviction is what bounds them, not processing. Treating that
+  // as a "backlog" would be a false alarm about a queue nothing is meant to
+  // be draining yet, so both alarms only evaluate when a worker is actually
+  // enabled. Defaults to true so existing callers keep today's behavior.
+  workersEnabled?: boolean;
 }
 
 export function queueBacklogSnapshot(
@@ -13,10 +19,11 @@ export function queueBacklogSnapshot(
   const snapshot = store.counts();
   const pendingThreshold = options.pendingThreshold ?? 50;
   const deadLetterThreshold = options.deadLetterThreshold ?? 1;
+  const workersEnabled = options.workersEnabled ?? true;
   return {
     ...snapshot,
-    backlog_alarm: snapshot.inbound_queue_pending + snapshot.outbound_queue_pending >= pendingThreshold,
-    dead_letter_alarm: snapshot.dead_letter_count >= deadLetterThreshold,
+    backlog_alarm: workersEnabled && snapshot.inbound_queue_pending + snapshot.outbound_queue_pending >= pendingThreshold,
+    dead_letter_alarm: workersEnabled && snapshot.dead_letter_count >= deadLetterThreshold,
   };
 }
 

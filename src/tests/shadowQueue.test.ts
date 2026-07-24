@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { enqueueInboundShadow } from "../reliability/shadowQueue.js";
+import { enqueueInboundShadow, stripMediaBase64 } from "../reliability/shadowQueue.js";
 import { InMemoryReliabilityQueueStore } from "../reliability/inMemoryReliabilityQueueStore.js";
 import type { NormalizedIncomingMessage } from "../bridge/normalizeEvolutionMessage.js";
 import { createSilentLogger } from "./testDoubles.js";
@@ -75,5 +75,57 @@ describe("shadowQueue conversation isolation", () => {
     const second = store.claimNext("inbound", "worker-2");
     expect(first).not.toBeNull();
     expect(second).toBeNull();
+  });
+});
+
+describe("shadowQueue media exclusion (Phase 0.5)", () => {
+  it("strips base64 from a media attachment while keeping size/type metadata", () => {
+    const withMedia = message({
+      media: {
+        kind: "image",
+        mimetype: "image/jpeg",
+        file_name: "photo.jpg",
+        file_size: 512_000,
+        caption: "bakar misin",
+        base64: "A".repeat(700_000)
+      }
+    });
+
+    const sanitized = stripMediaBase64(withMedia);
+    expect(sanitized.media?.base64).toBeUndefined();
+    expect(sanitized.media?.kind).toBe("image");
+    expect(sanitized.media?.mimetype).toBe("image/jpeg");
+    expect(sanitized.media?.file_name).toBe("photo.jpg");
+    expect(sanitized.media?.file_size).toBe(512_000);
+    expect(sanitized.media?.caption).toBe("bakar misin");
+  });
+
+  it("never writes real media base64 content into the shadow queue payload", () => {
+    const store = new InMemoryReliabilityQueueStore();
+    const logger = createSilentLogger();
+    const base64Payload = "B".repeat(700_000);
+
+    enqueueInboundShadow({
+      store,
+      message: message({
+        message_id: "msg_media",
+        media: {
+          kind: "document",
+          mimetype: "application/pdf",
+          file_name: "sozlesme.pdf",
+          file_size: 512_000,
+          caption: "",
+          base64: base64Payload
+        }
+      }),
+      logger
+    });
+
+    const jobs = store.listJobs();
+    expect(jobs).toHaveLength(1);
+    const storedMedia = jobs[0]?.payload.media as { base64?: string; file_name?: string } | undefined;
+    expect(storedMedia?.base64).toBeUndefined();
+    expect(storedMedia?.file_name).toBe("sozlesme.pdf");
+    expect(JSON.stringify(jobs[0]?.payload)).not.toContain(base64Payload);
   });
 });

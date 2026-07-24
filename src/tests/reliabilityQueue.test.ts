@@ -83,4 +83,59 @@ describe("Reliability Queue Tests (PostgreSQL Contract)", () => {
     const updatedJob = jobs.find(j => j.job_id === job!.job_id);
     expect(updatedJob?.status).toBe("DEAD_LETTER");
   });
+
+  it("evicts any job older than ttlMs regardless of status (Phase 0.5 bound)", () => {
+    let current = new Date("2026-07-24T00:00:00.000Z");
+    const store = new InMemoryReliabilityQueueStore({ ttlMs: 60 * 60 * 1000, now: () => current });
+
+    store.enqueue({
+      queue_name: "inbound",
+      idempotency_key: "ttl-1",
+      tenant_id: "tenant-1",
+      conversation_key_hash: "hash-1",
+      source_event_hash: "hash2",
+      event_type: "message",
+      payload: {}
+    });
+    expect(store.listJobs()).toHaveLength(1);
+
+    current = new Date(current.getTime() + 61 * 60 * 1000);
+    expect(store.listJobs()).toHaveLength(0);
+  });
+
+  it("evicts the oldest COMPLETED/DEAD_LETTER jobs once maxEntries is exceeded", () => {
+    const store = new InMemoryReliabilityQueueStore({ maxEntries: 3, ttlMs: 24 * 60 * 60 * 1000 });
+
+    for (let i = 0; i < 3; i += 1) {
+      store.enqueue({
+        queue_name: "inbound",
+        idempotency_key: `max-${i}`,
+        tenant_id: "tenant-1",
+        conversation_key_hash: `hash-${i}`,
+        source_event_hash: "hash2",
+        event_type: "message",
+        payload: {}
+      });
+    }
+    for (let i = 0; i < 3; i += 1) {
+      const claimed = store.claimNext("inbound", "worker-1");
+      store.markDone(claimed!.job_id);
+    }
+    expect(store.listJobs()).toHaveLength(3);
+
+    store.enqueue({
+      queue_name: "inbound",
+      idempotency_key: "max-3",
+      tenant_id: "tenant-1",
+      conversation_key_hash: "hash-3",
+      source_event_hash: "hash2",
+      event_type: "message",
+      payload: {}
+    });
+
+    const remaining = store.listJobs();
+    expect(remaining).toHaveLength(3);
+    expect(remaining.some((job) => job.idempotency_key === "max-0")).toBe(false);
+    expect(remaining.some((job) => job.idempotency_key === "max-3")).toBe(true);
+  });
 });

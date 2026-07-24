@@ -16,6 +16,15 @@ function conversationKeyHash(message: NormalizedIncomingMessage): string {
   return hash(getConversationKey(message));
 }
 
+// The shadow queue is an observability side-write, not the real send/receive
+// path - it must never carry the actual media bytes. Only size/type metadata
+// is kept; the base64 payload itself is dropped unconditionally.
+export function stripMediaBase64(message: NormalizedIncomingMessage): NormalizedIncomingMessage {
+  if (!message.media?.base64) return message;
+  const { base64: _base64, ...mediaWithoutBase64 } = message.media;
+  return { ...message, media: mediaWithoutBase64 };
+}
+
 export function buildInboundQueueIdempotencyKey(message: NormalizedIncomingMessage): string {
   return `inbound_${hash(message.remote_jid)}_${hash(message.message_id)}`;
 }
@@ -39,7 +48,7 @@ export function enqueueInboundShadow(input: {
       conversation_key_hash: conversationKeyHash(input.message),
       source_event_hash: hash(input.message.text),
       event_type: "inbound_message",
-      payload: input.message as unknown as Record<string, unknown>,
+      payload: stripMediaBase64(input.message) as unknown as Record<string, unknown>,
     });
     input.connectionHealthMonitor?.recordQueueWrite({
       queue_name: "inbound",
@@ -87,7 +96,7 @@ export function enqueueOutboundShadow(input: {
       source_event_hash: hash(input.text),
       event_type: "outbound_reply",
       payload: {
-        message: input.message,
+        message: stripMediaBase64(input.message),
         text: input.text,
       } as unknown as Record<string, unknown>,
     });
