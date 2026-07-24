@@ -97,6 +97,34 @@ The next Package 13 decision still requires owner review after the live
 grounding verification. Canary must remain closed until the owner explicitly
 triggers approval.
 
+## Package 16 - Container-Native Provenance (Locally Validated, Not Deployed)
+
+Package 16 (container-native provenance) kod olarak yazıldı ve Docker
+Desktop yeniden çalışır hale geldikten sonra 24 Temmuz 2026'da yerel
+olarak doğrulandı:
+
+```text
+docker_build_no_cache=PASS (host-computed hash argümanı olmadan)
+provenance_generate_in_container=PASS
+  source_tree_hash=9e9d54829eab0932a93568c0f687b5166df40018e73ebc8c304eade84f432774
+  package_lock_hash=9740eaf9cafebadb9bc33dff25fbad282194cac57b4eab0f8400ee7d5eaf9555
+  dist_tree_hash=67ccab873da232b20ca2c74ee8d5263928f186413a870f067b8babd17883efed
+  workspace_identity_hash=6a3e90b565ff989be1ba811722bcc9002dc30258d03c77edcd8ce6936d2a8fef
+  provenance_manifest_hash=d2e9a4e4f40b61c171ce298fb9fe866a4866a0fe50443bbeb234dae05d9ced34
+provenance_verify_in_container=PASS (host/container karşılaştırması yok, sadece iç tutarlılık)
+image_label_stamp=PASS (scripts/stamp-image-provenance-labels.mjs; docker inspect
+  ile 5 hash'in de image label'larında birebir yukarıdaki değerlerle eşleştiği
+  doğrulandı)
+test=PASS 88/88 files, 607/607 tests
+```
+
+Bu, sadece yerel doğrulama içindir - VPS'e hiçbir şey deploy edilmedi.
+`docker-compose.yml` bu repoda yok (VPS'in `/root/deploy_package/`
+altında, source repo dışında); oradaki `--build-arg` satırlarının
+kaldırılması VPS-tarafı bir sonraki adım.
+
+Git snapshot (build öncesi hâli): `outputs/session_handover/PACKAGE_16_GIT_STATUS_20260723.txt`.
+
 ## Last Five Commit Change Summary
 
 Command:

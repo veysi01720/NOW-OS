@@ -1,0 +1,50 @@
+Package 16 (container-native provenance) - uncommitted local state
+Captured: 2026-07-23, Europe/Istanbul
+
+Note: build/provenance/source-manifest.json and .sha256 were briefly
+modified by an earlier, unrelated diagnostic generate-provenance test run
+in this same session; those two files were reverted with `git checkout --`
+before this snapshot so the diff below reflects only the actual Package 16
+work.
+
+=== git status ===
+On branch master
+Your branch is up to date with 'origin/master'.
+
+Changes not staged for commit:
+  (use "git add <file>..." to update what will be committed)
+  (use "git restore <file>..." to discard changes in working directory)
+	modified:   Dockerfile
+
+Untracked files:
+  (use "git add <file>..." to include in what will be committed)
+	docs/architecture/PACKAGE_16_CONTAINER_NATIVE_PROVENANCE_DESIGN.md
+	scripts/stamp-image-provenance-labels.mjs
+
+no changes added to commit (use "git add" and/or "git commit -a")
+
+=== git diff --stat ===
+ Dockerfile | 41 +++++++++++++++++------------------------
+ 1 file changed, 17 insertions(+), 24 deletions(-)
+
+=== Files involved ===
+- Dockerfile (modified): host-computed ARG/LABEL hashes and the
+  COPY build/provenance/source-manifest.json line removed; provenance
+  generate+verify moved inside a single container-native RUN chain.
+- scripts/stamp-image-provenance-labels.mjs (new, untracked): post-build
+  docker create + docker cp + docker commit label-stamping helper
+  (Option B from the design doc).
+- docs/architecture/PACKAGE_16_CONTAINER_NATIVE_PROVENANCE_DESIGN.md
+  (new, untracked): the design document itself.
+
+=== Validation status ===
+- npm run build: PASS
+- npm test (full suite): 88/88 files, 607/607 tests PASS
+- docker build / docker compose build: NOT RUN - Docker Desktop could not
+  be started in this session (WSL2 "docker-desktop" distro stayed
+  "Stopped" after 6+ minutes; `docker info`/`docker version` hung with no
+  error). Image label stamping and container-internal provenance
+  verify were NOT proven against a real build.
+
+Nothing in this list has been committed. Nothing has been pushed. No VPS
+action was taken or proposed this session.
