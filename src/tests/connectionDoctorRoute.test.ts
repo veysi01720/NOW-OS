@@ -31,6 +31,10 @@ describe("connection doctor route", () => {
       behavior_tenant_canary_available: false,
       behavior_tenant_canary_enabled: false,
       behavior_tenant_canary_allowed_tenant_count: 0,
+      shadow_queue_stats: {
+        inbound: { success_count: 0, failure_count: 0, error_rate: 0 },
+        outbound: { success_count: 0, failure_count: 0, error_rate: 0 },
+      },
     };
 
     registerConnectionDoctorRoute(app, { snapshot: () => snapshot }, { behaviorOrchestratorEnabled: false });

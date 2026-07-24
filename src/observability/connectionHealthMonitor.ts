@@ -29,8 +29,18 @@ export interface ConnectionHealthSnapshot {
   last_reachability_error: string | null;
   queue?: QueueBacklogSnapshot;
   migration_readiness?: MigrationReadinessSnapshot;
+  shadow_queue_stats: {
+    inbound: ShadowQueueWriteStats;
+    outbound: ShadowQueueWriteStats;
+  };
   recommended_action: string;
   diagnosis: string;
+}
+
+export interface ShadowQueueWriteStats {
+  success_count: number;
+  failure_count: number;
+  error_rate: number;
 }
 
 export interface ConnectionHealthMonitorOptions {
@@ -67,6 +77,10 @@ export class ConnectionHealthMonitor {
   private lastQueueWriteError: string | null = null;
   private lastWorkerPickupAt: Date | null = null;
   private lastWorkerError: string | null = null;
+  private readonly shadowQueueWriteCounts: Record<string, { success: number; failure: number }> = {
+    inbound: { success: 0, failure: 0 },
+    outbound: { success: 0, failure: 0 },
+  };
 
   private readonly degradedThresholdMs: number;
   private readonly reachabilityTimeoutMs: number;
@@ -108,6 +122,11 @@ export class ConnectionHealthMonitor {
   recordQueueWrite(input: { queue_name: string; correlation_id?: string; success: boolean; error?: string }): void {
     this.lastQueueWriteAt = this.now();
     this.lastQueueWriteError = input.success ? null : redactSecrets(input.error ?? "queue_write_failed");
+    const counts = this.shadowQueueWriteCounts[input.queue_name];
+    if (counts) {
+      if (input.success) counts.success += 1;
+      else counts.failure += 1;
+    }
     this.options.logger[input.success ? "info" : "warn"]({
       event_type: input.success ? "QUEUE_WRITE_CONFIRMED" : "QUEUE_WRITE_FAILED",
       queue_name: input.queue_name,
@@ -179,8 +198,22 @@ export class ConnectionHealthMonitor {
       last_reachability_error: this.lastReachabilityError,
       queue: this.options.queueSnapshotProvider?.(),
       migration_readiness: migrationReadiness,
+      shadow_queue_stats: {
+        inbound: this.shadowQueueStatsFor("inbound"),
+        outbound: this.shadowQueueStatsFor("outbound"),
+      },
       recommended_action: this.recommendedAction(),
       diagnosis: this.diagnosis(),
+    };
+  }
+
+  private shadowQueueStatsFor(queueName: string): ShadowQueueWriteStats {
+    const counts = this.shadowQueueWriteCounts[queueName] ?? { success: 0, failure: 0 };
+    const total = counts.success + counts.failure;
+    return {
+      success_count: counts.success,
+      failure_count: counts.failure,
+      error_rate: total === 0 ? 0 : counts.failure / total,
     };
   }
 

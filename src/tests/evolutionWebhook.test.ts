@@ -481,6 +481,11 @@ describe("POST /webhooks/evolution", () => {
     expect(response.statusCode).toBe(200);
     expect(response.json().status).toBe("sent");
     expect(sender.sends).toHaveLength(1);
+    // The shadow write failed entirely (FailingReliabilityQueueStore always
+    // throws), yet the candidate still gets the exact same reply the legacy
+    // synchronous path would have produced without dual-write mode at all -
+    // proving the shadow queue can never alter what is actually sent.
+    expect(sender.sends[0]?.text).toBe("Webhook cevabi");
     expect(logger.events).toEqual(expect.arrayContaining([
       expect.objectContaining({ event_type: "INFRA_QUEUE_WRITE_ALERT", queue_name: "inbound", legacy_flow_preserved: true }),
     ]));

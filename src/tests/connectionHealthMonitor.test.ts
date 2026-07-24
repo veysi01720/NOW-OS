@@ -115,4 +115,32 @@ describe("ConnectionHealthMonitor", () => {
     );
     expect(JSON.stringify(logger.events)).not.toContain("sk-12345678901234567890");
   });
+
+  it("tracks shadow queue write success/failure counts and error rate per queue, observable via snapshot", () => {
+    const logger = createSilentLogger();
+    const monitor = new ConnectionHealthMonitor({
+      evolutionInstance: "nowakademi_bot",
+      evolutionApiBaseUrl: "http://evolution.local",
+      evolutionApiKey: "secret-key",
+      logger,
+      now: () => new Date("2026-07-24T10:00:00.000Z"),
+    });
+
+    monitor.recordQueueWrite({ queue_name: "inbound", correlation_id: "corr_1", success: true });
+    monitor.recordQueueWrite({ queue_name: "inbound", correlation_id: "corr_2", success: true });
+    monitor.recordQueueWrite({ queue_name: "inbound", correlation_id: "corr_3", success: false, error: "store unavailable" });
+    monitor.recordQueueWrite({ queue_name: "outbound", correlation_id: "corr_4", success: true });
+
+    const snapshot = monitor.snapshot();
+    expect(snapshot.shadow_queue_stats.inbound).toEqual({
+      success_count: 2,
+      failure_count: 1,
+      error_rate: 1 / 3,
+    });
+    expect(snapshot.shadow_queue_stats.outbound).toEqual({
+      success_count: 1,
+      failure_count: 0,
+      error_rate: 0,
+    });
+  });
 });
