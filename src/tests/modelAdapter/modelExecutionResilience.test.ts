@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { ModelExecutionService, type ModelExecutionOptions } from "../../modelAdapter/modelExecutionService.js";
 import { ModelExecutionError } from "../../modelAdapter/modelExecutionErrors.js";
 import type { IModelAdapter } from "../../modelAdapter/IModelAdapter.js";
@@ -98,5 +98,88 @@ describe("Model Execution Resilience", () => {
     await expect(executePromise).rejects.toThrow(ModelExecutionError);
     const snapshot = service.snapshot();
     expect(snapshot.model_execution_last_error_code).toBe("CANCELLED");
+  });
+});
+
+describe("P0 temporary raw error diagnostic logging (MODEL_EXECUTION_RAW_ERROR_DIAGNOSTICS_ENABLED)", () => {
+  const dummyInput = {
+    tenantId: "test",
+    conversationId: "conv1",
+    senderRole: "owner",
+    channelType: "private",
+    mode: "mixed_research",
+    metadata: {
+      featureFlags: {
+        behavior_orchestrator_enabled: false,
+        model_adapter_layer_enabled: true,
+        model_adapter_canary_mode: "off",
+        model_adapter_canary_tenants: [],
+        model_adapter_canary_roles: []
+      },
+      traceId: "trace-diag-1"
+    },
+    contextPayload: {} as any,
+    responseContractVersion: "1.0",
+  };
+
+  const originalFlag = process.env.MODEL_EXECUTION_RAW_ERROR_DIAGNOSTICS_ENABLED;
+
+  afterEach(() => {
+    if (originalFlag === undefined) {
+      delete process.env.MODEL_EXECUTION_RAW_ERROR_DIAGNOSTICS_ENABLED;
+    } else {
+      process.env.MODEL_EXECUTION_RAW_ERROR_DIAGNOSTICS_ENABLED = originalFlag;
+    }
+  });
+
+  it("does NOT log the diagnostic event when the flag is unset (default)", async () => {
+    delete process.env.MODEL_EXECUTION_RAW_ERROR_DIAGNOSTICS_ENABLED;
+    const warn = vi.fn();
+    const service = new ModelExecutionService(
+      {} as AssistantClient,
+      {} as ThreadStore,
+      {
+        modelAdapterLayerEnabled: true,
+        modelAdapterCanaryMode: "off",
+        adapterFactory: () => new ErrorAdapter(new Error("do-not-log-this-message")),
+        logger: { debug: vi.fn(), info: vi.fn(), warn, error: vi.fn(), fatal: vi.fn() },
+      }
+    );
+
+    await expect(service.execute(dummyInput as any)).rejects.toThrow(ModelExecutionError);
+    expect(warn).not.toHaveBeenCalled();
+  });
+
+  it("logs ONLY structural fields (never the raw message) when the flag is enabled", async () => {
+    process.env.MODEL_EXECUTION_RAW_ERROR_DIAGNOSTICS_ENABLED = "true";
+    const warn = vi.fn();
+    const rawError = new Error("do-not-log-this-message") as Error & { status?: number; code?: string; type?: string };
+    rawError.status = 503;
+    rawError.code = "server_error";
+    rawError.type = "api_error";
+    const service = new ModelExecutionService(
+      {} as AssistantClient,
+      {} as ThreadStore,
+      {
+        modelAdapterLayerEnabled: true,
+        modelAdapterCanaryMode: "off",
+        adapterFactory: () => new ErrorAdapter(rawError),
+        logger: { debug: vi.fn(), info: vi.fn(), warn, error: vi.fn(), fatal: vi.fn() },
+      }
+    );
+
+    await expect(service.execute(dummyInput as any)).rejects.toThrow(ModelExecutionError);
+
+    expect(warn).toHaveBeenCalledTimes(1);
+    const loggedEvent = warn.mock.calls[0][0];
+    expect(loggedEvent.event_type).toBe("P0_DIAG_RAW_MODEL_EXECUTION_ERROR");
+    expect(loggedEvent.correlation_id).toBe("trace-diag-1");
+    expect(loggedEvent.diag_http_status).toBe(503);
+    expect(loggedEvent.diag_error_code).toBe("server_error");
+    expect(loggedEvent.diag_error_category).toBe("api_error");
+    expect(loggedEvent.diag_raw_message_logged).toBe(false);
+
+    const serialized = JSON.stringify(loggedEvent);
+    expect(serialized).not.toContain("do-not-log-this-message");
   });
 });

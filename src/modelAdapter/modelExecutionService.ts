@@ -14,6 +14,55 @@ import type { SenderRole } from "../config/roles.js";
 import type { ChatType } from "../contracts/backendContextPayload.js";
 import { createHash } from "node:crypto";
 
+// --- TEMPORARY P0 DIAGNOSTIC (25 Jul 2026) ---
+// Gated by MODEL_EXECUTION_RAW_ERROR_DIAGNOSTICS_ENABLED (default off).
+// Purpose: capture the RAW error shape behind provider_unavailable /
+// other model-execution classifications, since synthetic reproduction
+// attempts (see scripts/assistantsProviderProbe.ts - 16/16 real OpenAI
+// calls succeeded) could not reproduce the live failure. This logs ONLY
+// structural fields (HTTP status, error class/type/code) - NEVER the
+// error message, prompt, or any candidate content. Remove or re-gate
+// once the root cause is confirmed (see HANDOVER_PROTOCOL_STATE.md).
+function rawErrorDiagnosticRecord(error: unknown): Record<string, unknown> {
+  return typeof error === "object" && error !== null ? (error as Record<string, unknown>) : {};
+}
+
+function rawErrorDiagnosticTypeOf(error: unknown): string {
+  const record = rawErrorDiagnosticRecord(error);
+  const name = error instanceof Error ? error.name : "";
+  const constructorName = error !== null && typeof error === "object"
+    ? (error as { constructor?: { name?: unknown } }).constructor?.name
+    : undefined;
+  return [name, typeof constructorName === "string" ? constructorName : "", typeof record.type === "string" ? record.type : ""]
+    .find((value) => value.length > 0)
+    ?.replace(/[^A-Za-z0-9_.-]/g, "_")
+    .slice(0, 80) ?? "UnknownError";
+}
+
+function rawErrorDiagnosticCauseFields(error: unknown): Record<string, unknown> {
+  const record = rawErrorDiagnosticRecord(error);
+  const cause = rawErrorDiagnosticRecord(record.cause);
+  return {
+    diag_cause_type: typeof cause.name === "string" ? cause.name : null,
+    diag_cause_http_status: typeof cause.status === "number" ? cause.status : null,
+    diag_cause_code: typeof cause.code === "string" ? cause.code : null,
+    diag_cause_category: typeof cause.type === "string" ? cause.type : null,
+  };
+}
+
+function buildRawErrorDiagnosticFields(error: unknown): Record<string, unknown> {
+  const record = rawErrorDiagnosticRecord(error);
+  return {
+    diag_http_status: typeof record.status === "number" ? record.status : (typeof record.statusCode === "number" ? record.statusCode : null),
+    diag_error_type: rawErrorDiagnosticTypeOf(error),
+    diag_error_code: typeof record.code === "string" ? record.code : null,
+    diag_error_category: typeof record.type === "string" ? record.type : null,
+    ...rawErrorDiagnosticCauseFields(error),
+    diag_raw_message_logged: false,
+  };
+}
+// --- END TEMPORARY P0 DIAGNOSTIC ---
+
 export interface CanaryDecisionProbeInput {
   tenantId: string;
   senderRole: SenderRole;
@@ -358,6 +407,13 @@ export class ModelExecutionService {
         },
       };
     } catch (error) {
+      if (process.env.MODEL_EXECUTION_RAW_ERROR_DIAGNOSTICS_ENABLED === "true") {
+        this.logger?.warn({
+          event_type: "P0_DIAG_RAW_MODEL_EXECUTION_ERROR",
+          correlation_id: input.metadata.traceId,
+          ...buildRawErrorDiagnosticFields(error),
+        });
+      }
       if (executionId !== this.executionSequence) {
         this.lastLateResultIgnored = true;
         const lateNormalized = normalizeModelExecutionError(error);
