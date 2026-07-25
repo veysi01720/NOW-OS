@@ -1,7 +1,27 @@
 # Handover Protocol State
 
-Date: 2026-07-23
+Date: 2026-07-25 (2026-07-23 retained below)
 Timezone: Europe/Istanbul
+
+## Current Package / Step (2026-07-25)
+
+Faz 0 + Faz 0.5 commit 642e425 pushed, verified independently (90/90
+files, 617/617 tests PASS). WEBHOOK_QUEUE_MODE=dual_write activated,
+verified via 20-min live observation: shadow_queue_stats.inbound
+success_count 0->6, failure_count/error_rate always 0.
+OUTBOUND_QUEUE_MODE=off, WORKERS_ENABLED=false unchanged.
+
+Separate P0 found during observation: candidates get no real reply,
+~14s then generic fallback. See docs/architecture/now-os-kapsamli-durum-ve-plan.md
+Bolum 0-P0. Root cause: provider_unavailable in OpenAI run/poll loop.
+Network/key/OpenAI-outage/rate-limit all ruled out. Unknown since when.
+Top priority tomorrow.
+
+deployed_commit=642e4259cf0955eb41cdd0e81ee169cffc022e89
+now_os_backend_recreated_at_utc=2026-07-25T13:05:05Z
+healthz=PASS readyz=PASS
+
+## Previous State - 2026-07-23 (historical)
 
 ## Current Package / Step
 

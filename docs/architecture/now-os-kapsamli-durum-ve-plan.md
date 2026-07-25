@@ -1,6 +1,6 @@
 # Now OS — Kapsamlı Durum ve Devam Planı
 
-Tarih: 21 Temmuz 2026
+Tarih: 21 Temmuz 2026 (guncelleme 25 Temmuz - bkz Bolum 0-P0)
 Amaç: Bu sohbetin (Claude) limiti dolmadan/dolduktan sonra, Codex'in ve
 gelecekteki herhangi bir Claude oturumunun projeyi kesintisiz devam
 ettirebilmesi için tam durum özeti.
@@ -412,6 +412,47 @@ Repo kökünde `HANDOVER_PROTOCOL.md` var. Özet kural:
   yanlış sonuçlara (model "yetersiz" gibi) götürebiliyordu.
 
 ---
+
+## 0-P0. ACIL - SU AN AKTIF URETIM SORUNU (25 Temmuz 2026)
+
+Candidate'ler bota gercek mesaj attiginda cevap alamiyor, ~14sn sonra
+generic fallback aliyorlar.
+
+Kok neden: openaiAssistantClient.ts -> runs.createAndPoll cagrisi
+~13.6sn sonra provider_unavailable hatasi veriyor
+(modelExecutionErrors.ts), deterministic_transport_failure fallback'ine
+dusuyor.
+
+Elenen ihtimaller (kanitli): ag/firewall degil (VPS->OpenAI 200,
+<1sn), key gecersiz degil (ayni test), genel OpenAI kesintisi degil
+(status.openai.com operational), rate limit/auth degil (farkli hata
+kodu duserdi).
+
+Kapsam: MODEL_ADAPTER_LAYER_ENABLED=false, BEHAVIOR_CANARY_MODE=off -
+Responses API devrede degil, hata mevcut Assistants API yolunda.
+
+Ne zamandir suruyor: BILINMIYOR. Container 13:05 UTC'de yeniden
+olusturuldu, o andan sonraki HER gercek mesaj basarisiz oldu (13:15,
+13:19, 13:24, 13:29 UTC). Daha eski log/veri bulunamadi.
+
+Yarin ilk is bu olmali: runs.createAndPoll etrafina gecici ham hata
+loglama ekle.
+
+### 6.10 Faz 9 dual_write aktivasyonu (25 Temmuz 2026)
+
+Faz 0 + Faz 0.5 (shadow queue TTL/max-size eviction, media strip)
+commit 642e425, GitHub'a push edildi, bagimsiz dogrulandi (90/90
+dosya, 617/617 test PASS). VPS'te build+provenance damgalandi
+(IMAGE_PROVENANCE_LABELED=YES, 4 hash dogrulandi). Gercek .env:
+/root/deploy_package/now_os_backend_src/.env (digerleri
+kullanilmiyor). Uc satir eklendi: WEBHOOK_QUEUE_MODE=dual_write,
+OUTBOUND_QUEUE_MODE=off, WORKERS_ENABLED=false. Sadece now_os_backend
+recreate edildi (13:05:05 UTC), healthz/readyz 200, connection-doctor
+dogrulandi. 20dk gozlem: shadow_queue_stats.inbound.success_count 0->6,
+failure_count/error_rate hep 0. Sonuc: dual_write basarili ve temiz.
+Ayri, acil bir sorun kesfedildi - bkz Bolum 0-P0.
+
+**UYARI: Once Bolum 0-P0 oku - aktif acil uretim sorunu var.**
 
 **Bu dosyayı okuyan yeni bir Codex/Claude oturumu şunu yapmalı:**
 1. Bölüm 3'teki "şu anki durum"u gerçek VPS/GitHub durumuyla karşılaştırıp
