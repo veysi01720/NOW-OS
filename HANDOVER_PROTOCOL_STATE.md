@@ -26,13 +26,22 @@ not test further without touching real candidate PII. Gated temporary
 raw-error diagnostic logging added: commit dabac5c
 (MODEL_EXECUTION_RAW_ERROR_DIAGNOSTICS_ENABLED, default off, structural
 fields only, never message content). Full suite 90/90 files, 619/619
-tests PASS. NOT YET DEPLOYED - awaiting Eray's explicit approval to
-(1) build+deploy this commit and (2) enable the flag in .env, so the
-next real failure's raw error shape gets captured and a narrow fix can
-be written from evidence instead of guesswork.
+tests PASS.
 
-deployed_commit=642e4259cf0955eb41cdd0e81ee169cffc022e89
-now_os_backend_recreated_at_utc=2026-07-25T13:05:05Z
+**DEPLOYED (same day, later) - approved by Eray.** commit cc27077
+built, provenance-labeled (IMAGE_PROVENANCE_LABELED=YES, 4 hashes
+verified), only now_os_backend recreated, healthz/readyz 200.
+MODEL_EXECUTION_RAW_ERROR_DIAGNOSTICS_ENABLED=true added to .env,
+now_os_backend recreated again, healthz/readyz 200 re-verified,
+printenv confirms flag=true inside the container. Evolution/DB/
+cloaker/cloudflare untouched (uptimes unchanged - 3 days/3 weeks).
+Now WAITING for the next real candidate failure to capture the raw
+error shape (HTTP status + error class, no content) and write an
+evidence-based fix.
+
+deployed_commit=cc27077ff48466a70a0c9c8d3ed1c952c0e1c29e
+now_os_backend_recreated_at_utc=2026-07-25T20:00:00Z
+p0_diag_logging_enabled=true
 healthz=PASS readyz=PASS
 
 ## Previous State - 2026-07-23 (historical)
