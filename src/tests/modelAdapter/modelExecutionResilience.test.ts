@@ -150,10 +150,10 @@ describe("P0 temporary raw error diagnostic logging (MODEL_EXECUTION_RAW_ERROR_D
     expect(warn).not.toHaveBeenCalled();
   });
 
-  it("logs ONLY structural fields (never the raw message) when the flag is enabled", async () => {
+  it("logs structural fields plus the raw error's own .message (system/network text) when the flag is enabled", async () => {
     process.env.MODEL_EXECUTION_RAW_ERROR_DIAGNOSTICS_ENABLED = "true";
     const warn = vi.fn();
-    const rawError = new Error("do-not-log-this-message") as Error & { status?: number; code?: string; type?: string };
+    const rawError = new Error("fetch failed") as Error & { status?: number; code?: string; type?: string };
     rawError.status = 503;
     rawError.code = "server_error";
     rawError.type = "api_error";
@@ -177,9 +177,63 @@ describe("P0 temporary raw error diagnostic logging (MODEL_EXECUTION_RAW_ERROR_D
     expect(loggedEvent.diag_http_status).toBe(503);
     expect(loggedEvent.diag_error_code).toBe("server_error");
     expect(loggedEvent.diag_error_category).toBe("api_error");
+    expect(loggedEvent.diag_error_message).toBe("fetch failed");
     expect(loggedEvent.diag_raw_message_logged).toBe(false);
+  });
+
+  it("SECURITY: never leaks candidate/prompt content even when it is present elsewhere in the input, only the error's own .message", async () => {
+    process.env.MODEL_EXECUTION_RAW_ERROR_DIAGNOSTICS_ENABLED = "true";
+    const warn = vi.fn();
+    const candidateMarker = "REAL_CANDIDATE_SECRET_TEXT_MARKER_DO_NOT_LOG_9f3a";
+    const inputWithCandidateContent = {
+      ...dummyInput,
+      contextPayload: {
+        latest_message: { text: candidateMarker },
+        conversation_history: [candidateMarker],
+      } as any,
+    };
+    const rawError = new Error("socket hang up");
+    const service = new ModelExecutionService(
+      {} as AssistantClient,
+      {} as ThreadStore,
+      {
+        modelAdapterLayerEnabled: true,
+        modelAdapterCanaryMode: "off",
+        adapterFactory: () => new ErrorAdapter(rawError),
+        logger: { debug: vi.fn(), info: vi.fn(), warn, error: vi.fn(), fatal: vi.fn() },
+      }
+    );
+
+    await expect(service.execute(inputWithCandidateContent as any)).rejects.toThrow(ModelExecutionError);
+
+    expect(warn).toHaveBeenCalledTimes(1);
+    const loggedEvent = warn.mock.calls[0][0];
+    expect(loggedEvent.diag_error_message).toBe("socket hang up");
 
     const serialized = JSON.stringify(loggedEvent);
-    expect(serialized).not.toContain("do-not-log-this-message");
+    expect(serialized).not.toContain(candidateMarker);
+  });
+
+  it("caps diag_error_message at 300 characters as defense in depth", async () => {
+    process.env.MODEL_EXECUTION_RAW_ERROR_DIAGNOSTICS_ENABLED = "true";
+    const warn = vi.fn();
+    const longMessage = "x".repeat(500);
+    const rawError = new Error(longMessage);
+    const service = new ModelExecutionService(
+      {} as AssistantClient,
+      {} as ThreadStore,
+      {
+        modelAdapterLayerEnabled: true,
+        modelAdapterCanaryMode: "off",
+        adapterFactory: () => new ErrorAdapter(rawError),
+        logger: { debug: vi.fn(), info: vi.fn(), warn, error: vi.fn(), fatal: vi.fn() },
+      }
+    );
+
+    await expect(service.execute(dummyInput as any)).rejects.toThrow(ModelExecutionError);
+
+    const loggedEvent = warn.mock.calls[0][0];
+    expect(typeof loggedEvent.diag_error_message).toBe("string");
+    expect((loggedEvent.diag_error_message as string).length).toBe(300);
   });
 });
