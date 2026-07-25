@@ -44,6 +44,39 @@ now_os_backend_recreated_at_utc=2026-07-25T20:00:00Z
 p0_diag_logging_enabled=true
 healthz=PASS readyz=PASS
 
+**P0 real occurrence confirmed (same day, later).** Two real candidate
+messages hit the fallback (20:12 and 20:13 UTC). Full log trace
+confirmed via CONVERSATION_DECISION_V2_TRACE: mutation_source=
+"provider_unavailable", NOT deterministic_safety_response - this is
+genuinely the OpenAI transport failure category, not the payment/
+camera/job-definition guardrail category. REQUEST_LATENCY_BREAKDOWN
+showed model_start_to_model_result_ms=13598, matching the reported
+~13.6s pattern exactly. But P0_DIAG_RAW_MODEL_EXECUTION_ERROR showed
+ALL structural fields null (diag_error_type only "Error") - the raw
+error is a plain JS Error, not an OpenAI SDK structured error.
+
+36/36 total synthetic reproduction attempts (16 earlier + 20 more via a
+one-off message-capture probe run from inside the live container) all
+SUCCEEDED (6.4-12.4s) - could not reproduce the failure synthetically
+even once. Conclusion: this only happens under real production load
+(concurrent real traffic + dual_write + DB), not in isolation.
+
+**Approved and deployed: diag_error_message field.** commit 76f3225 -
+adds the raw Error's own .message (system/network text only, e.g.
+"fetch failed"/"ECONNRESET" - never candidate/prompt content, verified
+by a dedicated security test) to P0_DIAG_RAW_MODEL_EXECUTION_ERROR,
+capped at 300 chars. Full suite 90/90 files, 621/621 tests PASS. Built,
+provenance-labeled, only now_os_backend recreated, healthz/readyz 200,
+flag already true (no .env change needed this round). Evolution/DB/
+cloaker/cloudflare untouched.
+
+Now WAITING again for the next real failure to capture diag_error_message
+and finally get a narrow, evidence-based fix instead of guessing.
+
+deployed_commit=76f3225d66b12cf14dfec9e4cba74edb1abf6d98
+now_os_backend_recreated_at_utc=2026-07-25T20:56:00Z
+healthz=PASS readyz=PASS
+
 ## Previous State - 2026-07-23 (historical)
 
 ## Current Package / Step
