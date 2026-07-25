@@ -438,6 +438,47 @@ olusturuldu, o andan sonraki HER gercek mesaj basarisiz oldu (13:15,
 Yarin ilk is bu olmali: runs.createAndPoll etrafina gecici ham hata
 loglama ekle.
 
+**Guncelleme (25 Temmuz, ayni gun devami) - 7 adimli teshis calismasi
+tamamlandi, kok neden hala KESIN degil:**
+
+- Sentetik izole tekrar uretim: `scripts/assistantsProviderProbe.ts` ile
+  16/16 gercek OpenAI cagrisi BASARILI oldu (5 baseline + 1 uzun-thread
+  [20 mesaj seed] + 5 eszamanli + 5 canli `now_os_backend` container'i
+  icinden calistirma). Tum cagrilar gercek assistant_id, gercek
+  truncation_strategy ve gercek conversation_decision_v2
+  additional_instructions ile birebir uretim parametreleriyle yapildi.
+  Sureler 6.4-10s araliginda, hicbir hata/timeout yok - raporlanan
+  ~13.6-14.4sn basarisizlik penceresinin altinda.
+- Zamanlama: Kodun kendi timeout mekanizmasi
+  (`MODEL_EXECUTION_TIMEOUT_MS`, varsayilan 45000ms) bu yolda hic
+  calismiyor - `runModelDecision()` `timeoutEnabled`/`timeoutMs` hic
+  gecmiyor. **Hipotez (a) - kod-seviyeli yanlis yapilandirilmis
+  timeout - kesin olarak elendi.**
+- 16/16 basarili sentetik cagri, surekli/sistemik bir OpenAI-tarafi 5xx
+  sorununu (**Hipotez b**) de guclu sekilde zayiflatiyor - eger bu
+  organizasyon/assistant icin surekli bir sorun olsaydi, bu kadar
+  cagridan en az birkacinin basarisiz olmasi beklenirdi.
+- Sonuc: sorun byuk ihtimalle gercek candidate thread/trafigine ozgu bir
+  durum (Hipotez c) - orn. onceki basarisiz bir run'dan kalan thread
+  durumu, gercek serbest metin icin OpenAI moderasyon/guvenlik katmani,
+  ya da OpenAI cagrisindan ONCE webhook pipeline'inda olusan bir gecikme/
+  hata. Bunlar gercek candidate PII'ina dokunmadan test edilemedi.
+- **Adim 1 (ham hata loglama) artik gercekten uygulandi**: commit
+  `dabac5c` - `modelExecutionService.ts`'nin `executeCore()` catch
+  blogunda, `MODEL_EXECUTION_RAW_ERROR_DIAGNOSTICS_ENABLED` bayragiyla
+  (varsayilan kapali, `.env`'de yok - su an tamamen inert) sadece
+  yapisal alanlari (HTTP status, hata sinifi/type/code) loglayan gecici
+  bir mekanizma eklendi. Mesaj/prompt/candidate icerigi ASLA loglanmiyor.
+  Full suite: 90/90 dosya, 619/619 test PASS (2 yeni test bu davranisi
+  dogruluyor).
+- **HENUZ DEPLOY EDILMEDI** - P0 gate disiplini geregi Eray'in ayri
+  onayi bekleniyor. Onay gelirse: (1) bu kodu iceren image build+
+  provenance, (2) sadece `now_os_backend` recreate, (3) `.env`'e
+  `MODEL_EXECUTION_RAW_ERROR_DIAGNOSTICS_ENABLED=true` eklenmesi -
+  boylece bir sonraki gercek basarisizlikta ham hata sekli (status/type/
+  code) loglara dusecek ve dogru, dar bir duzeltme yazilabilecek.
+  Onaysiz bir "duzeltme" yazmak bu asamada spekulatif olur.
+
 ### 6.10 Faz 9 dual_write aktivasyonu (25 Temmuz 2026)
 
 Faz 0 + Faz 0.5 (shadow queue TTL/max-size eviction, media strip)

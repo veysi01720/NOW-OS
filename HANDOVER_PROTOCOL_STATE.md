@@ -15,7 +15,21 @@ Separate P0 found during observation: candidates get no real reply,
 ~14s then generic fallback. See docs/architecture/now-os-kapsamli-durum-ve-plan.md
 Bolum 0-P0. Root cause: provider_unavailable in OpenAI run/poll loop.
 Network/key/OpenAI-outage/rate-limit all ruled out. Unknown since when.
-Top priority tomorrow.
+
+**P0 investigation update (same day, later):** 7-step diagnostic done.
+16/16 synthetic real-call reproduction attempts (baseline, long-thread,
+concurrent, from inside the live container) all SUCCEEDED, 6.4-10s,
+ruling out code-level timeout (Hypothesis a, confirmed false) and
+weakening systemic OpenAI-side 5xx (Hypothesis b). Root cause likely
+specific to real candidate thread/traffic state (Hypothesis c) - could
+not test further without touching real candidate PII. Gated temporary
+raw-error diagnostic logging added: commit dabac5c
+(MODEL_EXECUTION_RAW_ERROR_DIAGNOSTICS_ENABLED, default off, structural
+fields only, never message content). Full suite 90/90 files, 619/619
+tests PASS. NOT YET DEPLOYED - awaiting Eray's explicit approval to
+(1) build+deploy this commit and (2) enable the flag in .env, so the
+next real failure's raw error shape gets captured and a narrow fix can
+be written from evidence instead of guesswork.
 
 deployed_commit=642e4259cf0955eb41cdd0e81ee169cffc022e89
 now_os_backend_recreated_at_utc=2026-07-25T13:05:05Z
