@@ -180,6 +180,23 @@ export function registerConnectionDoctorRoute(
   });
 }
 
+export function isRuntimeLockConflict(
+  oldPid: number,
+  currentPid: number,
+  isProcessAlive: (pid: number) => boolean = (pid) => {
+    try {
+      process.kill(pid, 0);
+      return true
+    } catch (error: any) {
+      return error?.code === "EPERM"
+    }
+  }
+): boolean {
+  // In a container, PID 1 is the current process. A persisted PID 1 lock
+  // from a previous container lifetime is stale, not a live second process.
+  return oldPid !== currentPid && isProcessAlive(oldPid)
+}
+
 export async function buildServer() {
   const env = loadEnv();
   validateProductionEnv(env);
@@ -193,14 +210,7 @@ export async function buildServer() {
   if (fs.existsSync(LOCK_FILE)) {
     const oldPid = parseInt(fs.readFileSync(LOCK_FILE, "utf8"), 10);
     if (!isNaN(oldPid)) {
-      let isRunning = false;
-      try {
-        process.kill(oldPid, 0);
-        isRunning = true;
-      } catch (e: any) {
-        if (e.code === "EPERM") isRunning = true;
-      }
-      
+      const isRunning = isRuntimeLockConflict(oldPid, process.pid);
       if (isRunning) {
         logger.error({ event_type: "SINGLE_INSTANCE_GUARD_FAILED", message: `Another instance is running with PID ${oldPid} on ${DATA_DIR}` });
         throw new Error(`Single Instance Guard: Another process (PID: ${oldPid}) is already running on this data directory.`);
