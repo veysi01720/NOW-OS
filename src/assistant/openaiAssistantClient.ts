@@ -1,5 +1,9 @@
 import OpenAI from "openai";
 
+const ASSISTANT_MAX_PROMPT_TOKENS = 18_000;
+const ASSISTANT_MAX_COMPLETION_TOKENS = 2_000;
+const ASSISTANT_THREAD_LAST_MESSAGES = 6;
+
 export interface AssistantClient {
   createThread(): Promise<string>;
   runAssistant(threadId: string, content: string): Promise<string>;
@@ -16,7 +20,7 @@ export interface OpenAIRuntime {
         }>;
       };
       runs: {
-        createAndPoll(threadId: string, input: { assistant_id: string; max_prompt_tokens?: number; additional_instructions?: string; truncation_strategy?: { type: "auto" | "last_messages"; last_messages?: number } }): Promise<{
+        createAndPoll(threadId: string, input: { assistant_id: string; max_prompt_tokens?: number; max_completion_tokens?: number; additional_instructions?: string; truncation_strategy?: { type: "auto" | "last_messages"; last_messages?: number } }): Promise<{
           status: string;
           id?: string;
           last_error?: unknown;
@@ -57,6 +61,8 @@ export class OpenAIAssistantClient implements AssistantClient {
 
     const run = await this.client.beta.threads.runs.createAndPoll(threadId, {
       assistant_id: this.assistantId,
+      max_prompt_tokens: ASSISTANT_MAX_PROMPT_TOKENS,
+      max_completion_tokens: ASSISTANT_MAX_COMPLETION_TOKENS,
       ...(conversationDecisionV2Run
         ? {
             additional_instructions: [
@@ -68,7 +74,7 @@ export class OpenAIAssistantClient implements AssistantClient {
             ].join("\\n"),
           }
         : {}),
-      truncation_strategy: { type: "last_messages", last_messages: 10 }
+      truncation_strategy: { type: "last_messages", last_messages: ASSISTANT_THREAD_LAST_MESSAGES }
     });
 
     if (run.status !== "completed") {
