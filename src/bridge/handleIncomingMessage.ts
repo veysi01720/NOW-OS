@@ -1126,6 +1126,7 @@ export async function handleIncomingMessage(
           error instanceof Error ? error.message : String(error),
         ),
       });
+      recordHumanHandoff(deps, message, "ASSISTANT_API_ERROR");
       const fallbackSent = await sendReply(
         message,
         ASSISTANT_SAFE_FALLBACK_REPLY,
@@ -1160,6 +1161,7 @@ export async function handleIncomingMessage(
         raw_preview: parsed.error.raw_preview,
       };
       logger[parserErrorLogMethod(parsed.error.code)](invalidLog);
+      recordHumanHandoff(deps, message, "ASSISTANT_RESPONSE_INVALID");
       const fallbackSent = await sendReply(
         message,
         ASSISTANT_SAFE_FALLBACK_REPLY,
