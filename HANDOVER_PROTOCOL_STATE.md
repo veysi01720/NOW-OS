@@ -257,3 +257,35 @@ src/tests/workspaceLock.test.ts                                  |   1 +
 - `healthz=200` and `readyz=200` after recovery; Evolution and PostgreSQL were not restarted.
 - No matching kernel/journal OOM-killer event was found for today during this check.
 - `cloudflare` was started after the reboot and reached running state.
+## End-of-Day Consolidated Report — 2026-07-26
+
+### Environment / dual_write
+- Compose production source is `/root/deploy_package/now_os_backend/.env` via `docker-compose.yml` `env_file`; `now_os_backend_src/.env` is source/test configuration only.
+- Production env was atomically corrected with mode `0600`:
+  - `WEBHOOK_QUEUE_MODE=dual_write`
+  - `OUTBOUND_QUEUE_MODE=off`
+  - `WORKERS_ENABLED=false`
+- A malformed, path-like non-environment key was present before the cleanup pass. It was a repeated Windows-path-shaped token rather than a valid `[A-Z][A-Z0-9_]*` variable name, so Docker could not treat it as a normal configuration key. Its exact origin is not proven; it was not created by the final fix. The pre-fix copy is retained in the protected backup directory.
+- After cleanup, malformed key count is zero and duplicate key count is zero.
+- Source/runtime key drift remaining: source-only `DASHBOARD_OWNER_TOKEN` and `MODEL_EXECUTION_RAW_ERROR_DIAGNOSTICS_ENABLED`; no production-only valid key remains. Values are intentionally not recorded here.
+
+### A-F closeout
+- A — runtime-lock fix `28aedc8`: backend-only recreate completed; health and readiness returned 200; no Evolution/Postgres restart.
+- B — human-handoff and structured-grounding commits `ce039bc` / `2828f45`: deployed through the backend-only path; behavior canary remains off.
+- C — Phase 8/9 capacity migration: intentionally deferred; workers remain disabled.
+- D — approved Docker cleanup completed; exited containers and reclaimable image/build cache were pruned; no active service or volume was removed.
+- E — `update_owner_priority.py` was removed after audit; it was untracked, so no deletion commit was possible. Provenance files and `package-lock.json` were preserved.
+- F — owner-priority and safety boundaries remain recorded in this state file; no candidate content, secret, phone, JID, or raw message was added to telemetry.
+
+### Runtime verification
+- Only `now_os_backend` was recreated for the env correction.
+- Container status: running/healthy, restart count zero.
+- `healthz=200`, `readyz=200`.
+- Connection Doctor: `inbound_queue_mode=dual_write`, `outbound_queue_mode=off`, `workers_enabled=false`, inbound shadow error rate zero.
+- `receiving_degraded=true` with `no_inbound_confirmed_yet`; this is expected immediately after restart until a real inbound observation arrives, not a confirmed gateway failure.
+- Evolution, PostgreSQL, WhatsApp session, cloaker, Cloudflare, webhook target, and database state were not changed.
+
+### Current decision
+- `dual_write` is active and observable.
+- Production workers remain off pending the planned observation windows.
+- No production behavior canary was armed and no real WhatsApp message was sent.
