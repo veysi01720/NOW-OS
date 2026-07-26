@@ -4,6 +4,7 @@ import type { Logger } from "../../observability/logger.js";
 import type { UserState } from "../../storage/types.js";
 import type { NormalizedIncomingMessage } from "../../bridge/normalizeEvolutionMessage.js";
 import type { ModelExecutionService } from "../../modelAdapter/modelExecutionService.js";
+import { buildRawErrorDiagnosticFields } from "../../modelAdapter/modelExecutionService.js";
 import type { ModelAdapterInput } from "../../modelAdapter/types.js";
 import {
   validateConversationDecisionV3Shape,
@@ -422,6 +423,12 @@ export async function executeConversationDecisionV2(input: {
       logMissingPolicyNormalization(input.logger, context.request_id, modelResult.normalization);
     }
   } catch (error) {
+    input.logger.warn({
+      event_type: "P0_DIAG_RAW_MODEL_EXECUTION_ERROR",
+      diagnostic_source: "conversation_decision_engine",
+      correlation_id: context.request_id,
+      ...buildRawErrorDiagnosticFields(error),
+    });
     input.logger.warn({
       event_type: "CONVERSATION_DECISION_V2_MODEL_ERROR",
       correlation_id: context.request_id,

@@ -69,7 +69,7 @@ function rawErrorDiagnosticMessage(error: unknown): string | null {
   return error.message.slice(0, 300);
 }
 
-function buildRawErrorDiagnosticFields(error: unknown): Record<string, unknown> {
+export function buildRawErrorDiagnosticFields(error: unknown): Record<string, unknown> {
   const record = rawErrorDiagnosticRecord(error);
   return {
     diag_http_status: typeof record.status === "number" ? record.status : (typeof record.statusCode === "number" ? record.statusCode : null),
