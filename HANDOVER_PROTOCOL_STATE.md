@@ -73,6 +73,16 @@ cloaker/cloudflare untouched.
 Now WAITING again for the next real failure to capture diag_error_message
 and finally get a narrow, evidence-based fix instead of guessing.
 
+**Owner priority roadmap set (same day, later) - see
+docs/architecture/now-os-kapsamli-durum-ve-plan.md, "Owner Onceligi"
+section near the top.** Eray's three priorities: Zeka (real
+grounded answers), Kapasite (100+ concurrent chats), Sureklilik (real
+human handoff on failure). Approved order: (1) provider_unavailable
+root cause + narrow fix [in progress, waiting], (2) human handoff
+mechanism, (3) V2 grounding fix, (4) Faz 9 (queue/worker) + Faz 8
+(Postgres), (5) intelligence/learning layer LAST. This order requires
+explicit owner approval to change.
+
 deployed_commit=76f3225d66b12cf14dfec9e4cba74edb1abf6d98
 now_os_backend_recreated_at_utc=2026-07-25T20:56:00Z
 healthz=PASS readyz=PASS
@@ -234,3 +244,12 @@ src/tests/workspaceLock.test.ts                                  |   1 +
 ```text
 7059928 docs: analyze ssh key-only hardening follow-up
 ```
+
+## P0 Access / OOM Incident Note — 2026-07-26
+
+- SSH key access to the VPS was confirmed; the host booted from the normal Ubuntu disk (`/dev/sda1`), not Rescue.
+- `now_os_backend` was in a restart loop because a stale `data/runtime.lock` contained PID 1; no host backend process was running.
+- The stale lock was preserved as a backup and the backend was recovered without rebuild or image replacement.
+- `healthz=200` and `readyz=200` after recovery; Evolution and PostgreSQL were not restarted.
+- No matching kernel/journal OOM-killer event was found for today during this check.
+- `cloudflare` was started after the reboot and reached running state.

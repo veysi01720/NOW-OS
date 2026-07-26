@@ -7,6 +7,30 @@ ettirebilmesi için tam durum özeti.
 
 ---
 
+## Owner Onceligi - Bundan Sonraki Her Karar Bu Cercevede
+
+Owner'in (Eray) uc onceligi: 1) Zeka - bot'un gercek bilgiye/kurala
+gore cevap vermesi (kalip cevap degil), 2) Kapasite - 100+ eszamanli
+sohbete dayaniklilik, 3) Sureklilik - hata aninda gercek insan devri.
+
+Kritik gozlem: provider_unavailable'in sadece gercek yuk altinda
+cikmasi = kapasite sorunu. Bot bu hatada gercek eyleme gecmeden
+"ekibe yonlendirdim" demesi = sureklilik eksikligi. Grounding
+eksikligi = zeka temeli. Ucu ayni kokten cikiyor.
+
+Onaylanan sira:
+1. provider_unavailable kok nedeni + dar duzeltme (su an bekleme
+   asamasinda - diag_error_message logu bir sonraki gercek hatayi
+   bekliyor)
+2. Insan devri (human handoff) mekanizmasi - gercek bildirim/eskalasyon
+3. V2 grounding fix (yapilandirilmis bilginin context'e yansimasi)
+4. Faz 9 (queue/worker) + Faz 8 (Postgres) - gercek kapasite
+5. Zeka/ogrenme katmani - saglam temel uzerine, EN SON
+
+Bu sira owner onaylidir, degistirilmeden once acik onay gerekir.
+
+---
+
 ## 1. Proje Nedir
 
 WhatsApp üzerinden candidate/owner/manager mesajlarını işleyen bir
