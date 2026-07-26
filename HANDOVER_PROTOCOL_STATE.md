@@ -80,8 +80,12 @@ grounded answers), Kapasite (100+ concurrent chats), Sureklilik (real
 human handoff on failure). Approved order: (1) provider_unavailable
 root cause + narrow fix [in progress, waiting], (2) human handoff
 mechanism, (3) V2 grounding fix, (4) Faz 9 (queue/worker) + Faz 8
-(Postgres), (5) intelligence/learning layer LAST. This order requires
+(Postgres), (5) intelligence/learning layer LAST.
+
+**Owner red line - fourth priority:** Image processing. Candidate photo/document handling is outside current scope; media is intentionally blocked by stripMediaBase64. This feature is not yet designed or implemented. This order requires
 explicit owner approval to change.
+
+**Owner red-line priorities (explicit mapping):** Intelligence (Zeka), Capacity (Kapasite), Sustainability (Surdurulebilirlik), and Image Processing (Goruntu Isleme).
 
 deployed_commit=76f3225d66b12cf14dfec9e4cba74edb1abf6d98
 now_os_backend_recreated_at_utc=2026-07-25T20:56:00Z

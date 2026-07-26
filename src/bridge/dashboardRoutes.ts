@@ -28,6 +28,7 @@ export interface DashboardDeps {
   whatsappLearningStore?: import("../store/whatsappLearningStore.js").PersistentWhatsAppLearningStore;
   whatsappVisualResearchStore?: import("../store/whatsappVisualResearchStore.js").PersistentWhatsAppVisualResearchStore;
   modelAdapterCanaryApprovalController?: ModelAdapterCanaryApprovalController;
+  humanHandoffStore?: import('../store/humanHandoffStore.js').HumanHandoffStore;
 }
 
 export function registerDashboardRoutes(app: FastifyInstance, deps: DashboardDeps): void {
@@ -135,6 +136,13 @@ export function registerDashboardRoutes(app: FastifyInstance, deps: DashboardDep
       maximum_observed_messages: result.approval.maximum_observed_messages,
       scope: result.approval.scope,
     });
+  });
+
+  app.get("/dashboard/handoffs", { preHandler: requireAuth }, async (req, reply) => {
+    if (!deps.humanHandoffStore) return reply.code(503).send({ status: "unavailable" });
+    const query = (req.query ?? {}) as { limit?: string };
+    return reply.send({ status: "ok", ...deps.humanHandoffStore.stats(),
+      handoffs: deps.humanHandoffStore.list(Number(query.limit ?? 100)), notification_mode: "disabled" });
   });
 
   app.get("/dashboard/summary", { preHandler: requireAuth }, async (req, reply) => {

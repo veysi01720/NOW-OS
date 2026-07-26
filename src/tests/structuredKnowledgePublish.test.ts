@@ -58,6 +58,16 @@ describe("structured knowledge publish", () => {
       }),
     ]));
     expect(readFileSync(resolve(dir, "app_routing_rules.md"), "utf8")).toContain("Layla (iPhone: NIVI)");
+    expect(result.manifest_path).toBe(resolve(dir, "structured_knowledge_manifest.json"));
+    expect(result.manifest_hash).toMatch(/^[a-f0-9]{64}$/);
+    expect(existsSync(resolve(dir, "structured_knowledge_manifest.json"))).toBe(true);
+    const manifest = JSON.parse(readFileSync(resolve(dir, "structured_knowledge_manifest.json"), "utf8"));
+    expect(manifest).toEqual(expect.objectContaining({
+      source_file: "app_facts.md",
+      structured_file: "app_facts_structured.json",
+      routing_rules_file: "app_routing_rules.md",
+      app_fact_count: 6,
+    }));
   });
 
   it("skips safely when app_facts.md is absent", () => {

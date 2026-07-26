@@ -12,6 +12,8 @@ export interface StructuredKnowledgePublishResult {
   app_fact_count: number;
   structured_hash: string | null;
   routing_rules_hash: string | null;
+  manifest_path: string;
+  manifest_hash: string | null;
 }
 
 function knowledgeBankDir(input?: string): string {
@@ -149,6 +151,7 @@ export function publishStructuredKnowledgeSources(options: {
   const appFactsSourcePath = resolve(dir, "app_facts.md");
   const structuredPath = resolve(dir, "app_facts_structured.json");
   const routingRulesPath = resolve(dir, "app_routing_rules.md");
+  const manifestPath = resolve(dir, "structured_knowledge_manifest.json");
 
   if (!existsSync(appFactsSourcePath)) {
     return {
@@ -160,6 +163,8 @@ export function publishStructuredKnowledgeSources(options: {
       app_fact_count: 0,
       structured_hash: null,
       routing_rules_hash: null,
+      manifest_path: manifestPath,
+      manifest_hash: null,
     };
   }
 
@@ -175,6 +180,8 @@ export function publishStructuredKnowledgeSources(options: {
       app_fact_count: 0,
       structured_hash: null,
       routing_rules_hash: null,
+      manifest_path: manifestPath,
+      manifest_hash: null,
     };
   }
 
@@ -183,6 +190,10 @@ export function publishStructuredKnowledgeSources(options: {
   mkdirSync(dirname(structuredPath), { recursive: true });
   writeFileSync(structuredPath, structuredJson, "utf8");
   writeFileSync(routingRulesPath, routingRules, "utf8");
+  const manifest = JSON.stringify({version:"1.0",generated_at:new Date().toISOString(),source_file:"app_facts.md",
+    structured_file:"app_facts_structured.json",routing_rules_file:"app_routing_rules.md",app_fact_count:facts.length,
+    structured_hash:sha256(structuredJson),routing_rules_hash:sha256(routingRules)},null,2)+"\n";
+  writeFileSync(manifestPath, manifest, "utf8");
 
   return {
     status: "published",
@@ -193,5 +204,7 @@ export function publishStructuredKnowledgeSources(options: {
     app_fact_count: facts.length,
     structured_hash: sha256(structuredJson),
     routing_rules_hash: sha256(routingRules),
+    manifest_path: manifestPath,
+    manifest_hash: sha256(manifest),
   };
 }

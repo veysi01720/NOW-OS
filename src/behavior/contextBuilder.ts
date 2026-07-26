@@ -201,6 +201,12 @@ export function buildBehaviorOrchestratedContext(
       summary: sanitizeSummary(state.summary),
     },
     recent_messages: recentMessages(context),
+    grounding_facts: context.structured_facts ? {
+      source_status: context.structured_facts.app_facts_source_status,
+      source_hash: context.structured_facts.app_facts_source_hash,
+      app_facts: context.structured_facts.app_facts,
+      errors: context.structured_facts.errors,
+    } : undefined,
     retrieved_knowledge_summary: context.answer_plan
       ? {
           source_count: context.answer_plan.source_count,

@@ -13,6 +13,8 @@ import type { BackendContextPayloadV1 } from "../contracts/backendContextPayload
 import { ModelExecutionService } from "../modelAdapter/modelExecutionService.js";
 import { executeConversationDecisionV2 } from "../intelligence/conversation/ConversationDecisionEngine.js";
 import type { Logger, LogInput } from "../observability/logger.js";
+import { createHash } from "node:crypto";
+import type { HumanHandoffStore } from "../store/humanHandoffStore.js";
 import type { UserRunLock } from "../queue/userRunLock.js";
 import type { MemoryStore } from "../storage/memoryStore.js";
 import type { MessageDedupeStore } from "../storage/messageDedupeStore.js";
@@ -93,6 +95,7 @@ export interface HandleIncomingMessageDeps {
   userRunLock: UserRunLock;
   logger: Logger;
   nowMs?: () => number;
+  humanHandoffStore?: HumanHandoffStore;
 }
 export interface HandleIncomingMessageResult {
   status:
@@ -198,6 +201,14 @@ function applyBehaviorQualityGuard(input: {
     fallbackUsed: true,
     status: "fallback_sent",
   };
+}
+
+function recordHumanHandoff(deps: HandleIncomingMessageDeps, message: NormalizedIncomingMessage, reasonCode: string): void {
+  if (!deps.humanHandoffStore) return;
+  const key = message.chat_type === "private" ? message.phone_number : message.remote_jid;
+  deps.humanHandoffStore.create({ tenant_id: "now_os", reason_code: reasonCode,
+    conversation_key_hash: createHash("sha256").update(key).digest("hex"),
+    source_correlation_id: message.correlation_id });
 }
 
 function modelExecutionServiceFor(deps: HandleIncomingMessageDeps): ModelExecutionService {
@@ -997,6 +1008,7 @@ export async function handleIncomingMessage(
           event_type: "CONVERSATION_DECISION_V2_ERROR",
           error: redactSecrets(error instanceof Error ? error.message : String(error)),
         });
+        recordHumanHandoff(deps, message, "MODEL_UNABLE_TO_COMPLETE");
         const fallbackSent = await sendReply(
           message,
           ASSISTANT_SAFE_FALLBACK_REPLY,
