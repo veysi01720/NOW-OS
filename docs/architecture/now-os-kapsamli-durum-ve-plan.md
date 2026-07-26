@@ -525,3 +525,5 @@ Ayri, acil bir sorun kesfedildi - bkz Bolum 0-P0.
 2. Bölüm 6'daki kısa vade adımlarına devam et.
 3. Bölüm 9'daki güvenlik kurallarını hiç ihlal etme.
 4. Bölüm 7'deki backlog'u, Owner (Eray) açıkça istemeden başlatma.
+
+> **DİKKAT - Production env kaynağı:** `/root/deploy_package/now_os_backend/.env` gerçek production env dosyasıdır ve Compose `now_os_backend` servisini bu dosyadan başlatır. `/root/deploy_package/now_os_backend_src/.env` yalnızca canonical kaynak kod deposunun yerel/test ayarlarıdır. Production ayarı değiştirilecekse her zaman `now_os_backend/.env` düzenlenmelidir; source `.env` tek başına runtime ayarı değildir. İki dosyayı symlink ile birleştirmek secret kapsamı ve source/runtime ayrımı nedeniyle bu aşamada kullanılmamalıdır.
