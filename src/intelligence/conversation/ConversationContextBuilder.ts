@@ -89,6 +89,12 @@ export function buildConversationDecisionContext(input: {
     },
     facts_extracted_from_current_message: [...input.capturedFields],
     canonical_policy_facts: policy.facts,
+    structured_facts: input.backendContext.structured_facts ?? {
+      app_facts_source_status: "missing",
+      app_facts_source_hash: null,
+      app_facts: [],
+      errors: ["app_facts_structured.json missing from backend context"],
+    },
     allowed_actions: allowedActions.allowed,
     forbidden_actions: allowedActions.forbidden,
     runtime_constraints: {

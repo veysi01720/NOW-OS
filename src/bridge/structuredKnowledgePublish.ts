@@ -1,10 +1,11 @@
 import { createHash } from "node:crypto";
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import type { StructuredAppFact } from "./structuredAppFacts.js";
 
 export interface StructuredKnowledgePublishResult {
-  status: "published" | "skipped_missing_app_facts" | "skipped_no_valid_rows";
+  status: "published" | "dry_run" | "blocked_no_owner_approval" | "skipped_missing_app_facts" | "skipped_no_valid_rows";
+  mode: "dry_run" | "activate";
   knowledge_bank_dir: string;
   app_facts_source_path: string;
   structured_path: string;
@@ -14,6 +15,9 @@ export interface StructuredKnowledgePublishResult {
   routing_rules_hash: string | null;
   manifest_path: string;
   manifest_hash: string | null;
+  source_hash: string | null;
+  rollback_pointer_ready: boolean;
+  dry_run_id: string | null;
 }
 
 function knowledgeBankDir(input?: string): string {
@@ -22,6 +26,12 @@ function knowledgeBankDir(input?: string): string {
 
 function sha256(content: string): string {
   return createHash("sha256").update(content).digest("hex");
+}
+
+function atomicWrite(path: string, content: string): void {
+  const temporaryPath = `${path}.tmp-${process.pid}`;
+  writeFileSync(temporaryPath, content, "utf8");
+  renameSync(temporaryPath, path);
 }
 
 function compact(value: string | undefined): string {
@@ -146,8 +156,13 @@ function buildRoutingRules(facts: StructuredAppFact[]): string {
 
 export function publishStructuredKnowledgeSources(options: {
   knowledgeBankDir?: string;
+  mode?: "dry_run" | "activate";
+  ownerApproval?: boolean;
+  dryRunId?: string;
 } = {}): StructuredKnowledgePublishResult {
   const dir = knowledgeBankDir(options.knowledgeBankDir);
+  const mode = options.mode ?? "activate";
+  const dryRunId = options.dryRunId ?? `structured_${Date.now()}`;
   const appFactsSourcePath = resolve(dir, "app_facts.md");
   const structuredPath = resolve(dir, "app_facts_structured.json");
   const routingRulesPath = resolve(dir, "app_routing_rules.md");
@@ -156,6 +171,7 @@ export function publishStructuredKnowledgeSources(options: {
   if (!existsSync(appFactsSourcePath)) {
     return {
       status: "skipped_missing_app_facts",
+      mode,
       knowledge_bank_dir: dir,
       app_facts_source_path: appFactsSourcePath,
       structured_path: structuredPath,
@@ -165,6 +181,9 @@ export function publishStructuredKnowledgeSources(options: {
       routing_rules_hash: null,
       manifest_path: manifestPath,
       manifest_hash: null,
+      source_hash: null,
+      rollback_pointer_ready: false,
+      dry_run_id: mode === "dry_run" ? dryRunId : null,
     };
   }
 
@@ -173,6 +192,7 @@ export function publishStructuredKnowledgeSources(options: {
   if (facts.length === 0) {
     return {
       status: "skipped_no_valid_rows",
+      mode,
       knowledge_bank_dir: dir,
       app_facts_source_path: appFactsSourcePath,
       structured_path: structuredPath,
@@ -182,29 +202,67 @@ export function publishStructuredKnowledgeSources(options: {
       routing_rules_hash: null,
       manifest_path: manifestPath,
       manifest_hash: null,
+      source_hash: sha256(markdown),
+      rollback_pointer_ready: false,
+      dry_run_id: mode === "dry_run" ? dryRunId : null,
+    };
+  }
+
+  if (mode === "activate" && options.ownerApproval !== true) {
+    return {
+      status: "blocked_no_owner_approval",
+      mode,
+      knowledge_bank_dir: dir,
+      app_facts_source_path: appFactsSourcePath,
+      structured_path: structuredPath,
+      routing_rules_path: routingRulesPath,
+      app_fact_count: facts.length,
+      structured_hash: null,
+      routing_rules_hash: null,
+      manifest_path: manifestPath,
+      manifest_hash: null,
+      source_hash: sha256(markdown),
+      rollback_pointer_ready: false,
+      dry_run_id: null,
     };
   }
 
   const structuredJson = buildStructuredJson(facts);
   const routingRules = buildRoutingRules(facts);
-  mkdirSync(dirname(structuredPath), { recursive: true });
-  writeFileSync(structuredPath, structuredJson, "utf8");
-  writeFileSync(routingRulesPath, routingRules, "utf8");
+  const targetDir = mode === "dry_run" ? resolve(dir, "structured_publish_dry_runs", dryRunId) : dir;
+  const targetStructuredPath = resolve(targetDir, "app_facts_structured.json");
+  const targetRoutingRulesPath = resolve(targetDir, "app_routing_rules.md");
+  const targetManifestPath = resolve(targetDir, "structured_knowledge_manifest.json");
+  mkdirSync(dirname(targetStructuredPath), { recursive: true });
+  atomicWrite(targetStructuredPath, structuredJson);
+  atomicWrite(targetRoutingRulesPath, routingRules);
+  const previousManifest = existsSync(manifestPath) ? readFileSync(manifestPath, "utf8") : "";
   const manifest = JSON.stringify({version:"1.0",generated_at:new Date().toISOString(),source_file:"app_facts.md",
     structured_file:"app_facts_structured.json",routing_rules_file:"app_routing_rules.md",app_fact_count:facts.length,
-    structured_hash:sha256(structuredJson),routing_rules_hash:sha256(routingRules)},null,2)+"\n";
-  writeFileSync(manifestPath, manifest, "utf8");
+    source_hash:sha256(markdown), structured_hash:sha256(structuredJson),routing_rules_hash:sha256(routingRules),
+    previous_manifest_hash: previousManifest ? sha256(previousManifest) : null,
+    rollback_pointer_ready: previousManifest.length > 0 || mode === "dry_run",
+    activation_mode: mode},null,2)+"\n";
+  atomicWrite(targetManifestPath, manifest);
+  if (mode === "activate") {
+    const rollbackPath = resolve(dir, "structured_knowledge_rollback.json");
+    atomicWrite(rollbackPath, `${JSON.stringify({ previous_manifest_hash: previousManifest ? sha256(previousManifest) : null, candidate_manifest_hash: sha256(manifest), rollback_ready: true }, null, 2)}\n`);
+  }
 
   return {
-    status: "published",
+    status: mode === "dry_run" ? "dry_run" : "published",
+    mode,
     knowledge_bank_dir: dir,
     app_facts_source_path: appFactsSourcePath,
-    structured_path: structuredPath,
-    routing_rules_path: routingRulesPath,
+    structured_path: targetStructuredPath,
+    routing_rules_path: targetRoutingRulesPath,
     app_fact_count: facts.length,
     structured_hash: sha256(structuredJson),
     routing_rules_hash: sha256(routingRules),
-    manifest_path: manifestPath,
+    manifest_path: targetManifestPath,
     manifest_hash: sha256(manifest),
+    source_hash: sha256(markdown),
+    rollback_pointer_ready: previousManifest.length > 0 || mode === "dry_run",
+    dry_run_id: mode === "dry_run" ? dryRunId : null,
   };
 }

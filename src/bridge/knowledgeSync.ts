@@ -154,7 +154,9 @@ export function writeKnowledgeBankTarget(patches: KnowledgePatch[]): void {
 
   writeFileSync(mdPath, mdContent, "utf-8");
 
-  const structuredPublish = publishStructuredKnowledgeSources({ knowledgeBankDir: knowledgeBankDir() });
+  // This path is reached only after the owner/manager-approved knowledge sync
+  // action; the derived structured artifacts still use atomic/hash-gated writes.
+  const structuredPublish = publishStructuredKnowledgeSources({ knowledgeBankDir: knowledgeBankDir(), mode: "activate", ownerApproval: true });
   logger.info({
     event_type: "STRUCTURED_KNOWLEDGE_PUBLISH_AUDIT",
     action: "publish_derived_structured_sources",

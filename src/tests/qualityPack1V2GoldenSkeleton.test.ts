@@ -199,7 +199,11 @@ describe("Quality Pack 1 V2 golden skeletons", () => {
     expect(decisionContext.canonical_policy_facts.map((fact: any) => fact.id)).toContain("structured_app_job_definition_layla");
     expect(decisionContext.canonical_policy_facts.map((fact: any) => fact.id)).toContain("candidate_default_work_model");
     expect(JSON.stringify(decisionContext.canonical_policy_facts)).toContain("Layla (iPhone: NIVI)");
-    expect(prompt).toContain("Use only canonical_policy_facts and candidate_state.");
+    expect(decisionContext.structured_facts.app_facts_source_status).toBe("loaded");
+    expect(JSON.stringify(decisionContext.structured_facts.app_facts)).toContain("Layla");
+    expect(JSON.stringify(decisionContext.structured_facts.app_facts)).toContain("NIVI");
+    expect(prompt).toContain("Use only canonical_policy_facts, structured_facts, candidate_state, and the latest user message.");
+    expect(prompt).toContain("structured_facts is backend-owned official grounding");
   });
 
   it("grounds the deterministic V2 job-definition answer in structured facts", async () => {

@@ -95,7 +95,8 @@ function buildDecisionPrompt(context: ConversationDecisionContext, repairInput?:
       }
     }),
     "Answer the latest user message first.",
-    "Use only canonical_policy_facts and candidate_state.",
+    "Use only canonical_policy_facts, structured_facts, candidate_state, and the latest user message.",
+    "structured_facts is backend-owned official grounding. Copy approved app names, iPhone names, codes, and capabilities exactly; never invent or override it with model knowledge.",
     "Treat canonical_policy_facts as atomic facts, not as a ready-made reply.",
     "Do not ask known age/gender/daily_hours again.",
     "If latest_message.inferred_intent is clarify_previous_explanation, do not repeat the previous assistant reply; explain it in simpler, more concrete words.",
@@ -113,7 +114,7 @@ function buildDecisionPrompt(context: ConversationDecisionContext, repairInput?:
     "Use at most one question.",
     "Do not offer setup, link, invite code, phone setup or profile setup before work_model_acceptance=accepted.",
     "Do not use generic closings.",
-    "Do not invent account/profile/platform rules not present in canonical_policy_facts.",
+    "Do not invent account/profile/platform rules not present in canonical_policy_facts or structured_facts.",
     repairInput ? `Repair required. Previous output failed reason codes: ${repairInput.reasonCodes.join(", ")}` : "",
     repairInput?.reasonCodes.includes("JOB_EXPLANATION_INCOMPLETE")
       ? [
@@ -128,7 +129,7 @@ function buildDecisionPrompt(context: ConversationDecisionContext, repairInput?:
         ].join("\n")
       : "",
     repairInput?.reasonCodes.includes("UNGROUNDED_APP_SELECTION")
-      ? "For UNGROUNDED_APP_SELECTION repair, remove app/platform names unless they are explicitly present in canonical_policy_facts or candidate_state.selected_app."
+      ? "For UNGROUNDED_APP_SELECTION repair, remove app/platform names unless they are explicitly present in canonical_policy_facts, structured_facts, or candidate_state.selected_app."
       : "",
     repairInput?.reasonCodes.includes("GENERIC_CONVERSATION_CLOSER")
       ? "For GENERIC_CONVERSATION_CLOSER repair, remove the generic closing and replace it with the concrete next operational step only."

@@ -1,4 +1,5 @@
 import type { UserState } from "../../storage/types.js";
+import type { StructuredFactsContext } from "../../contracts/backendContextPayload.js";
 
 export type ConversationDecisionAction =
   | "answer_user_question"
@@ -58,6 +59,7 @@ export interface ConversationDecisionContext {
   };
   facts_extracted_from_current_message: string[];
   canonical_policy_facts: ConversationPolicyFact[];
+  structured_facts: StructuredFactsContext;
   allowed_actions: ConversationDecisionAction[];
   forbidden_actions: ConversationDecisionAction[] | string[];
   runtime_constraints: {

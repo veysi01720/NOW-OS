@@ -40,7 +40,7 @@ describe("structured knowledge publish", () => {
   it("writes structured facts and routing rules from app_facts.md", () => {
     const dir = makeKnowledgeBank();
 
-    const result = publishStructuredKnowledgeSources({ knowledgeBankDir: dir });
+    const result = publishStructuredKnowledgeSources({ knowledgeBankDir: dir, mode: "activate", ownerApproval: true });
 
     expect(result.status).toBe("published");
     expect(result.app_fact_count).toBe(6);
@@ -61,6 +61,7 @@ describe("structured knowledge publish", () => {
     expect(result.manifest_path).toBe(resolve(dir, "structured_knowledge_manifest.json"));
     expect(result.manifest_hash).toMatch(/^[a-f0-9]{64}$/);
     expect(existsSync(resolve(dir, "structured_knowledge_manifest.json"))).toBe(true);
+    expect(existsSync(resolve(dir, "structured_knowledge_rollback.json"))).toBe(true);
     const manifest = JSON.parse(readFileSync(resolve(dir, "structured_knowledge_manifest.json"), "utf8"));
     expect(manifest).toEqual(expect.objectContaining({
       source_file: "app_facts.md",
@@ -68,6 +69,35 @@ describe("structured knowledge publish", () => {
       routing_rules_file: "app_routing_rules.md",
       app_fact_count: 6,
     }));
+  });
+
+  it("creates a hash-gated dry-run without mutating active structured facts", () => {
+    const dir = makeKnowledgeBank();
+    publishStructuredKnowledgeSources({ knowledgeBankDir: dir, mode: "activate", ownerApproval: true });
+    const activePath = resolve(dir, "app_facts_structured.json");
+    const activeBefore = readFileSync(activePath, "utf8");
+
+    const result = publishStructuredKnowledgeSources({
+      knowledgeBankDir: dir,
+      mode: "dry_run",
+      dryRunId: "structured_test_run",
+    });
+
+    expect(result.status).toBe("dry_run");
+    expect(result.rollback_pointer_ready).toBe(true);
+    expect(result.source_hash).toMatch(/^[a-f0-9]{64}$/);
+    expect(result.manifest_hash).toMatch(/^[a-f0-9]{64}$/);
+    expect(readFileSync(activePath, "utf8")).toBe(activeBefore);
+    expect(result.structured_path).toContain("structured_publish_dry_runs");
+    expect(existsSync(result.manifest_path)).toBe(true);
+  });
+
+  it("requires explicit approval before activating derived structured facts", () => {
+    const dir = makeKnowledgeBank();
+    const result = publishStructuredKnowledgeSources({ knowledgeBankDir: dir, mode: "activate" });
+
+    expect(result.status).toBe("blocked_no_owner_approval");
+    expect(result.rollback_pointer_ready).toBe(false);
   });
 
   it("skips safely when app_facts.md is absent", () => {
