@@ -355,6 +355,12 @@ Bu bölüm sadece değerlendirmedir; canary AÇILMADI, owner approval TETİKLENM
 
 Öncelik sırasına göre, hiçbiri şu an aktif değil:
 
+**Güvenlik backlog notu:** `ownerApproval:true` structured knowledge
+activation kodunda sabit ve gerçek owner kimlik doğrulamasına bağlı değil.
+Kod veya dosya erişimi olan biri WhatsApp approval yolunu atlayarak bu
+fonksiyonu çağırabilir. İleride gerçek bir approval token/imza mekanizması
+eklenmeli. Bu not mevcut activation akışını bu oturumda değiştirmez.
+
 1. **İkinci model sağlayıcısı** (Claude/Gemini gibi): yeni adapter +
    23 senaryo qualification + ayrı canary turu. Tahmini 3-5 iş günü
    (altyapı hazır olduğu için hızlı). Deadline'a dokunmadan yapılabilir.
