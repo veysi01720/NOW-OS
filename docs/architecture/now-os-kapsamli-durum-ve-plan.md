@@ -543,3 +543,5 @@ Ayri, acil bir sorun kesfedildi - bkz Bolum 0-P0.
 4. Bölüm 7'deki backlog'u, Owner (Eray) açıkça istemeden başlatma.
 
 > **DİKKAT - Production env kaynağı:** `/root/deploy_package/now_os_backend/.env` gerçek production env dosyasıdır ve Compose `now_os_backend` servisini bu dosyadan başlatır. `/root/deploy_package/now_os_backend_src/.env` yalnızca canonical kaynak kod deposunun yerel/test ayarlarıdır. Production ayarı değiştirilecekse her zaman `now_os_backend/.env` düzenlenmelidir; source `.env` tek başına runtime ayarı değildir. İki dosyayı symlink ile birleştirmek secret kapsamı ve source/runtime ayrımı nedeniyle bu aşamada kullanılmamalıdır.
+
+> **KRİTİK - Compose override env ayrışması:** `docker-compose.yml` temel dosyası `now_os_backend/.env` kullanırken production override `now_os_backend_src/.env` kullanıyor. Bu ayrışma dual_write, bozuk env satırı ve OpenAI API key olaylarında tekrar eden karışıklık riski oluşturdu. ÖNCELİKLİ TODO: iki env dosyası tek ve net bir production kaynağında birleştirilmeli veya override'ın hangi env dosyasını kullandığı tek bir standarda indirilmelidir; iki dosya değişiklik sonrasında hash ile senkron kontrol edilmelidir.
