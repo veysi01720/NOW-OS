@@ -1,5 +1,5 @@
 import type { UserState } from "../../storage/types.js";
-import type { StructuredAppFact } from "../../bridge/structuredAppFacts.js";
+import type { StructuredAppFact, StructuredGeneralWorkModel } from "../../bridge/structuredAppFacts.js";
 import type { ConversationPolicyFact } from "../conversation/ConversationDecisionSchema.js";
 
 export interface CandidatePolicyResolution {
@@ -64,16 +64,19 @@ export function resolveCandidatePolicy(
   state: UserState,
   allowedApps: string[],
   structuredFacts: StructuredAppFact[] = [],
+  generalWorkModel: StructuredGeneralWorkModel | null = null,
+  intent: string | null = null,
 ): CandidatePolicyResolution {
   const facts: ConversationPolicyFact[] = [];
-  const structuredFact = selectStructuredFact(state, allowedApps, structuredFacts);
+  const useGeneralWorkModel = intent === "ask_job_definition" && generalWorkModel !== null;
+  if (useGeneralWorkModel) facts.push(structuredGeneralWorkModelFact(generalWorkModel));
+  const structuredFact = useGeneralWorkModel ? null : selectStructuredFact(state, allowedApps, structuredFacts);
   if (structuredFact) facts.push(structuredJobDefinitionFact(structuredFact));
-  const app = structuredFact?.app ?? allowedApps.find((item) => item.toLocaleLowerCase("tr-TR") === "layla") ?? allowedApps[0] ?? null;
+  const app = useGeneralWorkModel
+    ? null
+    : structuredFact?.app ?? allowedApps.find((item) => item.toLocaleLowerCase("tr-TR") === "layla") ?? allowedApps[0] ?? null;
 
-  if (state.gender === "erkek" || state.gender === "male") {
-    if (!app) {
-      return { facts, policyMissing: true, secondary_apps: ["Chatta"] };
-    }
+  if ((state.gender === "erkek" || state.gender === "male") && app) {
     facts.push({
       id: "male_candidate_work_model",
       topic: "male_candidate_work_model",
@@ -125,7 +128,7 @@ export function resolveCandidatePolicy(
     version: "conversation_v2"
   });
 
-  if (!facts.some((fact) => fact.id === "candidate_default_work_model") && app) {
+  if (!facts.some((fact) => fact.id === "candidate_default_work_model") && app && !useGeneralWorkModel) {
     facts.push({
       id: "candidate_default_work_model",
       topic: "candidate_work_model",
@@ -139,4 +142,22 @@ export function resolveCandidatePolicy(
   }
 
   return { facts, policyMissing: facts.length === 0, secondary_apps: ["Chatta"] };
+}
+
+function structuredGeneralWorkModelFact(model: StructuredGeneralWorkModel): ConversationPolicyFact {
+  const content = [
+    `General work model: ${model.summary}`,
+    `Workflow: ${model.workflow}`,
+    `Earnings policy: ${model.earnings_policy}`,
+    `Payment policy: ${model.payment_policy}`,
+    `Setup boundary: ${model.setup_boundary}`,
+  ].join(" ");
+  return {
+    id: "general_work_model",
+    topic: "general_work_model",
+    fact: content,
+    content,
+    source: "knowledge_bank",
+    version: "app_facts_structured.json",
+  };
 }

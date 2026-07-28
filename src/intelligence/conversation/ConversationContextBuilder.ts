@@ -41,10 +41,13 @@ export function buildConversationDecisionContext(input: {
   const state = input.backendContext.state;
   const intakeComplete = state.age !== null && state.gender !== null && state.daily_hours !== null;
   const allowedActions = resolveAllowedActions(state);
+  const inferredIntent = inferConversationIntent(input.message.text);
   const policy = resolveCandidatePolicy(
     state,
     input.env.approvedApps,
     input.backendContext.structured_facts?.app_facts ?? [],
+    input.backendContext.structured_facts?.general_work_model ?? null,
+    inferredIntent,
   );
   const recent: Array<{ role: "user" | "assistant"; text: string }> = [];
   const max = Math.max(
@@ -57,8 +60,6 @@ export function buildConversationDecisionContext(input: {
     if (userText) recent.push({ role: "user", text: userText });
     if (assistantText) recent.push({ role: "assistant", text: assistantText });
   }
-  const inferredIntent = inferConversationIntent(input.message.text);
-
   return {
     request_id: input.message.correlation_id,
     decision_version: "conversation_v2",

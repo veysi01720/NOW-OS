@@ -196,9 +196,9 @@ describe("Quality Pack 1 V2 golden skeletons", () => {
     expect(backendContext.structured_facts.app_facts_source_status).toBe("loaded");
     expect(JSON.stringify(backendContext.structured_facts.app_facts)).toContain("NIVI");
     expect(decisionContext.latest_message.inferred_intent).toBe("ask_job_definition");
-    expect(decisionContext.canonical_policy_facts.map((fact: any) => fact.id)).toContain("structured_app_job_definition_layla");
-    expect(decisionContext.canonical_policy_facts.map((fact: any) => fact.id)).toContain("candidate_default_work_model");
-    expect(JSON.stringify(decisionContext.canonical_policy_facts)).toContain("Layla (iPhone: NIVI)");
+    expect(decisionContext.canonical_policy_facts.map((fact: any) => fact.id)).toContain("general_work_model");
+    expect(decisionContext.canonical_policy_facts.map((fact: any) => fact.id)).not.toContain("structured_app_job_definition_layla");
+    expect(JSON.stringify(decisionContext.canonical_policy_facts)).toContain("Çalışma telefon ve uygulama üzerinden ilerler");
     expect(decisionContext.structured_facts.app_facts_source_status).toBe("loaded");
     expect(JSON.stringify(decisionContext.structured_facts.app_facts)).toContain("Layla");
     expect(JSON.stringify(decisionContext.structured_facts.app_facts)).toContain("NIVI");
@@ -229,8 +229,9 @@ describe("Quality Pack 1 V2 golden skeletons", () => {
 
     const reply = deps.sender.sends[0]?.text ?? "";
     const normalizedReply = normalizedText(reply);
-    expect(reply).toContain("Layla (iPhone: NIVI)");
-    expect(normalizedReply).toContain("gelen sohbet veya mesajlara yaziyla");
+    expect(normalizedReply).toContain("telefon ve uygulama");
+    expect(normalizedReply).not.toContain("Layla");
+    expect(normalizedReply).toContain("uygulama icindeki kisilerle sohbet edilir");
     expect(normalizedReply).toContain("kamera");
     expect(normalizedReply).toContain("zorunlu");
     expect(normalizedReply).not.toMatch(/kazanc|odeme|garanti|kesin/u);
@@ -238,7 +239,7 @@ describe("Quality Pack 1 V2 golden skeletons", () => {
       expect.objectContaining({
         event_type: "CONVERSATION_DECISION_V2_TRACE",
         final_reply_origin: "deterministic_safety_response",
-        mutation_source: "deterministic_safety_response",
+        mutation_source: "final_validation_safety_response",
         quality_reason_codes: expect.arrayContaining(["JOB_EXPLANATION_INCOMPLETE"]),
       }),
     ]));
@@ -377,7 +378,7 @@ describe("Quality Pack 1 V2 golden skeletons", () => {
     await handleIncomingMessage(candidateMessage("is nedir?", "new-lead-parrot"), deps);
 
     expect(deps.sender.sends).toHaveLength(1);
-    expect(deps.sender.sends[0]?.text).toBe(repairedReply);
+    expect(deps.sender.sends[0]?.text).toContain("telefon ve uygulama");
     expect(deps.sender.sends[0]?.text).not.toBe(liveDuplicateReply);
     expect(deps.assistantClient.runCalls).toHaveLength(2);
     expect(deps.logger.events).toEqual(expect.arrayContaining([
@@ -386,7 +387,7 @@ describe("Quality Pack 1 V2 golden skeletons", () => {
         dialogue_phase: "NEW_LEAD",
         intent: "ask_job_definition",
         quality_reason_codes: expect.arrayContaining(["RECENT_REPLY_REPEATED"]),
-        mutation_source: "model_repair",
+        mutation_source: "final_validation_safety_response",
       }),
     ]));
   });

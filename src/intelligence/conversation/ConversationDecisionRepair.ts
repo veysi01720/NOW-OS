@@ -138,6 +138,7 @@ function nextActionFor(context: ConversationDecisionContext): ConversationDecisi
 
 function buildJobDefinitionSafetyDecision(context: ConversationDecisionContext): ConversationDecision {
   const app = approvedAppFromFacts(context);
+  const generalWorkModel = context.structured_facts.general_work_model;
   const latest = normalize(context.latest_message.text);
   const asksEarnings = /(kazanc|kazanç|para|odeme|ödeme|puan)/u.test(latest);
   const missing: string[] = [];
@@ -146,6 +147,7 @@ function buildJobDefinitionSafetyDecision(context: ConversationDecisionContext):
   if (context.candidate_state.daily_hours === null) missing.push("günlük ayırabileceğin süre");
 
   const appPart = app ? `${app} içinde ` : "Onaylı uygulama içinde ";
+  const generalSummary = generalWorkModel?.summary ? `${generalWorkModel.summary} ` : "";
   const nextPart = missing.length > 0
     ? `Devam edebilmem için ${missing.join(", ")} bilgisini netleştirelim.`
     : "Bu çalışma modeli sana uygunsa kuruluma geçmeden önce bunu netleştirelim.";
@@ -153,7 +155,7 @@ function buildJobDefinitionSafetyDecision(context: ConversationDecisionContext):
     ? "Kazanç veya ödeme detayı için doğrulanmış bilgi yoksa bunu uydurmadan ekip netleştirir. "
     : "";
   const reply =
-    `İşin temel kısmı, ${appPart}gelen sohbet veya mesajlara yazıyla düzgün cevap vermek. ` +
+    `${generalSummary || `İşin temel kısmı, ${appPart}gelen sohbet veya mesajlara yazıyla düzgün cevap vermek. `}` +
     "Kamera/görüntülü çalışma zorunlu diye bir kural söylemiyoruz; mesajlaşma ağırlıklı ilerleyebilirsin. " +
     earningsPart +
     nextPart;
@@ -168,7 +170,7 @@ function buildJobDefinitionSafetyDecision(context: ConversationDecisionContext):
     ? "Kazanc veya odeme detayi icin dogrulanmis bilgi yoksa bunu uydurmadan ekip netlestirir. "
     : "";
   const groundedReply =
-    `Isin temel kismi, ${app ? `${app} icinde ` : "onayli uygulama icinde "}gelen sohbet veya mesajlara yaziyla duzgun cevap vermek. ` +
+    `${generalWorkModel?.summary ?? `Isin temel kismi, ${app ? `${app} icinde ` : "onayli uygulama icinde "}gelen sohbet veya mesajlara yaziyla duzgun cevap vermek.`} ` +
     "Kamera/goruntulu calisma zorunlu diye bir kural soylemiyoruz; mesajlasma agirlikli ilerleyebilirsin. " +
     groundedEarningsPart +
     groundedNextPart;
