@@ -17,3 +17,5 @@
 | Amar | Amar | Amar Lite | xvrgZkf6 | 10621 |  |  | owner_approved | Experienced candidate |
 | Linky | Linky | Linky | M9W5B8 |  |  |  | owner_approved | Code |
 | Soyo | Soyo | Soyo | 3997 |  | 3997 |  | owner_approved | Code |
+| Timo | Timo | Timo | VVXVUD |  |  |  | owner_approved | Secondary app option |
+| Chatta | Chatta | Chatta | XXVLX3QQ |  |  |  | owner_approved | Secondary/alternative app option |
