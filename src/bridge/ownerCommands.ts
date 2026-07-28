@@ -5,7 +5,7 @@ import type { PersistentIngestionStore } from "../storage/ingestionStore.js";
 import type { LearningSuggestion } from "../storage/ingestionTypes.js";
 import type { MaintenanceStore } from "../store/maintenanceStore.js";
 import { detectCommandPrefix, routeCoreMode, type CoreMode } from "./modeRouter.js";
-import { buildKnowledgeSyncContext } from "./knowledgeSync.js";
+import { buildKnowledgeSyncContext, detectKnowledgeSyncIntent, executeKnowledgeSyncCommand, isApprovedKnowledgeSyncCommand } from "./knowledgeSync.js";
 import { activateLearningFactDryRun, createLearningFactDryRun } from "./learningStructuredPublish.js";
 
 export interface OwnerCommandResult {
@@ -307,6 +307,16 @@ export function handleOwnerCommand(
   const learningActivation = learningActivationFromText(text);
   const duplicateLearningReject = duplicateLearningRejectFromText(text);
   if (!prefix) {
+    if (message.chat_type === "private" && isApprovedKnowledgeSyncCommand(text)) {
+      if (!ingestionStore) return commandResult("Bilgi senkronizasyonu servisi aktif değil; aktif bilgi değiştirilmedi.", "owner_knowledge_sync_unavailable");
+      const sync = executeKnowledgeSyncCommand(text, senderRole, ingestionStore!);
+      return commandResult(
+        sync.action_result?.success === true
+          ? "Bilgi senkronizasyonu tamamlandı."
+          : "Bilgi senkronizasyonu tamamlanamadı; aktif bilgi değiştirilmedi.",
+        "owner_knowledge_sync_command"
+      );
+    }
     if (message.chat_type === "private" && learningActivation) {
       const suggestion = ingestionStore?.getLearningSuggestionByShortRef(learningActivation.ref);
       const result = suggestion
@@ -343,6 +353,12 @@ export function handleOwnerCommand(
         "owner_pending_learning_list_command"
       );
     }
+    if (message.chat_type === "private" && detectKnowledgeSyncIntent(message.text)) {
+      return commandResult(
+        "Komut formatı tanınmadı. Kullanılabilir format: #komut onaylıları bilgi bankasına aktar",
+        "owner_knowledge_sync_command_not_understood"
+      );
+    }
     return { is_command: false };
   }
 
@@ -351,6 +367,17 @@ export function handleOwnerCommand(
     senderRole: senderRole as "owner" | "manager",
     chatType: message.chat_type
   });
+
+  if (prefix === "#komut" && message.chat_type === "private" && isApprovedKnowledgeSyncCommand(text)) {
+    if (!ingestionStore) return commandResult("Bilgi senkronizasyonu servisi aktif değil; aktif bilgi değiştirilmedi.", "owner_knowledge_sync_unavailable");
+    const sync = executeKnowledgeSyncCommand(text, senderRole, ingestionStore!);
+    return commandResult(
+      sync.action_result?.success === true
+        ? "Bilgi senkronizasyonu tamamlandı."
+        : "Bilgi senkronizasyonu tamamlanamadı; aktif bilgi değiştirilmedi.",
+      "owner_knowledge_sync_command"
+    );
+  }
 
   if (route.assistant_run_skipped && route.deterministic_reply && prefix !== "#komut") {
     return {
@@ -452,6 +479,13 @@ export function handleOwnerCommand(
     return commandResult(
       pendingLearningSuggestionsReply(ingestionStore),
       "owner_pending_learning_list_command"
+    );
+  }
+
+  if (message.chat_type === "private" && detectKnowledgeSyncIntent(message.text)) {
+    return commandResult(
+      "Komut formatı tanınmadı. Kullanılabilir format: #komut onaylıları bilgi bankasına aktar",
+      "owner_knowledge_sync_command_not_understood"
     );
   }
 

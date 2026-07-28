@@ -52,6 +52,7 @@ export interface KnowledgeSyncContext {
 
 export function detectKnowledgeSyncIntent(text: string): boolean {
   const lower = text.toLowerCase();
+  if (lower.includes("bilgi bankas") && lower.includes("senkron")) return true;
   if (lower.includes("bilgi bankas") && (lower.includes("aktar") || lower.includes("sync") || lower.includes("guncelle") || lower.includes("gÃ¼ncelle"))) {
     return true;
   }
@@ -68,6 +69,26 @@ export function detectKnowledgeSyncIntent(text: string): boolean {
     "atla"
   ];
   return intents.some(intent => lower.includes(intent));
+}
+
+function normalizedKnowledgeText(text: string): string {
+  return text
+    .trim()
+    .toLocaleLowerCase("tr-TR")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/ı/g, "i")
+    .replace(/ğ/g, "g")
+    .replace(/ş/g, "s")
+    .replace(/ç/g, "c")
+    .replace(/ö/g, "o")
+    .replace(/ü/g, "u")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+export function isApprovedKnowledgeSyncCommand(text: string): boolean {
+  return normalizedKnowledgeText(text) === "onaylilari bilgi bankasina aktar";
 }
 
 export function validatePatchSafety(content: string): boolean {
@@ -194,13 +215,16 @@ export function handleSyncActions(
   text: string, 
   actorRole: string, 
   store: PersistentIngestionStore, 
-  contextResult: Partial<KnowledgeSyncContext>
+  contextResult: Partial<KnowledgeSyncContext>,
+  execute = false
 ): void {
+  if (!execute) return;
+  const normalizedText = normalizedKnowledgeText(text);
   // 1. skip patch
-  const skipMatch = text.match(/patch\s+(\d+)\s+atla/i) || text.match(/(KB-\d+)\s+atla/i);
+  const skipMatch = normalizedText.match(/patch\s+(\d+)\s+atla/i) || normalizedText.match(/(kb-\d+)\s+atla/i);
   if (skipMatch) {
-    const rawRef = skipMatch[1];
-    const ref = rawRef.startsWith("KB-") ? rawRef.toUpperCase() : `KB-${rawRef}`;
+    const rawRef = skipMatch[1].toUpperCase();
+    const ref = rawRef.startsWith("KB-") ? rawRef : `KB-${rawRef}`;
     const patch = store.getKnowledgePatchByRef(ref);
     if (patch) {
       const prev = patch.sync_status;
@@ -355,7 +379,8 @@ export function buildKnowledgeSyncContext(
     data_quality_notes: []
   };
 
-  handleSyncActions(text, actorRole, store, result);
+  // Context construction is intentionally read-only. File and store mutations
+  // are performed only by executeKnowledgeSyncCommand from ownerCommands.ts.
 
   // Recalculate context counts and preview
   const patches = store.listKnowledgePatches();
@@ -414,4 +439,56 @@ export function buildKnowledgeSyncContext(
   }
 
   return result as KnowledgeSyncContext;
+}
+
+export function executeKnowledgeSyncCommand(
+  text: string,
+  actorRole: string,
+  store: PersistentIngestionStore
+): KnowledgeSyncContext {
+  const actionResult: Partial<KnowledgeSyncContext> = {};
+  if (isApprovedKnowledgeSyncCommand(text)) {
+    const suggestions = store.listLearningSuggestions().filter((suggestion) => suggestion.status === "approved");
+    let newlySynced = 0;
+    let failedSyncs = 0;
+    for (const suggestion of suggestions) {
+      let patch = store.listKnowledgePatches().find((item) => item.source_suggestion_id_internal === suggestion.suggestion_id);
+      if (!patch) {
+        patch = buildKnowledgePatchFromSuggestion(suggestion, actorRole);
+        store.saveKnowledgePatch(patch);
+      }
+      if (patch.sync_status === "synced" || patch.sync_status === "skipped") continue;
+      if (!validatePatchSafety(patch.sanitized_content) || !validatePatchSafety(patch.sanitized_title)) {
+        patch.sync_status = "failed";
+        patch.audit_note = "Safety scan blocked.";
+        failedSyncs += 1;
+      } else {
+        patch.sync_status = "synced";
+        patch.synced_at = newDateIso();
+        patch.audit_note = "Bulk synced securely.";
+        newlySynced += 1;
+        logAudit("sync_approved", actorRole, patch.patch_ref, patch.source_suggestion_ref, "pending_sync", "synced", "success");
+      }
+      store.saveKnowledgePatch(patch);
+    }
+    try {
+      if (newlySynced > 0) writeKnowledgeBankTarget(store.listKnowledgePatches());
+      actionResult.action_result = {
+        action: "sync_approved",
+        success: true,
+        message: `${newlySynced} approved items synced securely.${failedSyncs > 0 ? ` ${failedSyncs} items failed safety checks.` : ""}`.trim()
+      };
+    } catch (error) {
+      actionResult.action_result = {
+        action: "sync_approved",
+        success: false,
+        message: `Sync failed during write: ${error instanceof Error ? error.message : String(error)}`
+      };
+    }
+  } else {
+    handleSyncActions(text, actorRole, store, actionResult, true);
+  }
+  const context = buildKnowledgeSyncContext(text, actorRole, store) as KnowledgeSyncContext;
+  if (actionResult.action_result) context.action_result = actionResult.action_result;
+  return context;
 }

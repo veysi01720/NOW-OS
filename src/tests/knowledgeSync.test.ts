@@ -3,7 +3,7 @@ import { join, resolve } from "node:path";
 import { tmpdir } from "node:os";
 import { rmSync, mkdirSync, readFileSync, existsSync, mkdtempSync, writeFileSync } from "node:fs";
 import { PersistentIngestionStore } from "../storage/ingestionStore.js";
-import { buildKnowledgeSyncContext, validatePatchSafety } from "../bridge/knowledgeSync.js";
+import { buildKnowledgeSyncContext, executeKnowledgeSyncCommand, validatePatchSafety } from "../bridge/knowledgeSync.js";
 import { validAppFactsMarkdown } from "./fixtures/knowledgeBankFixture.js";
 
 describe("Knowledge Sync", () => {
@@ -50,7 +50,7 @@ describe("Knowledge Sync", () => {
     // We pass actorRole to actions.
   });
 
-  it("syncs approved items and writes idempotent target files", () => {
+  it("keeps context construction read-only and executes sync only through the owner executor", () => {
     const store = new PersistentIngestionStore(testDir);
     writeFileSync(resolve(knowledgeBankDir, "app_facts.md"), validAppFactsMarkdown(true), "utf8");
     
@@ -67,7 +67,10 @@ describe("Knowledge Sync", () => {
       created_at: new Date().toISOString()
     });
 
-    const ctx = buildKnowledgeSyncContext("onaylıları bilgi bankasına aktar", "owner", store);
+    const preview = buildKnowledgeSyncContext("onaylıları bilgi bankasına aktar", "owner", store);
+    expect(preview?.action_result).toBeUndefined();
+    expect(existsSync(resolve(knowledgeBankDir, "approved_learning.json"))).toBe(false);
+    const ctx = executeKnowledgeSyncCommand("onaylıları bilgi bankasına aktar", "owner", store);
     
     expect(ctx?.action_result?.success).toBe(true);
     expect(ctx?.synced_count).toBe(1);
@@ -88,7 +91,7 @@ describe("Knowledge Sync", () => {
     expect(jsonContent[0].source_suggestion_ref).toBe("LRN-1");
 
     // Try syncing again - idempotent behavior
-    const ctx2 = buildKnowledgeSyncContext("onaylıları bilgi bankasına aktar", "owner", store);
+    const ctx2 = executeKnowledgeSyncCommand("onaylıları bilgi bankasına aktar", "owner", store);
     expect(ctx2?.synced_count).toBe(1); // Still 1
 
     const jsonContent2 = JSON.parse(readFileSync(jsonPath, "utf-8"));
@@ -110,7 +113,7 @@ describe("Knowledge Sync", () => {
       created_at: new Date().toISOString()
     });
 
-    const ctx = buildKnowledgeSyncContext("onaylıları bilgi bankasına aktar", "owner", store);
+    const ctx = executeKnowledgeSyncCommand("onaylıları bilgi bankasına aktar", "owner", store);
     expect(ctx?.failed_count).toBe(1);
     expect(ctx?.synced_count).toBe(0);
     
@@ -135,9 +138,9 @@ describe("Knowledge Sync", () => {
     });
 
     // Create patch explicitly to test skip
-    buildKnowledgeSyncContext("onaylıları bilgi bankasına aktar", "owner", store);
+    executeKnowledgeSyncCommand("onaylıları bilgi bankasına aktar", "owner", store);
     
-    let ctx = buildKnowledgeSyncContext("KB-1 atla", "owner", store);
+    let ctx = executeKnowledgeSyncCommand("KB-1 atla", "owner", store);
     expect(ctx?.action_result?.success).toBe(true);
     expect(ctx?.skipped_count).toBe(1);
     

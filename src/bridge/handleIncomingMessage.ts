@@ -32,6 +32,7 @@ import type {
 } from "../storage/types.js";
 import type { MaintenanceStore } from "../store/maintenanceStore.js";
 import { handleOwnerCommand } from "./ownerCommands.js";
+import { guardUnbackedOwnerSuccessClaim } from "./ownerSuccessClaimGuard.js";
 import {
   checkApprovedAppGate,
   SAFE_APPROVED_APP_GATE_REPLY,
@@ -1359,7 +1360,20 @@ export async function handleIncomingMessage(
       : ownerPlatformSuggestionFailed
         ? OWNER_PLATFORM_UPDATE_QUEUE_FAILED_REPLY
         : qualityGuard.reply;
-    const addressedReply = sanitizePrivilegedReplyAddress(publicReply, backendContext.sender_role);
+    const ownerSuccessGuard = guardUnbackedOwnerSuccessClaim({
+      reply: publicReply,
+      senderRole: backendContext.sender_role,
+      executionSucceeded: backendContext.knowledge_sync?.action_result?.success === true,
+    });
+    if (ownerSuccessGuard.blocked) {
+      logger.warn({
+        event_type: "OWNER_SUCCESS_CLAIM_BLOCKED",
+        correlation_id: message.correlation_id,
+        reason: ownerSuccessGuard.reason,
+        sender_role: backendContext.sender_role,
+      });
+    }
+    const addressedReply = sanitizePrivilegedReplyAddress(ownerSuccessGuard.reply, backendContext.sender_role);
     const guard = checkApprovedAppGate(addressedReply, backendContext);
 
     const replyText = guard.ok
