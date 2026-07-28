@@ -123,7 +123,7 @@ export function buildKnowledgePatchFromSuggestion(suggestion: LearningSuggestion
   };
 }
 
-export function writeKnowledgeBankTarget(patches: KnowledgePatch[]): void {
+export function writeKnowledgeBankTarget(patches: KnowledgePatch[]) {
   // Idempotent write: read all synced patches and generate canonical JSON and MD mirror.
   const jsonPath = knowledgeBankJsonPath();
   const mdPath = knowledgeBankMdPath();
@@ -190,6 +190,8 @@ export function writeKnowledgeBankTarget(patches: KnowledgePatch[]): void {
       ? `${structuredPublish.routing_rules_hash.slice(0, 4)}***${structuredPublish.routing_rules_hash.slice(-4)}`
       : null,
   });
+
+  return structuredPublish;
 }
 
 function logAudit(action: string, actorRole: string, patchRef: string, sourceRef: string, prevStatus: string, newStatus: string, result: string, err?: string) {
@@ -348,13 +350,18 @@ export function handleSyncActions(
     }
 
     try {
-      if (newlySynced > 0) {
-        writeKnowledgeBankTarget(store.listKnowledgePatches());
-      }
+      // Direct app_facts.md changes must be activated even when no learning
+      // suggestion became newly synced in this command.
+      const structuredPublish = writeKnowledgeBankTarget(store.listKnowledgePatches());
+      const activationConfirmed = structuredPublish.status === "published"
+        && typeof structuredPublish.structured_hash === "string"
+        && typeof structuredPublish.manifest_hash === "string";
       contextResult.action_result = {
          action: "sync_approved",
-         success: true,
-         message: `${newlySynced} approved items synced securely. ${failedSyncs > 0 ? failedSyncs + " items failed safety checks." : ""}`.trim()
+         success: activationConfirmed,
+         message: activationConfirmed
+           ? `${newlySynced} approved items synced securely; structured knowledge activated. ${failedSyncs > 0 ? failedSyncs + " items failed safety checks." : ""}`.trim()
+           : `Structured knowledge activation failed: ${structuredPublish.status}. Active knowledge was not confirmed.`
       };
     } catch(e: any) {
       contextResult.action_result = {
@@ -472,11 +479,18 @@ export function executeKnowledgeSyncCommand(
       store.saveKnowledgePatch(patch);
     }
     try {
-      if (newlySynced > 0) writeKnowledgeBankTarget(store.listKnowledgePatches());
+      // Activation is intentionally independent of newlySynced: app_facts.md
+      // can also be changed through an owner-reviewed direct source update.
+      const structuredPublish = writeKnowledgeBankTarget(store.listKnowledgePatches());
+      const activationConfirmed = structuredPublish.status === "published"
+        && typeof structuredPublish.structured_hash === "string"
+        && typeof structuredPublish.manifest_hash === "string";
       actionResult.action_result = {
         action: "sync_approved",
-        success: true,
-        message: `${newlySynced} approved items synced securely.${failedSyncs > 0 ? ` ${failedSyncs} items failed safety checks.` : ""}`.trim()
+        success: activationConfirmed,
+        message: activationConfirmed
+          ? `${newlySynced} approved items synced securely; structured knowledge activated.${failedSyncs > 0 ? ` ${failedSyncs} items failed safety checks.` : ""}`.trim()
+          : `Structured knowledge activation failed: ${structuredPublish.status}. Active knowledge was not confirmed.`
       };
     } catch (error) {
       actionResult.action_result = {
