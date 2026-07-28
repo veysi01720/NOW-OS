@@ -169,11 +169,15 @@ function buildJobDefinitionSafetyDecision(context: ConversationDecisionContext):
   const groundedEarningsPart = asksEarnings
     ? "Kazanc veya odeme detayi icin dogrulanmis bilgi yoksa bunu uydurmadan ekip netlestirir. "
     : "";
-  const groundedReply =
-    `${generalWorkModel?.summary ?? `Isin temel kismi, ${app ? `${app} icinde ` : "onayli uygulama icinde "}gelen sohbet veya mesajlara yaziyla duzgun cevap vermek.`} ` +
-    "Kamera/goruntulu calisma zorunlu diye bir kural soylemiyoruz; mesajlasma agirlikli ilerleyebilirsin. " +
-    groundedEarningsPart +
-    groundedNextPart;
+  // Job-definition questions use the app-independent owner-approved summary as
+  // the complete answer. Camera/text-only boundaries belong to app-specific
+  // questions; appending them here made the fallback sound camera-first.
+  const groundedReply = generalWorkModel?.summary?.trim()
+    ? generalWorkModel.summary.trim()
+    : `${app ? `${app} icinde ` : "onayli uygulama icinde "}gelen sohbet veya mesajlara yaziyla duzgun cevap vermek. ` +
+      "Kamera/goruntulu calisma zorunlu diye bir kural soylemiyoruz; mesajlasma agirlikli ilerleyebilirsin. " +
+      groundedEarningsPart +
+      groundedNextPart;
 
   return {
     ...baseDecision(groundedReply, context, "deterministic_safety_response"),

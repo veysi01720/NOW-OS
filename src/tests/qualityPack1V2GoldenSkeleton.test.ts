@@ -232,8 +232,9 @@ describe("Quality Pack 1 V2 golden skeletons", () => {
     expect(normalizedReply).toContain("telefon ve uygulama");
     expect(normalizedReply).not.toContain("Layla");
     expect(normalizedReply).toContain("uygulama icindeki kisilerle sohbet edilir");
-    expect(normalizedReply).toContain("kamera");
-    expect(normalizedReply).toContain("zorunlu");
+    expect(reply).toBe("Çalışma telefon ve uygulama üzerinden ilerler; profil hazırlanır ve uygulama içindeki kişilerle sohbet edilir.");
+    expect(normalizedReply).not.toMatch(/^kamera/u);
+    expect(normalizedReply).not.toContain("kamera zorunlu");
     expect(normalizedReply).not.toMatch(/kazanc|odeme|garanti|kesin/u);
     expect(deps.logger.events).toEqual(expect.arrayContaining([
       expect.objectContaining({
