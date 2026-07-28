@@ -70,6 +70,8 @@ import { applyUserStateTransition } from "../storage/userStateTransitionBoundary
 import { resolveConversationModelRoute } from "./modelRoutingPolicy.js";
 import { emptyModelAdapterCanaryObservation } from "../modelAdapter/modelAdapterCanaryThresholds.js";
 import { inferConversationIntent } from "../intelligence/conversation/ConversationContextBuilder.js";
+import type { TrainingHandoffStore } from "../store/trainingHandoffStore.js";
+import { trainingOwnerDecision } from "../store/trainingHandoffStore.js";
 export interface HandleIncomingMessageDeps {
   env: EnvConfig;
   assistantClient?: {
@@ -96,6 +98,7 @@ export interface HandleIncomingMessageDeps {
   logger: Logger;
   nowMs?: () => number;
   humanHandoffStore?: HumanHandoffStore;
+  trainingHandoffStore?: TrainingHandoffStore;
 }
 export interface HandleIncomingMessageResult {
   status:
@@ -209,6 +212,32 @@ function recordHumanHandoff(deps: HandleIncomingMessageDeps, message: Normalized
   deps.humanHandoffStore.create({ tenant_id: "now_os", reason_code: reasonCode,
     conversation_key_hash: createHash("sha256").update(key).digest("hex"),
     source_correlation_id: message.correlation_id });
+}
+
+function syntheticPrivateMessage(phone: string, text: string, correlationId: string): NormalizedIncomingMessage {
+  return {
+    correlation_id: correlationId,
+    sender_id: phone,
+    phone_number: phone,
+    remote_jid: `${phone}@s.whatsapp.net`,
+    message_id: `system-${correlationId}`,
+    message_type: "text",
+    text,
+    chat_type: "private",
+    is_from_me: false,
+    is_group: false,
+    received_at: new Date().toISOString(),
+  };
+}
+
+async function notifyTrainingOwner(deps: HandleIncomingMessageDeps, text: string, correlationId: string): Promise<void> {
+  for (const phone of deps.env.ownerPhoneNumbers) {
+    try {
+      await deps.sender.sendText({ message: syntheticPrivateMessage(phone, text, correlationId), text });
+    } catch (error) {
+      deps.logger.warn({ event_type: "POST_INSTALL_TRAINING_OWNER_NOTIFICATION_FAILED", correlation_id: correlationId, error: redactSecrets(error instanceof Error ? error.message : String(error)) });
+    }
+  }
 }
 
 function modelExecutionServiceFor(deps: HandleIncomingMessageDeps): ModelExecutionService {
@@ -492,6 +521,28 @@ export async function handleIncomingMessage(
         });
   }
   /* 3) Owner Emergency Commands */
+  if (deps.trainingHandoffStore && senderRole === "owner" && message.chat_type === "private") {
+    const decision = trainingOwnerDecision(message.text);
+    const pending = deps.trainingHandoffStore.pending();
+    if (decision && pending.length === 1) {
+      const gate = pending[0];
+      if (decision.kind === "yes") {
+        deps.trainingHandoffStore.resolveYes(gate.handoff_id, "owner");
+        await sendReply(message, "Tamam. Aday için uygulama eğitimine geçiyorum.", deps);
+        return { status: "sent", correlation_id: message.correlation_id };
+      }
+      const redirectNumber = decision.number ?? "";
+      const resolved = deps.trainingHandoffStore.resolveRedirect(gate.handoff_id, redirectNumber, "owner");
+      if (!resolved) {
+        await sendReply(message, "Numara formatını net algılayamadım; eğitim kapısı beklemede.", deps);
+        return { status: "sent", correlation_id: message.correlation_id };
+      }
+      const candidateMessage = syntheticPrivateMessage(resolved.candidate_phone, "", message.correlation_id);
+      await deps.sender.sendText({ message: candidateMessage, text: `Bu konuda şu numarayla iletişime geçebilirsin: ${redirectNumber}` });
+      await sendReply(message, "Adayı verdiğin numaraya yönlendirdim.", deps);
+      return { status: "sent", correlation_id: message.correlation_id };
+    }
+  }
   const ownerCommandRes = handleOwnerCommand(
     message,
     senderRole,
@@ -587,6 +638,38 @@ export async function handleIncomingMessage(
         chat_type: message.chat_type,
         skipped_reason: stateMachineResult.skipped_reason,
       });
+    }
+    if (
+      deps.trainingHandoffStore &&
+      stateMachineResult.applied &&
+      stateMachineResult.previous_state.current_state !== "TRAINING_READY" &&
+      stateMachineResult.next_state.current_state === "TRAINING_READY"
+    ) {
+      const gate = deps.trainingHandoffStore.create({
+        tenant_id: "now_os",
+        conversation_key: conversationKey,
+        candidate_phone: message.phone_number,
+        candidate_remote_jid: message.remote_jid,
+        selected_app: stateMachineResult.next_state.selected_app,
+      });
+      if (gate.created) {
+        recordHumanHandoff(deps, message, "post_install_training_gate");
+        await notifyTrainingOwner(
+          deps,
+          "Kurulum tamamlandi. Bu aday icin egitime geceyim mi? Owner cevabi: evet egitime gec veya hayir <numara>.",
+          message.correlation_id,
+        );
+        const pendingReply = await sendReply(
+          message,
+          "Kurulumun tamamlandi. Egitime gecmeden once onay bekliyorum.",
+          deps,
+          latencyTracker,
+        );
+        if (pendingReply) deps.memoryStore.appendBotReply(conversationKey, "Kurulumun tamamlandi. Egitime gecmeden once onay bekliyorum.");
+        return pendingReply
+          ? { status: "sent", correlation_id: message.correlation_id }
+          : { status: "reply_send_failed", correlation_id: message.correlation_id, error_layer: "EvolutionSendText" };
+      }
     }
     latencyTracker.markStateMachineDone();
     const reportIntent = detectOwnerReportIntent(message.text);

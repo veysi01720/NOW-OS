@@ -13,7 +13,7 @@ export type IngestionClass =
   | "rule_violation"
   | "unknown";
 
-export type LearningSuggestionStatus = "pending_owner_review" | "approved" | "rejected" | "archived";
+export type LearningSuggestionStatus = "pending_owner_review" | "approved" | "approved_for_bundle" | "rejected" | "archived";
 
 export type KnowledgeSyncStatus = "pending_sync" | "synced" | "failed" | "skipped";
 

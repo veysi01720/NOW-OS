@@ -82,8 +82,8 @@ describe("owner learning queue deterministic actions", () => {
       platform: "whatsapp",
       suggestion_class: "unknown",
       evidence_preview_sanitized: "App: NewApp, Invite: INV-1",
-      proposed_knowledge_type: "approved_app_update",
-      proposed_text: "Uygulama Adi: NewApp\nDavet Kodu: INV-1",
+      proposed_knowledge_type: "app_fact_candidate",
+      proposed_text: JSON.stringify({ app: "NewApp", android_name: "NewApp", ios_name: "NewApp", invite_code: "INV-1", status: "owner_approved" }),
       confidence: 0.99,
       status: "pending_owner_review",
       created_at: "2026-07-22T00:00:00.000Z",
@@ -101,19 +101,12 @@ describe("owner learning queue deterministic actions", () => {
     );
 
     expect(result.is_command).toBe(true);
-    expect(result.reply_text).toContain("LRN-1 onaylandi ve bilgi bankasina aktarildi");
-    expect(store.getLearningSuggestion("sug_owner_approve")?.status).toBe("approved");
+    expect(result.reply_text).toContain("approved_for_bundle");
+    expect(result.reply_text).toContain("Dry-run hazir");
+    expect(store.getLearningSuggestion("sug_owner_approve")?.status).toBe("approved_for_bundle");
     expect(store.listLearningSuggestions().filter((item) => item.status === "pending_owner_review")).toHaveLength(0);
 
-    const approvedJsonPath = resolve(knowledgeBankDir, "approved_learning.json");
-    const approvedMdPath = resolve(knowledgeBankDir, "approved_learning.md");
-    expect(existsSync(approvedJsonPath)).toBe(true);
-    expect(existsSync(approvedMdPath)).toBe(true);
-
-    const approvedJson = JSON.parse(readFileSync(approvedJsonPath, "utf-8"));
-    expect(approvedJson).toHaveLength(1);
-    expect(approvedJson[0].source_suggestion_ref).toBe("LRN-1");
-    expect(approvedJson[0].sanitized_content).toContain("Uygulama Adi: NewApp");
+    expect(existsSync(resolve(knowledgeBankDir, "app_facts_structured.json"))).toBe(false);
   });
 
   it("rejects one pending LRN without writing active knowledge", () => {

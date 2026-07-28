@@ -6,6 +6,7 @@ import type { LearningSuggestion } from "../storage/ingestionTypes.js";
 import type { MaintenanceStore } from "../store/maintenanceStore.js";
 import { detectCommandPrefix, routeCoreMode, type CoreMode } from "./modeRouter.js";
 import { buildKnowledgeSyncContext } from "./knowledgeSync.js";
+import { activateLearningFactDryRun, createLearningFactDryRun } from "./learningStructuredPublish.js";
 
 export interface OwnerCommandResult {
   is_command: boolean;
@@ -58,6 +59,11 @@ function learningQueueActionFromText(text: string): { ref: string; action: "appr
     ref: `LRN-${match[1]}`,
     action: match[2] === "onayla" ? "approve" : "reject"
   };
+}
+
+function learningActivationFromText(text: string): { ref: string; token: string } | null {
+  const match = text.match(/^lrn-?(\d+)\s+(?:aktive et|activate)\s+(LPA-[A-Z0-9]+)$/i);
+  return match ? { ref: `LRN-${match[1]}`, token: match[2].toUpperCase() } : null;
 }
 
 function duplicateLearningListRequest(text: string): boolean {
@@ -225,7 +231,7 @@ function pendingLearningSuggestionsReply(ingestionStore: PersistentIngestionStor
 }
 
 function applyLearningQueueAction(
-  ingestionStore: PersistentIngestionStore | undefined,
+  ingestionStore: PersistentIngestionStore,
   ref: string,
   action: "approve" | "reject",
   actorRole: string
@@ -250,10 +256,16 @@ function applyLearningQueueAction(
       : `${ref} reddedilemedi. Aktif bilgi/config degismedi.`;
   }
 
-  const updated = ingestionStore.updateLearningSuggestionStatus(suggestion.suggestion_id, "approved", actorRole);
+  const updated = ingestionStore.updateLearningSuggestionStatus(suggestion.suggestion_id, "approved_for_bundle", actorRole);
   if (!updated) {
     return `${ref} onaylanamadi. Aktif bilgi/config degismedi.`;
   }
+
+  const dryRun = createLearningFactDryRun(suggestion);
+  if (dryRun.status !== "dry_run_created") {
+    return `${ref} approved_for_bundle durumuna alindi ancak structured app-fact dry-run reddedildi: ${dryRun.reason_code ?? "dry_run_failed"}. Aktif bilgi degismedi.`;
+  }
+  return `${ref} approved_for_bundle. Dry-run hazir (${dryRun.dry_run_id}); 20 dakika icinde ikinci owner activation gerekir: ${ref} aktive et ${dryRun.activation_token}`;
 
   const syncCapableStore = ingestionStore as PersistentIngestionStore & {
     getKnowledgePatchByRef?: unknown;
@@ -270,8 +282,8 @@ function applyLearningQueueAction(
 
   const syncContext = buildKnowledgeSyncContext(`${ref} bilgi bankasına aktar`, actorRole, ingestionStore);
   const result = syncContext?.action_result;
-  if (result?.success) {
-    return `${ref} onaylandi ve bilgi bankasina aktarildi${result.patch_ref ? ` (${result.patch_ref})` : ""}. Pending listeden cikarildi.`;
+  if (result?.success === true) {
+    return `${ref} onaylandi ve bilgi bankasina aktarildi${result?.patch_ref ? ` (${result?.patch_ref})` : ""}. Pending listeden cikarildi.`;
   }
 
   return `${ref} onaylandi ama bilgi bankasina aktarim basarisiz oldu: ${result?.message ?? "sync sonucu alinamadi"}. Pending listeden cikarildi; manuel kontrol gerekiyor.`;
@@ -292,11 +304,24 @@ export function handleOwnerCommand(
   const prefix = detectCommandPrefix(message.text);
   const text = normalizeOwnerCommandText(message.text);
   const learningQueueAction = learningQueueActionFromText(text);
+  const learningActivation = learningActivationFromText(text);
   const duplicateLearningReject = duplicateLearningRejectFromText(text);
   if (!prefix) {
+    if (message.chat_type === "private" && learningActivation) {
+      const suggestion = ingestionStore?.getLearningSuggestionByShortRef(learningActivation.ref);
+      const result = suggestion
+        ? activateLearningFactDryRun(suggestion, learningActivation.token)
+        : { status: "blocked" as const, reason_code: "LEARNING_NOT_FOUND" };
+      return commandResult(
+        result.status === "activated"
+          ? `${learningActivation.ref} structured app fact olarak aktive edildi.`
+          : `${learningActivation.ref} aktive edilmedi: ${result.reason_code ?? "activation_failed"}.`,
+        "owner_learning_activation"
+      );
+    }
     if (message.chat_type === "private" && learningQueueAction) {
       return commandResult(
-        applyLearningQueueAction(ingestionStore, learningQueueAction.ref, learningQueueAction.action, senderRole),
+        applyLearningQueueAction(ingestionStore!, learningQueueAction.ref, learningQueueAction.action, senderRole),
         "owner_learning_queue_action_command"
       );
     }
@@ -339,7 +364,7 @@ export function handleOwnerCommand(
 
   if (learningQueueAction) {
     return commandResult(
-      applyLearningQueueAction(ingestionStore, learningQueueAction.ref, learningQueueAction.action, senderRole),
+      applyLearningQueueAction(ingestionStore!, learningQueueAction.ref, learningQueueAction.action, senderRole),
       "owner_learning_queue_action_command"
     );
   }

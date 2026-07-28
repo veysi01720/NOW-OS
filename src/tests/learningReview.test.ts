@@ -170,11 +170,11 @@ describe("SPEC-016 Owner Learning Review & Approval Actions", () => {
     await handleIncomingMessage(msg, deps);
 
     const sug = ingestionStore.getLearningSuggestion("sug_2");
-    expect(sug.status).toBe("approved");
+    expect(sug.status).toBe("approved_for_bundle");
     expect(sug.reviewed_by).toBe("owner");
     expect(ingestionStore.listLearningSuggestions().filter((s: any) => s.status === "pending_owner_review")).toHaveLength(0);
     expect(assistantClient.runCalls).toHaveLength(previousRunCount);
-    expect((deps.sender as FakeSender).sends.at(-1)?.text).toContain(`${ref} onaylandi`);
+    expect((deps.sender as FakeSender).sends.at(-1)?.text).toContain(`${ref} approved_for_bundle`);
   });
 
   test("repeated approve action is idempotent/handled safely", async () => {
@@ -183,7 +183,7 @@ describe("SPEC-016 Owner Learning Review & Approval Actions", () => {
     await handleIncomingMessage(msg, deps);
 
     expect(assistantClient.runCalls).toHaveLength(previousRunCount);
-    expect((deps.sender as FakeSender).sends.at(-1)?.text).toContain(`zaten 'approved' durumunda`);
+    expect((deps.sender as FakeSender).sends.at(-1)?.text).toContain(`zaten 'approved_for_bundle' durumunda`);
   });
 
   test("invalid transition rejected -> approved is blocked", async () => {

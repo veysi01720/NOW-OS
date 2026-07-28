@@ -29,6 +29,7 @@ import { ModelAdapterCanaryThresholdEvaluator } from "./modelAdapter/modelAdapte
 import { ModelAdapterCanaryControl } from "./modelAdapter/modelAdapterCanaryControl.js";
 import { InMemoryReliabilityQueueStore } from "./reliability/inMemoryReliabilityQueueStore.js";
 import { PersistentHumanHandoffStore } from "./store/humanHandoffStore.js";
+import { PersistentTrainingHandoffStore } from "./store/trainingHandoffStore.js";
 
 const DEFAULT_RESPONSES_SHADOW_SNAPSHOT: ResponsesShadowSnapshot = {
   enabled: false,
@@ -362,6 +363,7 @@ export async function buildServer() {
   // those modes is explicitly turned on.
   const reliabilityQueueStore = new InMemoryReliabilityQueueStore();
   const humanHandoffStore = new PersistentHumanHandoffStore(resolve(DATA_DIR, "human-handoffs.json"));
+  const trainingHandoffStore = new PersistentTrainingHandoffStore(resolve(DATA_DIR, "training-handoffs.json"));
 
   registerEvolutionWebhook(app, {
     env,
@@ -404,6 +406,7 @@ export async function buildServer() {
     whatsappVisualResearchStore,
     modelAdapterCanaryApprovalController,
     humanHandoffStore,
+    trainingHandoffStore,
   });
 
   return { app, env };

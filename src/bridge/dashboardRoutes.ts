@@ -29,6 +29,7 @@ export interface DashboardDeps {
   whatsappVisualResearchStore?: import("../store/whatsappVisualResearchStore.js").PersistentWhatsAppVisualResearchStore;
   modelAdapterCanaryApprovalController?: ModelAdapterCanaryApprovalController;
   humanHandoffStore?: import('../store/humanHandoffStore.js').HumanHandoffStore;
+  trainingHandoffStore?: import('../store/trainingHandoffStore.js').TrainingHandoffStore;
 }
 
 export function registerDashboardRoutes(app: FastifyInstance, deps: DashboardDeps): void {
@@ -142,7 +143,10 @@ export function registerDashboardRoutes(app: FastifyInstance, deps: DashboardDep
     if (!deps.humanHandoffStore) return reply.code(503).send({ status: "unavailable" });
     const query = (req.query ?? {}) as { limit?: string };
     return reply.send({ status: "ok", ...deps.humanHandoffStore.stats(),
-      handoffs: deps.humanHandoffStore.list(Number(query.limit ?? 100)), notification_mode: "disabled" });
+      handoffs: deps.humanHandoffStore.list(Number(query.limit ?? 100)),
+      training_handoffs: deps.trainingHandoffStore?.pending().map((item) => ({ handoff_id: item.handoff_id, reason_code: item.reason_code, status: item.status, selected_app: item.selected_app, created_at: item.created_at, next_reminder_at: item.next_reminder_at })) ?? [],
+      training_handoff_stats: deps.trainingHandoffStore?.stats() ?? { pending_count: 0, reminder_due_count: 0 },
+      notification_mode: "post_install_training_gate_owner_private" });
   });
 
   app.get("/dashboard/summary", { preHandler: requireAuth }, async (req, reply) => {
