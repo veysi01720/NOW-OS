@@ -1,7 +1,7 @@
 import { createHash } from "node:crypto";
 import { existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
-import type { StructuredAppFact } from "./structuredAppFacts.js";
+import type { StructuredAppFact, StructuredGeneralWorkModel } from "./structuredAppFacts.js";
 
 export interface StructuredKnowledgePublishResult {
   status: "published" | "dry_run" | "blocked_no_owner_approval" | "skipped_missing_app_facts" | "skipped_no_valid_rows";
@@ -120,12 +120,13 @@ export function parseStructuredAppFactsFromMarkdown(markdown: string): Structure
     .filter((fact): fact is StructuredAppFact => fact !== null);
 }
 
-function buildStructuredJson(facts: StructuredAppFact[]): string {
+function buildStructuredJson(facts: StructuredAppFact[], generalWorkModel: StructuredGeneralWorkModel): string {
   return `${JSON.stringify({
     version: "1.0",
     source: "generated_from_app_facts_md",
     generated_at: new Date().toISOString(),
     app_facts: facts,
+    general_work_model: generalWorkModel,
   }, null, 2)}\n`;
 }
 
@@ -189,7 +190,8 @@ export function publishStructuredKnowledgeSources(options: {
 
   const markdown = readFileSync(appFactsSourcePath, "utf8");
   const facts = parseStructuredAppFactsFromMarkdown(markdown);
-  if (facts.length === 0) {
+  const generalWorkModel = parseGeneralWorkModel(markdown);
+  if (facts.length === 0 || generalWorkModel === null) {
     return {
       status: "skipped_no_valid_rows",
       mode,
@@ -227,7 +229,7 @@ export function publishStructuredKnowledgeSources(options: {
     };
   }
 
-  const structuredJson = buildStructuredJson(facts);
+  const structuredJson = buildStructuredJson(facts, generalWorkModel);
   const routingRules = buildRoutingRules(facts);
   const targetDir = mode === "dry_run" ? resolve(dir, "structured_publish_dry_runs", dryRunId) : dir;
   const targetStructuredPath = resolve(targetDir, "app_facts_structured.json");
@@ -264,5 +266,25 @@ export function publishStructuredKnowledgeSources(options: {
     source_hash: sha256(markdown),
     rollback_pointer_ready: previousManifest.length > 0 || mode === "dry_run",
     dry_run_id: mode === "dry_run" ? dryRunId : null,
+  };
+}
+
+function parseGeneralWorkModel(markdown: string): StructuredGeneralWorkModel | null {
+  const section = markdown.match(/##\s+Genel İş Modeli\s*\r?\n([\s\S]*?)(?=\r?\n##\s|$)/iu)?.[1] ?? "";
+  const values = new Map<string, string>();
+  for (const line of section.split(/\r?\n/)) {
+    const match = line.match(/^\s*-\s*(summary|workflow|earnings_policy|payment_policy|setup_boundary):\s*(.+?)\s*$/iu);
+    if (match) values.set(match[1].toLowerCase(), match[2].trim());
+  }
+  const fields = ["summary", "workflow", "earnings_policy", "payment_policy", "setup_boundary"];
+  if (!fields.every((field) => values.get(field))) return null;
+  return {
+    app_independent: true,
+    source_section: "Genel İş Modeli",
+    summary: values.get("summary")!,
+    workflow: values.get("workflow")!,
+    earnings_policy: values.get("earnings_policy")!,
+    payment_policy: values.get("payment_policy")!,
+    setup_boundary: values.get("setup_boundary")!,
   };
 }

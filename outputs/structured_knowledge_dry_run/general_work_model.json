@@ -1,0 +1,9 @@
+{
+  "app_independent": true,
+  "source_section": "Genel İş Modeli",
+  "summary": "Çalışma telefon ve uygulama üzerinden ilerler; profil hazırlanır ve uygulama içindeki kişilerle sohbet edilir.",
+  "workflow": "Aday uygunluk bilgilerini verir, çalışma modelini anlar ve açık başlangıç isteğinden sonra uygun uygulamanın kurulumuna geçer.",
+  "earnings_policy": "Sabit maaş veya garanti kazanç yoktur; sonuçlar aktiflik, sohbet kalitesi, hediyeler ve uygulama performansına göre değişir.",
+  "payment_policy": "Çekim talebi günlük veya anlık verilebilir; hesaba ulaşma süresi 1-3 iş günüdür ve hafta sonları iş günü sayılmaz. Minimum ve kesintiler uygulama ekranından kontrol edilir. Yanlış IBAN uygulama içinden düzeltilebilir; çekim talebi iptal edilemez.",
+  "setup_boundary": "Uygulama, kod, kurulum ve ödeme ayrıntıları yaş/cinsiyet uygunluğu ile çalışma modeli kabulü netleşmeden verilmez."
+}

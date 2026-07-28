@@ -567,6 +567,15 @@ function buildContext(scenario: ResponsesGoldenScenario): BackendContextPayloadV
       app_facts_source_status: "loaded",
       app_facts_source_hash: "golden_structured_fixture",
       app_facts: scenario.structuredAppFacts ?? STRUCTURED_APP_FACTS_FIXTURE,
+      general_work_model: {
+        app_independent: true,
+        source_section: "Genel İş Modeli",
+        summary: "Çalışma telefon ve uygulama üzerinden ilerler; profil hazırlanır ve uygulama içindeki kişilerle sohbet edilir.",
+        workflow: "Aday uygunluk bilgilerini verir, çalışma modelini anlar ve açık başlangıç isteğinden sonra uygun uygulamanın kurulumuna geçer.",
+        earnings_policy: "Sabit maaş veya garanti kazanç yoktur; sonuçlar aktiflik ve uygulama performansına göre değişir.",
+        payment_policy: "Çekim ve ödeme süresi yalnızca doğrulanmış uygulama ekranından kontrol edilir.",
+        setup_boundary: "Uygulama ve kurulum ayrıntıları çalışma modeli kabulünden sonra verilir.",
+      },
       errors: [],
     },
   };

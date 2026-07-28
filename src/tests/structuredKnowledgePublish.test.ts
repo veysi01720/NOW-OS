@@ -37,6 +37,18 @@ describe("structured knowledge publish", () => {
     expect(facts.map((fact) => fact.app)).toContain("Timo");
   });
 
+  it("publishes the app-independent general work model separately from app facts", () => {
+    const dir = makeKnowledgeBank();
+    const result = publishStructuredKnowledgeSources({ knowledgeBankDir: dir, mode: "activate", ownerApproval: true });
+    expect(result.status).toBe("published");
+    const structured = JSON.parse(readFileSync(resolve(dir, "app_facts_structured.json"), "utf8"));
+    expect(structured.general_work_model).toEqual(expect.objectContaining({
+      app_independent: true,
+      source_section: "Genel İş Modeli",
+    }));
+    expect(structured.general_work_model.earnings_policy).not.toMatch(/\d+\s*(tl|lira|usd|dolar)/iu);
+  });
+
   it("writes structured facts and routing rules from app_facts.md", () => {
     const dir = makeKnowledgeBank();
 

@@ -397,6 +397,16 @@ eklenmeli. Bu not mevcut activation akışını bu oturumda değiştirmez.
    tespit edip gerçek bir insan bildirimi tetikleyecek şekilde
    genişletilmeli.
 
+## 8. ZIP V2 Ek Backlog Notları
+
+- Grup broadcast otomasyonu: Owner tarafından teslim edilen ZIP'te `@Herkes`
+  grup mesajı otomasyonu talep edildi. WhatsApp politika ve spam riski
+  nedeniyle ayrı tasarım ve owner onayı gerektirir; henüz aktive edilmeyecek.
+- Görüntü işleme önceliği: Kurulum doğrulama ekran görüntüsü, owner'ın
+  görüntü işleme önceliği için somut bir kullanım senaryosudur. Mevcut
+  `stripMediaBase64` tasarımıyla çelişir; ayrı tasarım gerekir.
+  `stripMediaBase64` bu kapsamda değiştirilmeyecek.
+
 ## 8. Devir Teslim Protokolü (Codex↔Codex, PC değişimi için)
 
 Repo kökünde `HANDOVER_PROTOCOL.md` var. Özet kural:

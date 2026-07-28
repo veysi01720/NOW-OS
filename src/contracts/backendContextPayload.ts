@@ -121,6 +121,15 @@ export interface StructuredFactsContext {
       video_required: boolean | null;
     };
   }>;
+  general_work_model: {
+    app_independent: true;
+    source_section: "Genel İş Modeli";
+    summary: string;
+    workflow: string;
+    earnings_policy: string;
+    payment_policy: string;
+    setup_boundary: string;
+  } | null;
   errors: string[];
 }
 

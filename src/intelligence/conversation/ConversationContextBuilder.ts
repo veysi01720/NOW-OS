@@ -93,6 +93,7 @@ export function buildConversationDecisionContext(input: {
       app_facts_source_status: "missing",
       app_facts_source_hash: null,
       app_facts: [],
+      general_work_model: null,
       errors: ["app_facts_structured.json missing from backend context"],
     },
     allowed_actions: allowedActions.allowed,

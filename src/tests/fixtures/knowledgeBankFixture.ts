@@ -6,6 +6,15 @@ export function validStructuredAppFactsJson(): string {
   return `${JSON.stringify({
     version: "1.0",
     source: "owner_approved_official_app_facts",
+    general_work_model: {
+      app_independent: true,
+      source_section: "Genel İş Modeli",
+      summary: "Çalışma telefon ve uygulama üzerinden ilerler; profil hazırlanır ve uygulama içindeki kişilerle sohbet edilir.",
+      workflow: "Aday uygunluk bilgilerini verir ve açık başlangıç isteğinden sonra kurulumuna geçer.",
+      earnings_policy: "Sabit maaş veya garanti kazanç yoktur; sonuçlar performansa göre değişir.",
+      payment_policy: "Çekim süresi doğrulanmış uygulama ekranından kontrol edilir.",
+      setup_boundary: "Kurulum ayrıntıları çalışma modeli kabulünden sonra verilir.",
+    },
     app_facts: [
       {
         app: "Layla",
@@ -86,6 +95,15 @@ export function validStructuredAppFactsJson(): string {
 export function validAppFactsMarkdown(includeTimo = false): string {
   return [
     "# Official App Facts",
+    "",
+    "## Genel İş Modeli",
+    "",
+    "- summary: Çalışma telefon ve uygulama üzerinden ilerler; profil hazırlanır ve uygulama içindeki kişilerle sohbet edilir.",
+    "- workflow: Aday uygunluk bilgilerini verir ve açık başlangıç isteğinden sonra kurulumuna geçer.",
+    "- earnings_policy: Sabit maaş veya garanti kazanç yoktur; sonuçlar performansa göre değişir.",
+    "- payment_policy: Çekim süresi doğrulanmış uygulama ekranından kontrol edilir.",
+    "- setup_boundary: Kurulum ayrıntıları çalışma modeli kabulünden sonra verilir.",
+    "",
     "| app | android_name | ios_name | invite_code | agency_bind_code | agency_code | official_url | status | notes |",
     "|---|---|---|---|---|---|---|---|---|",
     "| Layla | Layla | NIVI | 8UNHAWUFC |  |  |  | owner_approved | Text-only |",
@@ -153,4 +171,3 @@ export function writeValidKnowledgeBankFixture(dir: string, options: { includeTi
     );
   }
 }
-

@@ -23,7 +23,18 @@ export interface StructuredAppFactsContext {
   source_status: "loaded" | "missing" | "invalid";
   source_hash: string | null;
   app_facts: StructuredAppFact[];
+  general_work_model: StructuredGeneralWorkModel | null;
   errors: string[];
+}
+
+export interface StructuredGeneralWorkModel {
+  app_independent: true;
+  source_section: "Genel İş Modeli";
+  summary: string;
+  workflow: string;
+  earnings_policy: string;
+  payment_policy: string;
+  setup_boundary: string;
 }
 
 function normalizeOptional(value: unknown): string | null {
@@ -76,6 +87,22 @@ function toFact(value: unknown): StructuredAppFact | null {
   };
 }
 
+function toGeneralWorkModel(value: unknown): StructuredGeneralWorkModel | null {
+  if (value === null || typeof value !== "object" || Array.isArray(value)) return null;
+  const record = value as Record<string, unknown>;
+  const fields = ["summary", "workflow", "earnings_policy", "payment_policy", "setup_boundary"];
+  if (!fields.every((field) => typeof record[field] === "string" && String(record[field]).trim() !== "")) return null;
+  return {
+    app_independent: true,
+    source_section: "Genel İş Modeli",
+    summary: String(record.summary).trim(),
+    workflow: String(record.workflow).trim(),
+    earnings_policy: String(record.earnings_policy).trim(),
+    payment_policy: String(record.payment_policy).trim(),
+    setup_boundary: String(record.setup_boundary).trim(),
+  };
+}
+
 function sha256(content: string): string {
   return createHash("sha256").update(content).digest("hex");
 }
@@ -93,6 +120,7 @@ export function loadStructuredAppFacts(knowledgeBankDir?: string): StructuredApp
       source_status: "missing",
       source_hash: null,
       app_facts: [],
+      general_work_model: null,
       errors: ["app_facts_structured.json missing"],
     };
   }
@@ -103,14 +131,17 @@ export function loadStructuredAppFacts(knowledgeBankDir?: string): StructuredApp
     const record = parsed && typeof parsed === "object" && !Array.isArray(parsed) ? parsed as Record<string, unknown> : {};
     const rawFacts = Array.isArray(record.app_facts) ? record.app_facts : [];
     const appFacts = rawFacts.map(toFact).filter((fact): fact is StructuredAppFact => fact !== null);
+    const generalWorkModel = toGeneralWorkModel(record.general_work_model);
     const errors: string[] = [];
     if (appFacts.length !== rawFacts.length) errors.push("invalid app fact records found");
     if (appFacts.length === 0) errors.push("app_facts array empty");
+    if (generalWorkModel === null) errors.push("general_work_model missing or invalid");
     return {
       source_file: "app_facts_structured.json",
       source_status: errors.length === 0 ? "loaded" : "invalid",
       source_hash: sha256(content),
       app_facts: appFacts,
+      general_work_model: generalWorkModel,
       errors,
     };
   } catch {
@@ -119,8 +150,8 @@ export function loadStructuredAppFacts(knowledgeBankDir?: string): StructuredApp
       source_status: "invalid",
       source_hash: sha256(content),
       app_facts: [],
+      general_work_model: null,
       errors: ["app_facts_structured.json parse failed"],
     };
   }
 }
-
