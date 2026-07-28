@@ -135,6 +135,7 @@ describe("buildBackendContext", () => {
       eligibility_status: "unresolved",
       work_model_disclosed: false,
       model_acceptance: null,
+      previous_platform_experience: null,
       current_state: "NEW_LEAD",
       expected_next_step: "ask_intake_info",
       selected_app: null,

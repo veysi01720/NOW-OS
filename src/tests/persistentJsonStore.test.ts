@@ -225,7 +225,7 @@ describe("PersistentJsonStore", () => {
       const firstAssistant = new FakeAssistantClient([
         '{"contract_version":"1.0","reply":"Telefon tipini aldım","internal_boss_note":""}'
       ]);
-      await handleIncomingMessage(message({ text: "25 kadin 4 saat Android", message_id: "msg_android" }), {
+      await handleIncomingMessage(message({ text: "25 erkek 4 saat Android", message_id: "msg_android" }), {
         env: createTestEnv({ approvedApps: ["Layla", "Soyo"] }),
         assistantClient: firstAssistant,
         sender: new FakeSender(),

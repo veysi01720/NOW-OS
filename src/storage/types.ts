@@ -9,6 +9,7 @@ export interface UserState {
   age: number | null;
   gender: string | null;
   daily_hours: number | null;
+  previous_platform_experience?: "experienced" | "none" | "unknown" | null;
   eligibility_status?: "unresolved" | "eligible" | "ineligible" | "policy_missing" | null;
   work_model_disclosed?: boolean;
   model_acceptance?: "pending" | "accepted" | "rejected" | null;
@@ -244,6 +245,7 @@ export function defaultUserState(): UserState {
     age: null,
     gender: null,
     daily_hours: null,
+    previous_platform_experience: null,
     eligibility_status: "unresolved",
     work_model_disclosed: false,
     model_acceptance: null,

@@ -5,6 +5,7 @@ import type { ConversationPolicyFact } from "../conversation/ConversationDecisio
 export interface CandidatePolicyResolution {
   facts: ConversationPolicyFact[];
   policyMissing: boolean;
+  secondary_apps: string[];
 }
 
 function normalize(value: string): string {
@@ -71,7 +72,7 @@ export function resolveCandidatePolicy(
 
   if (state.gender === "erkek" || state.gender === "male") {
     if (!app) {
-      return { facts, policyMissing: true };
+      return { facts, policyMissing: true, secondary_apps: ["Chatta"] };
     }
     facts.push({
       id: "male_candidate_work_model",
@@ -115,6 +116,15 @@ export function resolveCandidatePolicy(
     });
   }
 
+  facts.push({
+    id: "candidate_secondary_app_options",
+    topic: "candidate_app_routing",
+    fact: "Layla remains the default app recommendation. Chatta may be presented only as a secondary or alternative option when the candidate preference or experience supports it; do not replace the default automatically.",
+    content: "Layla remains the default app recommendation. Chatta may be presented only as a secondary or alternative option when the candidate preference or experience supports it; do not replace the default automatically.",
+    source: "canonical_policy",
+    version: "conversation_v2"
+  });
+
   if (!facts.some((fact) => fact.id === "candidate_default_work_model") && app) {
     facts.push({
       id: "candidate_default_work_model",
@@ -128,5 +138,5 @@ export function resolveCandidatePolicy(
     });
   }
 
-  return { facts, policyMissing: facts.length === 0 };
+  return { facts, policyMissing: facts.length === 0, secondary_apps: ["Chatta"] };
 }

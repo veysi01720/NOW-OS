@@ -141,9 +141,71 @@ describe("Candidate Intake State Machine", () => {
     expect(result.next_state.age).toBe(25);
     expect(result.next_state.gender).toBe("kadın");
     expect(result.next_state.daily_hours).toBe(4);
-    expect(result.next_state.missing_fields).toEqual(["model_acceptance"]);
-    expect(result.next_state.current_state).toBe("WORK_MODEL_DISCLOSURE");
-    expect(result.next_state.expected_next_step).toBe("explain_work_model_and_ask_acceptance");
+    expect(result.next_state.missing_fields).toEqual(["previous_platform_experience"]);
+    expect(result.next_state.current_state).toBe("NEW_LEAD");
+    expect(result.next_state.expected_next_step).toBe("ask_previous_platform_experience");
+  });
+
+  it.each([
+    ["31 erkek 4", "erkek"],
+    ["41 kadın 4", "kadın"],
+    ["17 erkek 4", "erkek"],
+    ["17 kadın 4", "kadın"]
+  ])("rejects age outside the gender policy: %s", (text, gender) => {
+    const store = new TestUserStateStore();
+    const result = applyCandidateIntakeStateMachine(
+      message({ text }),
+      createTestEnv({ approvedApps: ["Layla"] }),
+      store
+    );
+
+    expect(result.next_state.gender).toBe(gender);
+    expect(result.next_state.eligibility_status).toBe("ineligible");
+    expect(result.next_state.current_state).toBe("ELIGIBILITY_RESOLVED");
+  });
+
+  it.each([
+    ["18 erkek 4", "erkek"],
+    ["30 erkek 4", "erkek"],
+    ["18 kadın 4 deneyimim yok", "kadın"],
+    ["40 kadın 4 deneyimim var", "kadın"]
+  ])("accepts an in-range age: %s", (text, gender) => {
+    const store = new TestUserStateStore();
+    const result = applyCandidateIntakeStateMachine(
+      message({ text }),
+      createTestEnv({ approvedApps: ["Layla"] }),
+      store
+    );
+
+    expect(result.next_state.gender).toBe(gender);
+    expect(result.next_state.eligibility_status).not.toBe("ineligible");
+    expect(result.next_state.age).toBe(Number(text.match(/^\d+/)?.[0]));
+  });
+
+  it("asks experience only for women and leaves male intake at three fields", () => {
+    const store = new TestUserStateStore();
+    const female = applyCandidateIntakeStateMachine(
+      message({ text: "25 kadın 4 saat" }),
+      createTestEnv({ approvedApps: ["Layla"] }),
+      store
+    );
+    expect(female.next_state.missing_fields).toEqual(["previous_platform_experience"]);
+
+    const experience = applyCandidateIntakeStateMachine(
+      message({ text: "Daha önce deneyimim yok" }),
+      createTestEnv({ approvedApps: ["Layla"] }),
+      store
+    );
+    expect(experience.next_state.previous_platform_experience).toBe("none");
+
+    const maleStore = new TestUserStateStore();
+    const male = applyCandidateIntakeStateMachine(
+      message({ text: "25 erkek 4 saat" }),
+      createTestEnv({ approvedApps: ["Layla"] }),
+      maleStore
+    );
+    expect(male.next_state.missing_fields).toEqual(["model_acceptance"]);
+    expect(male.next_state.previous_platform_experience).toBeNull();
   });
 
   it("captures age, gender and daily hours from compact intake text", () => {

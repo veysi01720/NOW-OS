@@ -103,9 +103,14 @@ describe("Candidate Intake Regression Fixture", () => {
 
     // 5. Provide info
     vi.clearAllMocks();
+    userStateStore.states.clear();
     await handleIncomingMessage(message({ text: "25 kadın 4 saat ayırabilirim" }), deps as any);
     
-    // Now model execution should happen
+    // Female intake asks one additional experience question before model execution.
+    expect(deps.modelExecutionService.execute).not.toHaveBeenCalled();
+    await handleIncomingMessage(message({ text: "Daha once deneyimim yok" }), deps as any);
+
+    // Now model execution should happen.
     expect(deps.modelExecutionService.execute).toHaveBeenCalled();
   });
 });

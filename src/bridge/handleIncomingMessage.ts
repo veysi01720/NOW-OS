@@ -880,13 +880,19 @@ export async function handleIncomingMessage(
     const coreIntakeMissing =
       backendContext.sender_role === "candidate" &&
       backendContext.state.missing_fields.some((field) => field === "age" || field === "gender" || field === "daily_hours");
+    const femaleExperienceMissing =
+      backendContext.sender_role === "candidate" &&
+      stateMachineResult.next_state.gender === "kadın" &&
+      stateMachineResult.next_state.missing_fields.includes("previous_platform_experience");
     if (
-      coreIntakeMissing &&
-      deps.env.conversationDecisionV2Enabled !== true &&
+      (coreIntakeMissing || femaleExperienceMissing) &&
+      (deps.env.conversationDecisionV2Enabled !== true || femaleExperienceMissing) &&
       deps.env.modelAdapterLayerEnabled &&
       deps.env.behaviorCanaryMode === "off"
     ) {
-      const intakeReply =
+      const intakeReply = femaleExperienceMissing
+        ? "Daha önce benzer bir uygulama veya platform deneyimin oldu mu? Kısaca yazabilirsin."
+        :
         "Merhaba, doğru yönlendirme yapabilmem için yaşını, cinsiyetini ve günlük ortalama kaç saat ayırabileceğini yazar mısın?";
       const sent = await sendReply(message, intakeReply, deps, latencyTracker);
       if (sent) {

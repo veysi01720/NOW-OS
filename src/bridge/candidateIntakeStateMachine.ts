@@ -60,6 +60,7 @@ function sameState(left: UserState, right: UserState): boolean {
     left.age === right.age &&
     left.gender === right.gender &&
     left.daily_hours === right.daily_hours &&
+    left.previous_platform_experience === right.previous_platform_experience &&
     left.eligibility_status === right.eligibility_status &&
     left.work_model_disclosed === right.work_model_disclosed &&
     left.model_acceptance === right.model_acceptance &&
@@ -79,6 +80,7 @@ function cloneState(state: UserState): UserState {
     age: state.age ?? null,
     gender: state.gender ?? null,
     daily_hours: state.daily_hours ?? null,
+    previous_platform_experience: state.previous_platform_experience ?? null,
     eligibility_status: state.eligibility_status ?? "unresolved",
     work_model_disclosed: state.work_model_disclosed ?? false,
     model_acceptance: state.model_acceptance ?? null,
@@ -97,6 +99,7 @@ function changedFields(previous: UserState, next: UserState): string[] {
     "age",
     "gender",
     "daily_hours",
+    "previous_platform_experience",
     "eligibility_status",
     "work_model_disclosed",
     "model_acceptance",
@@ -118,6 +121,12 @@ function changedFields(previous: UserState, next: UserState): string[] {
 
 export function deriveCandidateState(state: UserState, conversationDecisionV2Enabled = true): UserState {
   const next = cloneState(state);
+  if (next.eligibility_status === "ineligible") {
+    next.current_state = "ELIGIBILITY_RESOLVED";
+    next.missing_fields = [];
+    next.expected_next_step = "no_candidate_action";
+    return next;
+  }
   if (!conversationDecisionV2Enabled) {
     next.missing_fields = [
       ...(next.selected_app === null ? ["selected_app"] : []),
@@ -153,6 +162,7 @@ export function deriveCandidateState(state: UserState, conversationDecisionV2Ena
     ...(next.age === null ? ["age"] : []),
     ...(next.gender === null ? ["gender"] : []),
     ...(next.daily_hours === null ? ["daily_hours"] : []),
+    ...(next.gender === "kadın" && next.previous_platform_experience == null ? ["previous_platform_experience"] : []),
     ...(next.selected_app === null ? ["selected_app"] : []),
     ...(next.phone_type === null ? ["phone_type"] : [])
   ];
@@ -161,6 +171,13 @@ export function deriveCandidateState(state: UserState, conversationDecisionV2Ena
     next.current_state = "NEW_LEAD";
     next.missing_fields = intakeMissing;
     next.expected_next_step = "ask_intake_info";
+    return next;
+  }
+
+  if (next.gender === "kadın" && next.previous_platform_experience == null && next.work_model_disclosed !== true) {
+    next.current_state = "NEW_LEAD";
+    next.missing_fields = ["previous_platform_experience"];
+    next.expected_next_step = "ask_previous_platform_experience";
     return next;
   }
 
@@ -279,16 +296,36 @@ export function detectModelAcceptance(text: string): "accepted" | "rejected" | n
   return null;
 }
 
-export function detectAgeGenderDailyHours(text: string): Partial<Pick<UserState, "age" | "gender" | "daily_hours">> {
+export interface IntakeDetection extends Partial<Pick<UserState, "age" | "gender" | "daily_hours">> {
+  age_rejected?: boolean;
+}
+
+export function isAgeEligible(age: number, gender: string | null | undefined): boolean {
+  if (age < 18) return false;
+  if (gender === "erkek" || gender === "male") return age <= 30;
+  if (gender === "kadın" || gender === "female") return age <= 40;
+  return age <= 65;
+}
+
+export function detectPreviousPlatformExperience(text: string): UserState["previous_platform_experience"] {
   const normalizedText = normalizeText(text);
-  const result: Partial<Pick<UserState, "age" | "gender" | "daily_hours">> = {};
+  if (!/(deneyim|tecrube|platform|uygulama|calist|kulland|baslad)/u.test(normalizedText)) return null;
+  if (/\b(yok|hic|ilk kez|deneyimim yok|tecrubem yok)\b/u.test(normalizedText)) return "none";
+  if (/\b(var|daha once|calistim|kullandim|basladim)\b/u.test(normalizedText)) return "experienced";
+  return "unknown";
+}
+
+export function detectAgeGenderDailyHours(text: string): IntakeDetection {
+  const normalizedText = normalizeText(text);
+  const result: IntakeDetection = {};
+  if (/\b(erkek[\p{L}\p{N}_]*|erkeg[\p{L}\p{N}_]*|bay|male)\b/u.test(normalizedText)) result.gender = "erkek";
+  if (/\b(kadin[\p{L}\p{N}_]*|kadın[\p{L}\p{N}_]*|kadÄ±n[\p{L}\p{N}_]*|bayan|female)\b/u.test(normalizedText)) result.gender = "kadın";
   const ageMatch = normalizedText.match(/(?:^|[^\d])([1-9]\d)(?:\s*(?:yas|yaÅŸ|y))?(?:[^\d]|$)/u);
   if (ageMatch) {
     const age = Number(ageMatch[1]);
-    if (age >= 18 && age <= 65) result.age = age;
+    result.age = age;
+    result.age_rejected = !isAgeEligible(age, result.gender);
   }
-  if (/\b(erkek[\p{L}\p{N}_]*|erkeg[\p{L}\p{N}_]*|bay|male)\b/u.test(normalizedText)) result.gender = "erkek";
-  if (/\b(kadin[\p{L}\p{N}_]*|kadın[\p{L}\p{N}_]*|kadÄ±n[\p{L}\p{N}_]*|bayan|female)\b/u.test(normalizedText)) result.gender = "kadın";
   const hourRangeMatch = normalizedText.match(/\b([1-9]|1[0-6])\s*[-/]\s*([1-9]|1[0-6])\s*(?:saat|sa|h)\b/u);
   if (hourRangeMatch) {
     const hours = Number(hourRangeMatch[1]);
@@ -301,8 +338,11 @@ export function detectAgeGenderDailyHours(text: string): Partial<Pick<UserState,
   }
   const numbers = normalizedText.match(/\b\d{1,2}\b/gu)?.map(Number) ?? [];
   if (result.age === undefined) {
-    const age = numbers.find((item) => item >= 18 && item <= 65);
-    if (age !== undefined) result.age = age;
+    const age = numbers.find((item) => item >= 10 && item <= 99);
+    if (age !== undefined) {
+      result.age = age;
+      result.age_rejected = !isAgeEligible(age, result.gender);
+    }
   }
   if (result.daily_hours === undefined && result.gender !== undefined) {
     const hours = numbers.find((item) => item > 0 && item <= 16 && item !== result.age);
@@ -408,6 +448,20 @@ export function applyCandidateIntakeStateMachine(
       nextState.daily_hours = intake.daily_hours;
       capturedFields.push("daily_hours");
     }
+    if (nextState.gender === "kadın" && nextState.previous_platform_experience == null) {
+      const experience = detectPreviousPlatformExperience(message.text);
+      if (experience !== null) {
+        nextState.previous_platform_experience = experience;
+        capturedFields.push("previous_platform_experience");
+      }
+    }
+  }
+
+  if (intake.age_rejected || (nextState.age !== null && !isAgeEligible(nextState.age, nextState.gender))) {
+    nextState.eligibility_status = "ineligible";
+    nextState.current_state = "ELIGIBILITY_RESOLVED";
+    nextState.missing_fields = [];
+    nextState.expected_next_step = "no_candidate_action";
   }
 
   if (conversationV2Active && nextState.work_model_disclosed === true && nextState.model_acceptance !== "accepted") {
