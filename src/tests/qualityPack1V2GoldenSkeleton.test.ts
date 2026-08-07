@@ -282,15 +282,15 @@ describe("Quality Pack 1 V2 golden skeletons", () => {
   it("repairs a live work-model parrot reply instead of sending the same answer again", async () => {
     const liveDuplicateReply =
       "Bilgilerini aldim. Onayli uygulama icinde temel is, gelen sohbet veya mesajlara yaziyla duzenli cevap vermek. Kamera ya da goruntulu calisma zorunlu diye bir kural soylemiyoruz; mesajlasma agirlikli ilerleyebilirsin. Kuruluma gecmeden once bu calisma modeli sana uygun mu?";
-    const repeatSafeFastPathReply =
-      "Selam, buradayim. Calisma modeli mesajlara yaziyla cevap verme uzerine; hangi nokta takildiysa onu netlestireyim. Bu model sana uygunsa 'uygun' yazman yeterli.";
     const deps = makeDeps([], workModelAcceptanceState());
     deps.memoryStore.appendBotReply(CANDIDATE_PHONE, liveDuplicateReply);
 
     await handleIncomingMessage(candidateMessage("Selam", "live-parrot-work-model"), deps);
 
     expect(deps.sender.sends).toHaveLength(1);
-    expect(deps.sender.sends[0]?.text).toBe(repeatSafeFastPathReply);
+    expect(deps.sender.sends[0]?.text).toContain("telefon ve uygulama");
+    expect(deps.sender.sends[0]?.text).toContain("uygun");
+    expect(deps.sender.sends[0]?.text).not.toMatch(/kamera|goruntulu/iu);
     expect(deps.sender.sends[0]?.text).not.toBe(liveDuplicateReply);
     expect(deps.assistantClient.runCalls).toHaveLength(0);
     expect(deps.logger.events).toEqual(expect.arrayContaining([

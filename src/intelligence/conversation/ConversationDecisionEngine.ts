@@ -187,13 +187,16 @@ function buildWorkModelAcceptanceFastPathDecision(context: ConversationDecisionC
 
   if (!eligible) return null;
 
-  const defaultReply =
-    "Bilgilerini aldim. Onayli uygulama icinde temel is, gelen sohbet veya mesajlara yaziyla duzenli cevap vermek. " +
-    "Kamera ya da goruntulu calisma zorunlu diye bir kural soylemiyoruz; mesajlasma agirlikli ilerleyebilirsin. " +
-    "Kuruluma gecmeden once bu calisma modeli sana uygun mu?";
-  const repeatSafeReply =
-    "Selam, buradayim. Calisma modeli mesajlara yaziyla cevap verme uzerine; hangi nokta takildiysa onu netlestireyim. " +
-    "Bu model sana uygunsa 'uygun' yazman yeterli.";
+  const generalWorkModelSummary = context.structured_facts.general_work_model?.summary?.trim() || null;
+  const defaultReply = generalWorkModelSummary
+    ? `${generalWorkModelSummary} Kuruluma gecmeden once bu calisma modeli sana uygun mu?`
+    : "Bilgilerini aldim. Onayli uygulama icinde temel is, gelen sohbet veya mesajlara yaziyla duzenli cevap vermek. " +
+      "Kamera ya da goruntulu calisma zorunlu diye bir kural soylemiyoruz; mesajlasma agirlikli ilerleyebilirsin. " +
+      "Kuruluma gecmeden once bu calisma modeli sana uygun mu?";
+  const repeatSafeReply = generalWorkModelSummary
+    ? `${generalWorkModelSummary} Bu model sana uygunsa 'uygun' yazman yeterli.`
+    : "Selam, buradayim. Calisma modeli mesajlara yaziyla cevap verme uzerine; hangi nokta takildiysa onu netlestireyim. " +
+      "Bu model sana uygunsa 'uygun' yazman yeterli.";
   const reply = repeatsLatestAssistantReply(defaultReply, context) ? repeatSafeReply : defaultReply;
 
   return {

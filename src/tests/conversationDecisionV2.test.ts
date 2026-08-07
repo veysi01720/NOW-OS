@@ -1,3 +1,6 @@
+import { mkdtempSync, rmSync } from "node:fs";
+import { join } from "node:path";
+import { tmpdir } from "node:os";
 import { handleIncomingMessage } from "../bridge/handleIncomingMessage.js";
 import type { NormalizedIncomingMessage } from "../bridge/normalizeEvolutionMessage.js";
 import { UserRunLock } from "../queue/userRunLock.js";
@@ -11,6 +14,7 @@ import {
   FakeSender,
   InMemoryUserStateStore
 } from "./testDoubles.js";
+import { writeValidKnowledgeBankFixture } from "./fixtures/knowledgeBankFixture.js";
 
 const PREVIOUS_WORK_MODEL_REPLY =
   "Bilgilerini aldım. Erkek adaylar için onaylı yönlendirme şu: Layla, mesajlaşma ağırlıklı ve kamera açmadan ilerlemek isteyen adaylar için uygundur. Kuruluma geçmeden önce bu çalışma modelinin sana uygun olduğunu netleştirelim. Uygun mu?";
@@ -177,6 +181,10 @@ describe("Conversation Decision V2 candidate route", () => {
 
   it("uses a deterministic fast path for work-model acceptance nudges without direct questions", async () => {
     const testDeps = deps([]);
+    const previousKnowledgeDir = process.env.KNOWLEDGE_BANK_DIR;
+    const knowledgeDir = mkdtempSync(join(tmpdir(), "nowos-fast-path-facts-"));
+    writeValidKnowledgeBankFixture(knowledgeDir);
+    process.env.KNOWLEDGE_BANK_DIR = knowledgeDir;
     testDeps.userStateStore.states.set("905550000001", {
       current_state: "WORK_MODEL_ACCEPTANCE",
       age: 27,
@@ -193,12 +201,20 @@ describe("Conversation Decision V2 candidate route", () => {
       expected_next_step: "ask_work_model_acceptance"
     } as any);
 
-    await handleIncomingMessage(message("Selam is icin yazdim", "fast-work-model"), testDeps);
+    try {
+      await handleIncomingMessage(message("Selam is icin yazdim", "fast-work-model"), testDeps);
+    } finally {
+      if (previousKnowledgeDir === undefined) delete process.env.KNOWLEDGE_BANK_DIR;
+      else process.env.KNOWLEDGE_BANK_DIR = previousKnowledgeDir;
+      rmSync(knowledgeDir, { recursive: true, force: true });
+    }
 
     expect(testDeps.assistantClient.runCalls).toHaveLength(0);
     expect(testDeps.assistantClient.createThreadCalls).toBe(0);
     expect(testDeps.sender.sends).toHaveLength(1);
+    expect(testDeps.sender.sends[0]?.text).toContain("telefon ve uygulama");
     expect(testDeps.sender.sends[0]?.text).toContain("calisma modeli sana uygun mu");
+    expect(testDeps.sender.sends[0]?.text).not.toMatch(/kamera|goruntulu/iu);
     expect(testDeps.logger.events).toEqual(
       expect.arrayContaining([
         expect.objectContaining({
