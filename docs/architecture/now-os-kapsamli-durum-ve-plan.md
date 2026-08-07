@@ -547,3 +547,12 @@ Ayri, acil bir sorun kesfedildi - bkz Bolum 0-P0.
 > **KRİTİK - Compose override env ayrışması:** `docker-compose.yml` temel dosyası `now_os_backend/.env` kullanırken production override `now_os_backend_src/.env` kullanıyor. Bu ayrışma dual_write, bozuk env satırı ve OpenAI API key olaylarında tekrar eden karışıklık riski oluşturdu. ÖNCELİKLİ TODO: iki env dosyası tek ve net bir production kaynağında birleştirilmeli veya override'ın hangi env dosyasını kullandığı tek bir standarda indirilmelidir; iki dosya değişiklik sonrasında hash ile senkron kontrol edilmelidir.
 
 > **TEK GERCEK PRODUCTION ENV DOSYASI:** `/root/deploy_package/now_os_backend/.env` (`now_os_backend_src` DEGIL). Bundan sonra HICBIR ajan/oturum `now_os_backend_src/.env` dosyasi olusturmamali veya duzenlememelidir; bu dosya bilerek kaldirildi, 2026-07-29.
+
+### Gelecek hedef: Coklu WhatsApp Instance Destegi - Reklam Kampanyalari Icin
+
+Farkli reklam kampanyalari icin ayri WhatsApp numaralari ve Evolution
+instance'lari kullanilmasi hedeflenmektedir. Amac, WhatsApp spam/kisitlama
+riskini dagitmak ve kampanya bazli candidate takibi yapmaktir. Mimari buna
+uygundur: backend tek kalabilir, birden fazla Evolution instance'i
+baglanabilir ve mesajin geldigi instance payload icinde izlenebilir. Bu hedef
+Faz 9 (kapasite/worker) olgunlastiktan sonra ele alinacak; su an aktif degildir.
