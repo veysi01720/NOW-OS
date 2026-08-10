@@ -1011,6 +1011,18 @@ export async function handleIncomingMessage(
           modelExecutionService,
           logger,
         });
+        if (
+          decisionResult.decision.requires_escalation &&
+          decisionResult.decision.escalation_reason === "conversational_escalation_claim"
+        ) {
+          recordHumanHandoff(deps, message, "conversational_escalation_claim");
+          logger.info({
+            event_type: "CONVERSATIONAL_ESCALATION_HANDOFF_RECORDED",
+            correlation_id: message.correlation_id,
+            reason_code: "conversational_escalation_claim",
+            raw_text_logged: false,
+          });
+        }
         if (decisionResult.model_call_count > 0) {
           latencyTracker.markModelResult();
         } else {

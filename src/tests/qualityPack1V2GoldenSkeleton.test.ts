@@ -17,6 +17,7 @@ import {
   InMemoryUserStateStore,
 } from "./testDoubles.js";
 import { writeValidKnowledgeBankFixture } from "./fixtures/knowledgeBankFixture.js";
+import { PersistentHumanHandoffStore } from "../store/humanHandoffStore.js";
 
 const CANDIDATE_PHONE = "905550000001";
 const OWNER_PHONE = "905111111111";
@@ -92,6 +93,7 @@ function makeDeps(responses: string[] = [], initialState?: Partial<UserState>): 
   assistantClient: FakeAssistantClient;
   sender: FakeSender;
   userStateStore: InMemoryUserStateStore;
+  humanHandoffStore: PersistentHumanHandoffStore;
   logger: ReturnType<typeof createSilentLogger>;
 } {
   const userStateStore = new InMemoryUserStateStore();
@@ -105,6 +107,7 @@ function makeDeps(responses: string[] = [], initialState?: Partial<UserState>): 
 
   const assistantClient = new FakeAssistantClient(responses);
   const sender = new FakeSender();
+  const humanHandoffStore = new PersistentHumanHandoffStore(join(mkdtempSync(join(tmpdir(), "qp1-handoff-")), "handoffs.json"));
   const logger = createSilentLogger();
 
   return {
@@ -118,6 +121,7 @@ function makeDeps(responses: string[] = [], initialState?: Partial<UserState>): 
     memoryStore: new InMemoryStore(),
     messageDedupeStore: new InMemoryMessageDedupeStore(),
     userStateStore,
+    humanHandoffStore,
     userRunLock: new UserRunLock(),
     logger,
   };
@@ -236,6 +240,8 @@ describe("Quality Pack 1 V2 golden skeletons", () => {
     expect(normalizedReply).not.toMatch(/^kamera/u);
     expect(normalizedReply).not.toContain("kamera zorunlu");
     expect(normalizedReply).not.toMatch(/kazanc|odeme|garanti|kesin/u);
+    expect(normalizedReply).not.toContain("ekip");
+    expect(deps.humanHandoffStore.list()).toHaveLength(0);
     expect(deps.logger.events).toEqual(expect.arrayContaining([
       expect.objectContaining({
         event_type: "CONVERSATION_DECISION_V2_TRACE",
@@ -540,8 +546,8 @@ describe("Quality Pack 1 V2 golden skeletons", () => {
 
     const reply = deps.sender.sends[0]?.text ?? "";
     expect(reply).toContain("Dogrulanmis kazanc veya odeme detayi yok");
-    expect(reply).toContain("Vaat vermeden ekip netlestirsin");
-    expect(normalizedText(reply)).not.toMatch(/garanti|kesin|haftalik|aylik|\btl\b/u);
+    expect(normalizedText(reply)).not.toMatch(/ekip|garanti|kesin|haftalik|aylik|\btl\b/u);
+    expect(deps.humanHandoffStore.list()).toHaveLength(0);
     expect(deps.logger.events).toEqual(
       expect.arrayContaining([
         expect.objectContaining({
@@ -552,6 +558,16 @@ describe("Quality Pack 1 V2 golden skeletons", () => {
         }),
       ])
     );
+  });
+
+  it("records a handoff only for generic deterministic escalation fallbacks", async () => {
+    const deps = makeDeps(["not-json", "still-not-json"], workModelAcceptanceState());
+
+    await handleIncomingMessage(candidateMessage("Bunu netlestiremedim", "generic-escalation-fallback"), deps);
+
+    expect(deps.humanHandoffStore.list()).toHaveLength(1);
+    expect(deps.humanHandoffStore.list()[0]?.reason_code).toBe("conversational_escalation_claim");
+    expect(normalizedText(deps.sender.sends[0]?.text ?? "")).toContain("ekip");
   });
 
   it("answers camera, account, and profile pressure with the deterministic V2 policy boundary", async () => {
@@ -573,6 +589,8 @@ describe("Quality Pack 1 V2 golden skeletons", () => {
     await handleIncomingMessage(candidateMessage("Kamera acacak miyim, erkek hesap veya profil zorunlu mu?", "camera-account-boundary"), deps);
 
     const reply = deps.sender.sends[0]?.text ?? "";
+    expect(normalizedText(reply)).not.toContain("ekip");
+    expect(deps.humanHandoffStore.list()).toHaveLength(0);
     expect(reply).toContain("Kamera veya goruntulu calisma zorunlu diye onayli kural soylemiyoruz");
     expect(reply).toContain("Erkek hesap/profil acma zorunlulugu da dogrulanmis degil");
     expect(normalizedText(reply)).not.toMatch(/acman gerekiyor|kamera acmalisin|erkek hesap acilacak/u);

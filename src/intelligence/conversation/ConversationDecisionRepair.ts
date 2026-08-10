@@ -152,7 +152,7 @@ function buildJobDefinitionSafetyDecision(context: ConversationDecisionContext):
     ? `Devam edebilmem için ${missing.join(", ")} bilgisini netleştirelim.`
     : "Bu çalışma modeli sana uygunsa kuruluma geçmeden önce bunu netleştirelim.";
   const earningsPart = asksEarnings
-    ? "Kazanç veya ödeme detayı için doğrulanmış bilgi yoksa bunu uydurmadan ekip netleştirir. "
+    ? "Kazanç veya ödeme detayı için doğrulanmış bilgi bulunmuyor; yalnızca onaylı mesajlaşma sürecini anlatabilirim. "
     : "";
   const reply =
     `${generalSummary || `İşin temel kısmı, ${appPart}gelen sohbet veya mesajlara yazıyla düzgün cevap vermek. `}` +
@@ -167,7 +167,7 @@ function buildJobDefinitionSafetyDecision(context: ConversationDecisionContext):
     ? `Devam edebilmem icin ${groundedMissing.join(", ")} bilgisini netlestirelim.`
     : "Bu calisma modeli sana uygunsa kuruluma gecmeden once bunu netlestirelim.";
   const groundedEarningsPart = asksEarnings
-    ? "Kazanc veya odeme detayi icin dogrulanmis bilgi yoksa bunu uydurmadan ekip netlestirir. "
+    ? "Kazanc veya odeme detayi icin dogrulanmis bilgi bulunmuyor; yalnizca onayli mesajlasma surecini anlatabilirim. "
     : "";
   // Job-definition questions use the app-independent owner-approved summary as
   // the complete answer. Camera/text-only boundaries belong to app-specific
@@ -205,7 +205,7 @@ function asksCameraAccountOrProfile(text: string): boolean {
 
 function buildPaymentBoundarySafetyDecision(context: ConversationDecisionContext): ConversationDecision {
   const reply =
-    "Dogrulanmis kazanc veya odeme detayi yok. Vaat vermeden ekip netlestirsin; biz yalnizca onayli uygulama icindeki mesajlasma surecini anlatabiliriz.";
+    "Dogrulanmis kazanc veya odeme detayi yok; yalnizca onayli uygulama icindeki mesajlasma surecini anlatabilirim.";
   return {
     ...baseDecision(reply, context, "deterministic_safety_response"),
     intent: { primary: "payment_question", secondary: [], confidence: 1 },
@@ -224,7 +224,7 @@ function buildPaymentBoundarySafetyDecision(context: ConversationDecisionContext
 
 function buildCameraAccountBoundarySafetyDecision(context: ConversationDecisionContext): ConversationDecision {
   const reply =
-    "Kamera veya goruntulu calisma zorunlu diye onayli kural soylemiyoruz. Erkek hesap/profil acma zorunlulugu da dogrulanmis degil; ekip bu detayi uydurmadan netlestirsin.";
+    "Kamera veya goruntulu calisma zorunlu diye onayli kural soylemiyoruz. Erkek hesap/profil acma zorunlulugu da dogrulanmis degil; bu konuda kesin bir kural iddia edemem.";
   return {
     ...baseDecision(reply, context, "deterministic_safety_response"),
     intent: { primary: "account_profile_question", secondary: [], confidence: 1 },
@@ -290,9 +290,13 @@ export function buildDeterministicSafetyDecision(
     `Az önce de ${topic} için ekip kontrolü istemiştim. Yanlış yönlendirmemek için bu mesajı da aynı güvenli kontrolde tutuyorum.`,
     `${topic} hakkında doğrulanmamış cevap vermeyeceğim. Ekip netleştirene kadar güvenli sınırı koruyorum.`
   ]);
-  return baseDecision(
-    reply,
-    context,
-    reason === "provider_unavailable" ? "deterministic_transport_failure" : "deterministic_safety_response"
-  );
+  return {
+    ...baseDecision(
+      reply,
+      context,
+      reason === "provider_unavailable" ? "deterministic_transport_failure" : "deterministic_safety_response"
+    ),
+    requires_escalation: true,
+    escalation_reason: "conversational_escalation_claim"
+  };
 }
