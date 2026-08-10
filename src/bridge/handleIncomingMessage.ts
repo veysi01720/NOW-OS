@@ -21,6 +21,9 @@ import type { MessageDedupeStore } from "../storage/messageDedupeStore.js";
 import type { ThreadStore } from "../storage/threadStore.js";
 import type { PersistentIngestionStore } from "../storage/ingestionStore.js";
 import type { LearningSuggestion } from "../storage/ingestionTypes.js";
+import {
+  defaultUserState,
+} from "../storage/types.js";
 import type {
   EventLogStore,
   QueueStore,
@@ -63,7 +66,7 @@ import { detectZipRouting } from "./zipIngestion/detection.js";
 import { runZipIngestionJob } from "./zipIngestion/pipeline.js";
 import type { ZipIngestionStore } from "./zipIngestion/store.js";
 import type { ReliabilityQueueStore } from "../reliability/queueTypes.js";
-import { enqueueOutboundShadow } from "../reliability/shadowQueue.js";
+import { enqueueOutboundShadow, stripMediaBase64 } from "../reliability/shadowQueue.js";
 import { isOutboundShadowEnabled } from "../reliability/queueModes.js";
 import type { ConnectionHealthMonitor } from "../observability/connectionHealthMonitor.js";
 import { resolveAuthorityContext } from "./authorityContext.js";
@@ -73,6 +76,10 @@ import { emptyModelAdapterCanaryObservation } from "../modelAdapter/modelAdapter
 import { inferConversationIntent } from "../intelligence/conversation/ConversationContextBuilder.js";
 import type { TrainingHandoffStore } from "../store/trainingHandoffStore.js";
 import { trainingOwnerDecision } from "../store/trainingHandoffStore.js";
+import {
+  verifyInstallationMedia,
+  type InstallationVerificationClassifier,
+} from "./installationVerification.js";
 export interface HandleIncomingMessageDeps {
   env: EnvConfig;
   assistantClient?: {
@@ -100,6 +107,7 @@ export interface HandleIncomingMessageDeps {
   nowMs?: () => number;
   humanHandoffStore?: HumanHandoffStore;
   trainingHandoffStore?: TrainingHandoffStore;
+  installationVerificationClassifier?: InstallationVerificationClassifier;
 }
 export interface HandleIncomingMessageResult {
   status:
@@ -591,6 +599,64 @@ export async function handleIncomingMessage(
     return latencyTracker.finish({ status: "sent", correlation_id: message.correlation_id });
   }
   const lockedResult: HandleIncomingMessageResult = await deps.userRunLock.runExclusive(conversationKey, async () => {
+    const storedState =
+      isCandidate && message.chat_type === "private" && message.media?.kind === "image"
+        ? deps.userStateStore?.getOrCreateState(conversationKey, defaultUserState())
+        : undefined;
+    if (
+      isCandidate &&
+      message.chat_type === "private" &&
+      message.media?.kind === "image" &&
+      storedState?.current_state === "INSTALLATION_IN_PROGRESS"
+    ) {
+      const verificationMessage = stripMediaBase64(message, { scope: "installation_verification" });
+      const verification = await verifyInstallationMedia({
+        media: verificationMessage.media ?? message.media,
+        now: deps.nowMs?.() ?? Date.now(),
+        classifier: deps.installationVerificationClassifier,
+      });
+      logger.info({
+        event_type: "INSTALLATION_VERIFICATION_RESULT",
+        correlation_id: message.correlation_id,
+        media_sha256: verification.media_sha256,
+        media_size: verification.media_size,
+        media_type: verification.media_type,
+        sanitized_result: verification.sanitized_result,
+        expires_at: verification.expires_at,
+        raw_media_logged: false,
+        raw_media_persisted: false,
+      });
+
+      if (verification.status === "clear" && storedState) {
+        const nextState: UserState = {
+          ...storedState,
+          installation_status: "done",
+          current_state: "TRAINING_READY",
+          expected_next_step: "start_training",
+        };
+        applyUserStateTransition({
+          store: deps.userStateStore,
+          conversationKey,
+          currentState: storedState,
+          nextState,
+          source: "candidate_intake",
+          authority: authorityContext,
+        });
+        const reply = "Kurulum doğrulaması alındı. Eğitim adımına geçebiliriz.";
+        const sent = await sendReply(message, reply, deps, latencyTracker);
+        return sent
+          ? { status: "sent", correlation_id: message.correlation_id }
+          : { status: "reply_send_failed", correlation_id: message.correlation_id, error_layer: "EvolutionSendText" };
+      }
+
+      recordHumanHandoff(deps, message, "installation_verification_ambiguous");
+      const reply = "Kurulum görselini net doğrulayamadım; kontrol için ekibe ilettim.";
+      const sent = await sendReply(message, reply, deps, latencyTracker);
+      return sent
+        ? { status: "fallback_sent", correlation_id: message.correlation_id }
+        : { status: "reply_send_failed", correlation_id: message.correlation_id, error_layer: "EvolutionSendText" };
+    }
+
     const stateMachineResult =
       message.chat_type === "private"
           ? applyCandidateIntakeStateMachine(
