@@ -5,7 +5,7 @@ export type HumanHandoffStatus = "pending"|"acknowledged"|"resolved"|"suppressed
 export interface HumanHandoffRecord {
  handoff_id:string; tenant_id:string; reason_code:string; urgency:"low"|"medium"|"high";
  conversation_key_hash:string; source_correlation_id:string; status:HumanHandoffStatus;
- notification_enabled:false; notification_status:"disabled"|"pending"|"sent"|"failed";
+ notification_enabled:boolean; notification_status:"disabled"|"pending"|"sent"|"failed";
  created_at:string; updated_at:string;
  audit:Array<{event:"created"|"status_changed";actor:string;at:string;from?:string;to?:string}>;
 }
@@ -26,7 +26,8 @@ export class PersistentHumanHandoffStore implements HumanHandoffStore {
   const now=new Date().toISOString();const record:HumanHandoffRecord={
    handoff_id:randomUUID(),tenant_id:input.tenant_id,reason_code:input.reason_code,urgency:input.urgency??"medium",
    conversation_key_hash:key,source_correlation_id:input.source_correlation_id,status:"pending",
-   notification_enabled:false,notification_status:"disabled",created_at:now,updated_at:now,
+   notification_enabled:input.reason_code === "conversational_escalation_claim",
+   notification_status:input.reason_code === "conversational_escalation_claim" ? "pending" : "disabled",created_at:now,updated_at:now,
    audit:[{event:"created",actor:"system",at:now}]};
   this.records.unshift(record);this.records=this.records.slice(0,5000);this.save();return {created:true,record};
  }
