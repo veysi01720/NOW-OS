@@ -643,7 +643,6 @@ export async function handleIncomingMessage(
     if (
       deps.trainingHandoffStore &&
       stateMachineResult.applied &&
-      stateMachineResult.previous_state.current_state !== "TRAINING_READY" &&
       stateMachineResult.next_state.current_state === "TRAINING_READY"
     ) {
       const gate = deps.trainingHandoffStore.create({
