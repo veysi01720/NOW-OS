@@ -208,11 +208,39 @@ function applyBehaviorQualityGuard(input: {
 }
 
 function recordHumanHandoff(deps: HandleIncomingMessageDeps, message: NormalizedIncomingMessage, reasonCode: string): void {
-  if (!deps.humanHandoffStore) return;
-  const key = message.chat_type === "private" ? message.phone_number : message.remote_jid;
-  deps.humanHandoffStore.create({ tenant_id: "now_os", reason_code: reasonCode,
-    conversation_key_hash: createHash("sha256").update(key).digest("hex"),
-    source_correlation_id: message.correlation_id });
+  if (!deps.humanHandoffStore) {
+    deps.logger.error({
+      event_type: "HUMAN_HANDOFF_RECORD_FAILED",
+      correlation_id: message.correlation_id,
+      reason_code: reasonCode,
+      failure_reason: "HANDOFF_STORE_UNAVAILABLE",
+      raw_text_logged: false,
+    });
+    return;
+  }
+
+  try {
+    const key = message.chat_type === "private" ? message.phone_number : message.remote_jid;
+    const result = deps.humanHandoffStore.create({ tenant_id: "now_os", reason_code: reasonCode,
+      conversation_key_hash: createHash("sha256").update(key).digest("hex"),
+      source_correlation_id: message.correlation_id });
+
+    deps.logger.info({
+      event_type: result.created ? "HUMAN_HANDOFF_RECORDED" : "HUMAN_HANDOFF_ALREADY_PRESENT",
+      correlation_id: message.correlation_id,
+      reason_code: reasonCode,
+      raw_text_logged: false,
+    });
+  } catch (error) {
+    deps.logger.error({
+      event_type: "HUMAN_HANDOFF_RECORD_FAILED",
+      correlation_id: message.correlation_id,
+      reason_code: reasonCode,
+      failure_reason: "HANDOFF_STORE_WRITE_FAILED",
+      error: redactSecrets(error instanceof Error ? error.message : String(error)),
+      raw_text_logged: false,
+    });
+  }
 }
 
 function syntheticPrivateMessage(phone: string, text: string, correlationId: string): NormalizedIncomingMessage {
@@ -1016,12 +1044,6 @@ export async function handleIncomingMessage(
           decisionResult.decision.escalation_reason === "conversational_escalation_claim"
         ) {
           recordHumanHandoff(deps, message, "conversational_escalation_claim");
-          logger.info({
-            event_type: "CONVERSATIONAL_ESCALATION_HANDOFF_RECORDED",
-            correlation_id: message.correlation_id,
-            reason_code: "conversational_escalation_claim",
-            raw_text_logged: false,
-          });
         }
         if (decisionResult.model_call_count > 0) {
           latencyTracker.markModelResult();

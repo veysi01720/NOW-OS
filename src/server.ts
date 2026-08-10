@@ -389,6 +389,7 @@ export async function buildServer() {
     publisherStore: persistentStore.publisherStore,
     dailyReportStore: persistentStore.dailyReportStore,
     maintenanceStore,
+    humanHandoffStore,
     userRunLock: new UserRunLock(),
     logger,
     connectionHealthMonitor

@@ -568,6 +568,36 @@ describe("Quality Pack 1 V2 golden skeletons", () => {
     expect(deps.humanHandoffStore.list()).toHaveLength(1);
     expect(deps.humanHandoffStore.list()[0]?.reason_code).toBe("conversational_escalation_claim");
     expect(normalizedText(deps.sender.sends[0]?.text ?? "")).toContain("ekip");
+    expect(deps.logger.events).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          event_type: "HUMAN_HANDOFF_RECORDED",
+          reason_code: "conversational_escalation_claim",
+        }),
+      ]),
+    );
+  });
+
+  it("logs a failed handoff instead of claiming success when the store is unavailable", async () => {
+    const deps = makeDeps(["not-json", "still-not-json"], workModelAcceptanceState());
+    const noStoreDeps: HandleIncomingMessageDeps = { ...deps, humanHandoffStore: undefined };
+
+    await handleIncomingMessage(candidateMessage("Bunu netlestiremedim", "missing-handoff-store"), noStoreDeps);
+
+    expect(deps.logger.events).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          event_type: "HUMAN_HANDOFF_RECORD_FAILED",
+          reason_code: "conversational_escalation_claim",
+          failure_reason: "HANDOFF_STORE_UNAVAILABLE",
+        }),
+      ]),
+    );
+    expect(deps.logger.events).not.toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ event_type: "HUMAN_HANDOFF_RECORDED" }),
+      ]),
+    );
   });
 
   it("answers camera, account, and profile pressure with the deterministic V2 policy boundary", async () => {
