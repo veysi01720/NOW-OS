@@ -13,6 +13,7 @@ import { PersistentHumanHandoffStore } from "../store/humanHandoffStore.js";
 import { stripMediaBase64 } from "../reliability/shadowQueue.js";
 import type { NormalizedIncomingMessage } from "../bridge/normalizeEvolutionMessage.js";
 import { createSilentLogger, createTestEnv, FakeSender, InMemoryUserStateStore } from "./testDoubles.js";
+import { ambiguousInstallationScreenshot, clearInstallationScreenshot } from "./fixtures/installationVerificationFixtures.js";
 
 function imageMessage(base64: string, overrides: Partial<NormalizedIncomingMessage> = {}): NormalizedIncomingMessage {
   return {
@@ -68,7 +69,7 @@ describe("installation verification media boundary", () => {
       },
     };
 
-    const result = await handleIncomingMessage(imageMessage(Buffer.from("clear-image").toString("base64")), deps);
+    const result = await handleIncomingMessage(imageMessage(clearInstallationScreenshot), deps);
 
     expect(result.status).toBe("sent");
     expect(stateStore.states.get("905333333333")?.current_state).toBe("TRAINING_READY");
@@ -91,7 +92,7 @@ describe("installation verification media boundary", () => {
       installationVerificationClassifier: () => ({ status: "ambiguous" as const, sanitized_result: "UNCLEAR_INSTALLATION_SCREEN" }),
     };
 
-    const result = await handleIncomingMessage(imageMessage(Buffer.from("ambiguous-image").toString("base64"), { message_id: "msg_ambiguous" }), deps);
+    const result = await handleIncomingMessage(imageMessage(ambiguousInstallationScreenshot, { message_id: "msg_ambiguous" }), deps);
 
     expect(result.status).toBe("fallback_sent");
     expect(stateStore.states.get("905333333333")?.current_state).toBe("INSTALLATION_IN_PROGRESS");
@@ -145,5 +146,9 @@ describe("installation verification media boundary", () => {
 
     expect(result.status).toBe("ambiguous");
     expect(result.sanitized_result).toBe("MEDIA_SIZE_EXCEEDED");
+  });
+
+  it("keeps the vision feature flag disabled by default in test runtime", () => {
+    expect(createTestEnv().installationVisionEnabled).toBe(false);
   });
 });

@@ -548,6 +548,13 @@ Ayri, acil bir sorun kesfedildi - bkz Bolum 0-P0.
 
 > **TEK GERCEK PRODUCTION ENV DOSYASI:** `/root/deploy_package/now_os_backend/.env` (`now_os_backend_src` DEGIL). Bundan sonra HICBIR ajan/oturum `now_os_backend_src/.env` dosyasi olusturmamali veya duzenlememelidir; bu dosya bilerek kaldirildi, 2026-07-29.
 
+### Vision provider decision (2026-08-11)
+
+Vision saglayici karari: OpenAI (GPT-4.1) ile devam edilecek. Gercek maliyet
+analizi aylik yaklasik $1.79 (asgari ucretin yaklasik %0.3'u) gosterdigi icin
+Gemini'ye gecisin maliyet gerekcesi ortadan kalkmistir. Gemini yedek plan
+olarak kalmaya devam ediyor.
+
 ### Gelecek hedef: Coklu WhatsApp Instance Destegi - Reklam Kampanyalari Icin
 
 Farkli reklam kampanyalari icin ayri WhatsApp numaralari ve Evolution

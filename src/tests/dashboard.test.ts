@@ -45,6 +45,7 @@ function createMockDeps() {
     responsesShadowTenants: [],
     responsesShadowRoles: [],
     responsesShadowTimeoutMs: 15_000,
+    installationVisionEnabled: false,
     versions: {
       assistant_response_contract_version: "1.0",
       system_prompt_version: "1.0",

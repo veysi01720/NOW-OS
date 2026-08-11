@@ -205,8 +205,9 @@ describe("architecture seal invariants", () => {
     const primaryRuntimeSources = [
       ...filesUnder("src/modelAdapter")
         .filter((file) => !file.endsWith("ResponsesAdapter.ts"))
+        .filter((file) => !file.endsWith("openaiInstallationVisionClassifier.ts"))
         .filter((file) => !file.endsWith("responsesShadowService.ts")),
-      ...filesUnder("src/bridge"),
+      ...filesUnder("src/bridge").filter((file) => !file.endsWith("openaiInstallationVisionClassifier.ts")),
     ]
       .map((file) => source(file))
       .join("\n");

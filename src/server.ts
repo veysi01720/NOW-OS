@@ -30,6 +30,7 @@ import { ModelAdapterCanaryControl } from "./modelAdapter/modelAdapterCanaryCont
 import { InMemoryReliabilityQueueStore } from "./reliability/inMemoryReliabilityQueueStore.js";
 import { PersistentHumanHandoffStore } from "./store/humanHandoffStore.js";
 import { PersistentTrainingHandoffStore } from "./store/trainingHandoffStore.js";
+import { createOpenAIInstallationVisionClassifier } from "./bridge/openaiInstallationVisionClassifier.js";
 
 const DEFAULT_RESPONSES_SHADOW_SNAPSHOT: ResponsesShadowSnapshot = {
   enabled: false,
@@ -364,6 +365,12 @@ export async function buildServer() {
   const reliabilityQueueStore = new InMemoryReliabilityQueueStore();
   const humanHandoffStore = new PersistentHumanHandoffStore(resolve(DATA_DIR, "human-handoffs.json"));
   const trainingHandoffStore = new PersistentTrainingHandoffStore(resolve(DATA_DIR, "training-handoffs.json"));
+  const installationVerificationClassifier = env.installationVisionEnabled && env.openaiResponsesModel
+    ? await createOpenAIInstallationVisionClassifier({
+        apiKey: env.openaiApiKey,
+        model: env.openaiResponsesModel,
+      })
+    : undefined;
 
   registerEvolutionWebhook(app, {
     env,
@@ -390,6 +397,7 @@ export async function buildServer() {
     dailyReportStore: persistentStore.dailyReportStore,
     maintenanceStore,
     humanHandoffStore,
+    installationVerificationClassifier,
     userRunLock: new UserRunLock(),
     logger,
     connectionHealthMonitor
