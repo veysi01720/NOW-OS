@@ -146,6 +146,34 @@ describe("Candidate Intake State Machine", () => {
     expect(result.next_state.expected_next_step).toBe("ask_previous_platform_experience");
   });
 
+  it("starts installation after approved app and phone type are confirmed", () => {
+    const store = new TestUserStateStore();
+    store.states.set("905333333333", {
+      ...defaultUserState(),
+      age: 27,
+      gender: "erkek",
+      daily_hours: 4,
+      eligibility_status: "eligible",
+      work_model_disclosed: true,
+      model_acceptance: "accepted",
+      current_state: "WAITING_FOR_APP",
+      missing_fields: ["selected_app", "phone_type"],
+      expected_next_step: "ask_selected_app_or_phone_type",
+    });
+
+    const result = applyCandidateIntakeStateMachine(
+      message({ text: "Layla Android" }),
+      createTestEnv({ approvedApps: ["Layla"] }),
+      store,
+    );
+
+    expect(result.next_state.selected_app).toBe("Layla");
+    expect(result.next_state.phone_type).toBe("android");
+    expect(result.next_state.installation_status).toBe("in_progress");
+    expect(result.next_state.current_state).toBe("INSTALLATION_IN_PROGRESS");
+    expect(result.next_state.expected_next_step).toBe("continue_installation");
+  });
+
   it.each([
     ["31 erkek 4", "erkek"],
     ["41 kadın 4", "kadın"],

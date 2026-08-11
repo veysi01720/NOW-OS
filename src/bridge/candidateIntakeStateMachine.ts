@@ -152,8 +152,9 @@ export function deriveCandidateState(state: UserState, conversationDecisionV2Ena
     }
 
     if (next.installation_status === "not_started") {
-      next.current_state = "READY_FOR_INSTALLATION";
-      next.expected_next_step = "start_installation";
+      next.installation_status = "in_progress";
+      next.current_state = "INSTALLATION_IN_PROGRESS";
+      next.expected_next_step = "continue_installation";
       return next;
     }
   }
@@ -223,8 +224,9 @@ export function deriveCandidateState(state: UserState, conversationDecisionV2Ena
   }
 
   if (next.installation_status === "not_started") {
-    next.current_state = "READY_FOR_INSTALLATION";
-    next.expected_next_step = "start_installation";
+    next.installation_status = "in_progress";
+    next.current_state = "INSTALLATION_IN_PROGRESS";
+    next.expected_next_step = "continue_installation";
     return next;
   }
 
