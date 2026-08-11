@@ -165,6 +165,45 @@ describe("ModelExecutionService adapter selection", () => {
     expect(snapshot.responses_api_used).toBe(false);
   });
 
+  it("keeps an allowlisted candidate enabled at pre-dispatch and model execution", async () => {
+    const client = new FakeAssistantClient([
+      '{"contract_version":"1.0","reply":"Candidate ok","internal_boss_note":""}',
+    ]);
+    const service = modelService(client);
+    const input = modelInput({
+      model_adapter_canary_mode: "tenant_allowlist",
+      model_adapter_canary_tenants: ["now_os"],
+      model_adapter_canary_roles: ["candidate"],
+      model_adapter_canary_intents: ["owner_answer"],
+      model_adapter_canary_allowed_candidates: ["905539775165"],
+      model_adapter_canary_percent: 1,
+    });
+    input.senderRole = "candidate";
+    input.contextPayload.sender_role = "candidate";
+    input.contextPayload.sender.phone_number = "905539775165";
+    input.metadata.candidatePhone = "905539775165";
+
+    const preDispatch = service.evaluateCanaryDecisionForMessage({
+      tenantId: input.tenantId,
+      senderRole: input.senderRole,
+      channelType: input.channelType,
+      inferredIntent: input.metadata.inferredIntent ?? null,
+      candidatePhone: input.metadata.candidatePhone ?? null,
+      traceId: input.metadata.traceId,
+      featureFlags: input.metadata.featureFlags,
+    });
+    const output = await service.execute(input);
+
+    expect(preDispatch.useAdapterLayer).toBe(true);
+    expect(preDispatch.reason).toBe("enabled_tenant_allowlist");
+    expect(output.providerTrace?.adapter).toBe("AssistantAdapter");
+    expect(service.snapshot().model_adapter_current_decision).toEqual({
+      use_adapter_layer: true,
+      reason: "enabled_tenant_allowlist",
+      canary_scope: "tenant_allowlist",
+    });
+  });
+
   it("runs contract validator after adapter output before public reply use", async () => {
     const client = new FakeAssistantClient([
       '{"contract_version":"1.0","reply":"Public only","internal_boss_note":"private operator note"}',

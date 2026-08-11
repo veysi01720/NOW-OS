@@ -310,7 +310,10 @@ async function runModelDecision(input: {
         model_adapter_canary_percent: input.env.modelAdapterCanaryPercent,
         responses_missing_policy_normalization_enabled: input.env.responsesMissingPolicyNormalizationEnabled
       },
-      inferredIntent: input.context.latest_message.inferred_intent
+      inferredIntent: input.context.latest_message.inferred_intent,
+      candidatePhone: input.backendContext.sender_role === "candidate"
+        ? input.backendContext.sender.phone_number
+        : undefined,
     }
   };
   const modelOutput = await input.modelExecutionService.execute(adapterInput);
