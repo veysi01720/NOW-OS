@@ -22,7 +22,6 @@ const baseInput = {
 describe("model adapter scoped canary flag", () => {
   it("defaults mode off to legacy-equivalent boundary path", () => {
     const decision = resolveModelAdapterExecution(baseInput);
-
     expect(decision.useAdapterLayer).toBe(false);
     expect(decision.reason).toBe("disabled_mode_off");
     expect(decision.canaryScope).toBe("off");
@@ -38,7 +37,6 @@ describe("model adapter scoped canary flag", () => {
       senderRole: "candidate",
       featureFlags: { ...baseInput.featureFlags, model_adapter_canary_mode: "internal" },
     });
-
     expect(ownerDecision.useAdapterLayer).toBe(true);
     expect(ownerDecision.reason).toBe("enabled_internal_role");
     expect(candidateDecision.useAdapterLayer).toBe(false);
@@ -71,13 +69,87 @@ describe("model adapter scoped canary flag", () => {
         model_adapter_canary_tenants: ["now_os"],
       },
     });
-
     expect(allowed.useAdapterLayer).toBe(true);
     expect(allowed.reason).toBe("enabled_tenant_allowlist");
     expect(emptyAllowlist.useAdapterLayer).toBe(false);
     expect(emptyAllowlist.reason).toBe("denied_empty_allowlist");
     expect(normalUser.useAdapterLayer).toBe(false);
     expect(normalUser.reason).toBe("denied_not_allowed_scope");
+  });
+
+  it("always routes an allowlisted candidate regardless of percentage", () => {
+    const decision = resolveModelAdapterExecution({
+      ...baseInput,
+      senderRole: "candidate",
+      featureFlags: {
+        ...baseInput.featureFlags,
+        model_adapter_canary_mode: "tenant_allowlist",
+        model_adapter_canary_tenants: ["now_os"],
+        model_adapter_canary_roles: ["candidate"],
+        model_adapter_canary_allowed_candidates: ["905539775165"],
+        model_adapter_canary_percent: 1,
+      },
+      candidatePhone: "+90 553 977 5165",
+      trafficBucket: 99,
+    });
+    expect(decision.useAdapterLayer).toBe(true);
+    expect(decision.reason).toBe("enabled_tenant_allowlist");
+  });
+
+  it("keeps non-allowlisted candidates subject to the configured percentage", () => {
+    const denied = resolveModelAdapterExecution({
+      ...baseInput,
+      senderRole: "candidate",
+      featureFlags: {
+        ...baseInput.featureFlags,
+        model_adapter_canary_mode: "tenant_allowlist",
+        model_adapter_canary_tenants: ["now_os"],
+        model_adapter_canary_roles: ["candidate"],
+        model_adapter_canary_allowed_candidates: ["905539775165"],
+        model_adapter_canary_percent: 1,
+      },
+      candidatePhone: "905500000000",
+      trafficBucket: 99,
+    });
+    expect(denied.useAdapterLayer).toBe(false);
+    expect(denied.reason).toBe("denied_traffic_bucket");
+  });
+
+  it("allows a non-allowlisted candidate when its deterministic bucket is in percentage", () => {
+    const allowed = resolveModelAdapterExecution({
+      ...baseInput,
+      senderRole: "candidate",
+      featureFlags: {
+        ...baseInput.featureFlags,
+        model_adapter_canary_mode: "tenant_allowlist",
+        model_adapter_canary_tenants: ["now_os"],
+        model_adapter_canary_roles: ["candidate"],
+        model_adapter_canary_allowed_candidates: ["905539775165"],
+        model_adapter_canary_percent: 1,
+      },
+      candidatePhone: "905500000000",
+      trafficBucket: 0,
+    });
+    expect(allowed.useAdapterLayer).toBe(true);
+    expect(allowed.reason).toBe("enabled_tenant_allowlist");
+  });
+
+  it("does not let an allowlist bypass role or intent scope", () => {
+    const denied = resolveModelAdapterExecution({
+      ...baseInput,
+      senderRole: "owner",
+      featureFlags: {
+        ...baseInput.featureFlags,
+        model_adapter_canary_mode: "tenant_allowlist",
+        model_adapter_canary_tenants: ["now_os"],
+        model_adapter_canary_roles: ["candidate"],
+        model_adapter_canary_allowed_candidates: ["905539775165"],
+        model_adapter_canary_percent: 0,
+      },
+      candidatePhone: "905539775165",
+    });
+    expect(denied.useAdapterLayer).toBe(false);
+    expect(denied.reason).toBe("denied_not_allowed_scope");
   });
 
   it("uses global adapter flag as explicit all-scope override", () => {
@@ -90,7 +162,6 @@ describe("model adapter scoped canary flag", () => {
         model_adapter_canary_mode: "off",
       },
     });
-
     expect(decision.useAdapterLayer).toBe(true);
     expect(decision.reason).toBe("enabled_global");
     expect(decision.provider).toBe("openai_assistant");
@@ -103,7 +174,6 @@ describe("model adapter scoped canary flag", () => {
       tenantId: "tenant_safe",
       traceId: "corr_safe",
     }));
-
     expect(decisionText).not.toContain("@s.whatsapp.net");
     expect(decisionText).not.toContain("@g.us");
     expect(decisionText).not.toContain("905");

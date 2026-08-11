@@ -88,6 +88,7 @@ export interface CanaryDecisionProbeInput {
   senderRole: SenderRole;
   channelType: ChatType;
   inferredIntent: string | null;
+  candidatePhone?: string | null;
   traceId: string;
   featureFlags: ModelAdapterInput["metadata"]["featureFlags"];
 }
@@ -272,6 +273,7 @@ export class ModelExecutionService {
     channelType: ChatType;
     mode: string;
     inferredIntent: string | null | undefined;
+    candidatePhone?: string | null;
     traceId: string;
     featureFlags: ModelAdapterInput["metadata"]["featureFlags"];
   }): AdapterExecutionDecision {
@@ -289,6 +291,7 @@ export class ModelExecutionService {
         model_adapter_stop_latched: controlSnapshot?.stop_latched ?? false,
       },
       inferredIntent: input.inferredIntent,
+      candidatePhone: input.candidatePhone,
       trafficBucket: Number.parseInt(createHash("sha256").update(input.traceId).digest("hex").slice(0, 8), 16) % 100,
       traceId: input.traceId,
     });
@@ -316,6 +319,7 @@ export class ModelExecutionService {
       channelType: input.channelType,
       mode: "pre_dispatch_probe",
       inferredIntent: input.inferredIntent,
+      candidatePhone: input.candidatePhone,
       traceId: input.traceId,
       featureFlags: input.featureFlags,
     });
@@ -336,6 +340,7 @@ export class ModelExecutionService {
       channelType: input.channelType,
       mode: input.mode,
       inferredIntent: input.metadata.inferredIntent,
+      candidatePhone: input.metadata.candidatePhone,
       traceId: input.metadata.traceId,
       featureFlags: input.metadata.featureFlags,
     });

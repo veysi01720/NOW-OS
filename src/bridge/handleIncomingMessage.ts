@@ -999,6 +999,7 @@ export async function handleIncomingMessage(
       senderRole: backendContext.sender_role,
       channelType: backendContext.chat_type,
       inferredIntent: inferConversationIntent(message.text),
+      candidatePhone: message.phone_number,
       traceId: message.correlation_id,
       featureFlags: {
         behavior_orchestrator_enabled: false,
@@ -1007,6 +1008,7 @@ export async function handleIncomingMessage(
         model_adapter_canary_tenants: deps.env.modelAdapterCanaryTenants,
         model_adapter_canary_roles: deps.env.modelAdapterCanaryRoles,
         model_adapter_canary_intents: deps.env.modelAdapterCanaryIntents,
+        model_adapter_canary_allowed_candidates: deps.env.modelAdapterCanaryAllowedCandidates,
         model_adapter_canary_percent: deps.env.modelAdapterCanaryPercent,
       },
     });
@@ -1265,10 +1267,12 @@ export async function handleIncomingMessage(
               model_adapter_canary_tenants: deps.env.modelAdapterCanaryTenants,
               model_adapter_canary_roles: deps.env.modelAdapterCanaryRoles,
               model_adapter_canary_intents: deps.env.modelAdapterCanaryIntents,
+              model_adapter_canary_allowed_candidates: deps.env.modelAdapterCanaryAllowedCandidates,
               model_adapter_canary_percent: deps.env.modelAdapterCanaryPercent,
               responses_missing_policy_normalization_enabled: deps.env.responsesMissingPolicyNormalizationEnabled,
             },
             inferredIntent: inferConversationIntent(message.text),
+            candidatePhone: message.phone_number,
           },
         });
         rawAssistantResponse = modelOutput.rawText;
@@ -1310,10 +1314,12 @@ export async function handleIncomingMessage(
                 model_adapter_canary_tenants: deps.env.modelAdapterCanaryTenants,
                 model_adapter_canary_roles: deps.env.modelAdapterCanaryRoles,
                 model_adapter_canary_intents: deps.env.modelAdapterCanaryIntents,
+                model_adapter_canary_allowed_candidates: deps.env.modelAdapterCanaryAllowedCandidates,
                 model_adapter_canary_percent: deps.env.modelAdapterCanaryPercent,
                 responses_missing_policy_normalization_enabled: deps.env.responsesMissingPolicyNormalizationEnabled,
               },
               inferredIntent: inferConversationIntent(message.text),
+              candidatePhone: message.phone_number,
             },
           });
           rawAssistantResponse = retryOutput.rawText;

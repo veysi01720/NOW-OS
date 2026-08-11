@@ -34,6 +34,7 @@ export interface EnvConfig {
   modelAdapterCanaryTenants: string[];
   modelAdapterCanaryRoles: string[];
   modelAdapterCanaryIntents: string[];
+  modelAdapterCanaryAllowedCandidates: string[];
   modelAdapterCanaryPercent: number;
   modelExecutionTimeoutEnabled: boolean;
   modelExecutionTimeoutMs: number;
@@ -147,6 +148,9 @@ export function loadEnv(): EnvConfig {
     modelAdapterCanaryTenants: parseCsv(process.env.MODEL_ADAPTER_CANARY_TENANTS),
     modelAdapterCanaryRoles: parseCsv(process.env.MODEL_ADAPTER_CANARY_ROLES ?? "owner,manager"),
     modelAdapterCanaryIntents: parseCsv(process.env.MODEL_ADAPTER_CANARY_INTENTS),
+    modelAdapterCanaryAllowedCandidates: parseCsv(process.env.MODEL_ADAPTER_CANARY_ALLOWED_CANDIDATES)
+      .map(normalizeCandidateAllowlistValue)
+      .filter(Boolean),
     modelAdapterCanaryPercent: parsePercentage(process.env.MODEL_ADAPTER_CANARY_PERCENT, 0),
     modelExecutionTimeoutEnabled: process.env.MODEL_EXECUTION_TIMEOUT_ENABLED === "true",
     modelExecutionTimeoutMs: parsePositiveInteger(process.env.MODEL_EXECUTION_TIMEOUT_MS, 45_000),

@@ -13,9 +13,12 @@ MODEL_ADAPTER_LAYER_ENABLED=false
 MODEL_ADAPTER_CANARY_MODE=off
 MODEL_ADAPTER_CANARY_TENANTS=
 MODEL_ADAPTER_CANARY_ROLES=owner,manager
+MODEL_ADAPTER_CANARY_ALLOWED_CANDIDATES=
 ```
 
 `MODEL_ADAPTER_LAYER_ENABLED=true` is a global adapter enable switch. Keep it off unless a separate production approval explicitly allows global cutover.
+
+`MODEL_ADAPTER_CANARY_ALLOWED_CANDIDATES` is a comma-separated list of normalized candidate phone numbers. A matching private candidate still has to satisfy the configured tenant, role, channel, intent, approval, budget, and stop-latch gates, but bypasses only the percentage bucket check. Candidates outside this list remain subject to `MODEL_ADAPTER_CANARY_PERCENT`.
 
 ## Canary Modes
 
@@ -30,6 +33,8 @@ Only roles listed in `MODEL_ADAPTER_CANARY_ROLES` can use the adapter path. The 
 `MODEL_ADAPTER_CANARY_MODE=tenant_allowlist`
 
 The tenant must be present in `MODEL_ADAPTER_CANARY_TENANTS`, and the sender role must be present in `MODEL_ADAPTER_CANARY_ROLES`. Empty tenant allowlist means denied.
+
+The candidate allowlist is an explicit narrow exception to percentage selection, not a global enable. Keep `MODEL_ADAPTER_LAYER_ENABLED=false`; setting it to `true` bypasses canary scope and enables the adapter globally.
 
 ## Diagnostics
 

@@ -43,15 +43,22 @@ export interface AdapterSelectionInput {
     model_adapter_canary_roles: string[];
     model_adapter_stop_latched?: boolean;
     model_adapter_canary_intents?: string[];
+    model_adapter_canary_allowed_candidates?: string[];
     model_adapter_canary_percent?: number;
   };
   inferredIntent?: string | null;
+  candidatePhone?: string | null;
   trafficBucket?: number;
   traceId: string;
 }
 
 function allowedRole(input: AdapterSelectionInput): boolean {
   return input.featureFlags.model_adapter_canary_roles.includes(input.senderRole);
+}
+
+function normalizeCandidateKey(value: string | null | undefined): string {
+  const digits = (value ?? "").replace(/\D/g, "");
+  return digits.startsWith("00") ? digits.slice(2) : digits;
 }
 
 export function resolveModelAdapterExecution(input: AdapterSelectionInput): AdapterExecutionDecision {
@@ -123,8 +130,11 @@ export function resolveModelAdapterExecution(input: AdapterSelectionInput): Adap
       canaryScope: input.featureFlags.model_adapter_canary_mode,
     };
   }
+  const candidateKey = normalizeCandidateKey(input.candidatePhone);
+  const allowedCandidates = input.featureFlags.model_adapter_canary_allowed_candidates ?? [];
+  const candidateAllowlisted = candidateKey.length > 0 && allowedCandidates.includes(candidateKey);
   const percentage = input.featureFlags.model_adapter_canary_percent ?? 0;
-  if (percentage <= 0 || input.trafficBucket === undefined || input.trafficBucket >= percentage) {
+  if (!candidateAllowlisted && (percentage <= 0 || input.trafficBucket === undefined || input.trafficBucket >= percentage)) {
     return {
       useAdapterLayer: false,
       adapterName: "assistant_adapter",
