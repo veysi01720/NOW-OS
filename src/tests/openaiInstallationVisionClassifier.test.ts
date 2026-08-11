@@ -40,6 +40,49 @@ describe("installation vision classifier", () => {
     expect(image?.image_url).toMatch(/^data:image\/jpeg;base64,/);
   });
 
+  it("classifies clear and ambiguous synthetic fixtures through the Terra Responses contract", async () => {
+    const requests: Array<Record<string, unknown>> = [];
+    const outputs = [
+      '{"status":"clear","reason_code":"INSTALLATION_SCREEN_CONFIRMED"}',
+      '{"status":"ambiguous","reason_code":"INSTALLATION_SCREEN_UNCLEAR"}',
+    ];
+    const runtime = {
+      responses: {
+        create: async (request: Record<string, unknown>) => {
+          requests.push(request);
+          return { output_text: outputs[requests.length - 1] };
+        },
+      },
+    };
+    const classifier = createInstallationVisionClassifier({
+      runtime,
+      model: "gpt-5.6-terra",
+    });
+
+    const clear = await classifier({
+      buffer: Buffer.from("synthetic-clear-installation-fixture"),
+      mimetype: "image/png",
+      file_name: "clear.png",
+      caption: "synthetic clear fixture",
+    });
+    const ambiguousResult = await classifier({
+      buffer: Buffer.from("synthetic-ambiguous-installation-fixture"),
+      mimetype: "image/png",
+      file_name: "ambiguous.png",
+      caption: "synthetic ambiguous fixture",
+    });
+
+    expect(clear.status).toBe("clear");
+    expect(clear.reason_code).toBe("INSTALLATION_SCREEN_CONFIRMED");
+    expect(ambiguousResult.status).toBe("ambiguous");
+    expect(ambiguousResult.reason_code).toBe("INSTALLATION_SCREEN_UNCLEAR");
+    expect(clear.sanitized_result).not.toContain("synthetic-clear");
+    expect(ambiguousResult.sanitized_result).not.toContain("synthetic-ambiguous");
+    expect(requests).toHaveLength(2);
+    expect(requests.every((request) => request.model === "gpt-5.6-terra")).toBe(true);
+    expect(requests.every((request) => request.store === false && request.max_output_tokens === 128)).toBe(true);
+  });
+
   it("maps an ambiguous response and never exposes provider text", async () => {
     const classifier = createInstallationVisionClassifier({
       runtime: runtimeWith('{"status":"ambiguous","reason_code":"INSTALLATION_SCREEN_UNCLEAR"}', {}),
