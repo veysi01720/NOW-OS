@@ -72,6 +72,10 @@ describe("Responses decision context boundary", () => {
     expect(instructions).toMatch(/backend owns authorization, state transitions, persistence, validation, and outbound delivery/i);
     expect(instructions).toMatch(/copy every value in required_reply_terms exactly into reply.text/i);
     expect(instructions).toMatch(/state_patch fields may change only/i);
+    expect(instructions).toMatch(/For WORK_MODEL_DISCLOSURE specifically/i);
+    expect(instructions).toMatch(/state_patch\.work_model_disclosed=true/i);
+    expect(instructions).toMatch(/source=reply_content/i);
+    expect(instructions).toMatch(/Never use ask_missing_age, ask_missing_gender, ask_missing_daily_hours, ask_phone_type/i);
     expect(instructions).toMatch(/chosen_actions must contain only exact backend domain action IDs/i);
     expect(instructions).toMatch(/exact intersection of intended actions and decision_context.allowed_actions/i);
     expect(instructions).toMatch(/use an empty chosen_actions array/i);
