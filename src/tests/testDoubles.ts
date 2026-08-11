@@ -54,6 +54,7 @@ export function createTestEnv(overrides: Partial<EnvConfig> = {}): EnvConfig {
     responsesShadowRoles: [],
     responsesShadowTimeoutMs: 15_000,
     installationVisionEnabled: false,
+    installationVisionAllowedCandidates: [],
     conversationDecisionV2Enabled: false,
     versions: {
       assistant_response_contract_version: "1.0",

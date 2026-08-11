@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { mkdtempSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
-import { handleIncomingMessage } from "../bridge/handleIncomingMessage.js";
+import { handleIncomingMessage, isInstallationVisionCandidateAllowed } from "../bridge/handleIncomingMessage.js";
 import { verifyInstallationMedia, INSTALLATION_VERIFICATION_MAX_BYTES } from "../bridge/installationVerification.js";
 import { UserRunLock } from "../queue/userRunLock.js";
 import { InMemoryStore } from "../storage/memoryStore.js";
@@ -62,6 +62,7 @@ describe("installation verification media boundary", () => {
     });
     const deps = {
       ...baseDeps(),
+      env: createTestEnv({ installationVisionEnabled: true, installationVisionAllowedCandidates: ["905333333333"] }),
       userStateStore: stateStore,
       installationVerificationClassifier: ({ buffer }: { buffer: Buffer }) => {
         expect(buffer.length).toBeGreaterThan(0);
@@ -87,6 +88,7 @@ describe("installation verification media boundary", () => {
     const handoffStore = new PersistentHumanHandoffStore(join(mkdtempSync(join(tmpdir(), "install-handoff-")), "handoffs.json"));
     const deps = {
       ...baseDeps(),
+      env: createTestEnv({ installationVisionEnabled: true, installationVisionAllowedCandidates: ["905333333333"] }),
       userStateStore: stateStore,
       humanHandoffStore: handoffStore,
       installationVerificationClassifier: () => ({ status: "ambiguous" as const, sanitized_result: "UNCLEAR_INSTALLATION_SCREEN" }),
@@ -150,5 +152,55 @@ describe("installation verification media boundary", () => {
 
   it("keeps the vision feature flag disabled by default in test runtime", () => {
     expect(createTestEnv().installationVisionEnabled).toBe(false);
+  });
+
+  it("allows only normalized allowlisted candidates to reach the vision classifier", () => {
+    const allowlisted = imageMessage(clearInstallationScreenshot, {
+      phone_number: "+90 533 333 3333",
+      sender_id: "+90 533 333 3333",
+    });
+    const outside = imageMessage(clearInstallationScreenshot, {
+      phone_number: "905444444444",
+      sender_id: "905444444444444",
+    });
+
+    expect(isInstallationVisionCandidateAllowed(allowlisted, ["905333333333"])).toBe(true);
+    expect(isInstallationVisionCandidateAllowed(outside, ["905333333333"])).toBe(false);
+    expect(stripMediaBase64(outside).media?.base64).toBeUndefined();
+  });
+
+  it("preserves the strip/ambiguous path outside the allowlist without invoking vision", async () => {
+    const stateStore = new InMemoryUserStateStore();
+    stateStore.states.set("905444444444", {
+      ...defaultUserState(),
+      current_state: "INSTALLATION_IN_PROGRESS",
+      installation_status: "in_progress",
+    });
+    let classifierCalled = false;
+    const handoffStore = new PersistentHumanHandoffStore(join(mkdtempSync(join(tmpdir(), "install-allowlist-")), "handoffs.json"));
+    const deps = {
+      ...baseDeps(),
+      env: createTestEnv({ installationVisionEnabled: true, installationVisionAllowedCandidates: ["905333333333"] }),
+      userStateStore: stateStore,
+      humanHandoffStore: handoffStore,
+      installationVerificationClassifier: () => {
+        classifierCalled = true;
+        return { status: "clear" as const, sanitized_result: "SHOULD_NOT_RUN" };
+      },
+    };
+
+    const result = await handleIncomingMessage(
+      imageMessage(clearInstallationScreenshot, {
+        phone_number: "905444444444",
+        sender_id: "905444444444",
+        message_id: "msg_outside_allowlist",
+      }),
+      deps,
+    );
+
+    expect(result.status).toBe("fallback_sent");
+    expect(classifierCalled).toBe(false);
+    expect(stateStore.states.get("905444444444")?.current_state).toBe("INSTALLATION_IN_PROGRESS");
+    expect(handoffStore.list()[0]?.reason_code).toBe("installation_verification_ambiguous");
   });
 });

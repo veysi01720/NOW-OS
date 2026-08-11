@@ -44,6 +44,7 @@ export interface EnvConfig {
   responsesShadowTimeoutMs: number;
   openaiResponsesModel?: string;
   installationVisionEnabled: boolean;
+  installationVisionAllowedCandidates: string[];
   responsesMissingPolicyNormalizationEnabled?: boolean;
   conversationDecisionV2Enabled?: boolean;
   versions: VersionConfig;
@@ -62,6 +63,11 @@ function parseCsv(value: string | undefined): string[] {
     .split(",")
     .map((item) => item.trim())
     .filter(Boolean);
+}
+
+function normalizeCandidateAllowlistValue(value: string): string {
+  const digits = value.replace(/\D/g, "");
+  return digits.startsWith("00") ? digits.slice(2) : digits;
 }
 
 function parsePort(value: string): number {
@@ -151,6 +157,9 @@ export function loadEnv(): EnvConfig {
     responsesShadowTimeoutMs: parsePositiveInteger(process.env.RESPONSES_SHADOW_TIMEOUT_MS, 15_000),
     openaiResponsesModel: process.env.OPENAI_RESPONSES_MODEL?.trim() || undefined,
     installationVisionEnabled: process.env.INSTALLATION_VISION_ENABLED === "true",
+    installationVisionAllowedCandidates: parseCsv(process.env.INSTALLATION_VISION_ALLOWED_CANDIDATES)
+      .map(normalizeCandidateAllowlistValue)
+      .filter(Boolean),
     responsesMissingPolicyNormalizationEnabled: process.env.RESPONSES_MISSING_POLICY_NORMALIZATION_ENABLED === "true",
     conversationDecisionV2Enabled: process.env.CONVERSATION_DECISION_V2_ENABLED !== "false",
     versions: {

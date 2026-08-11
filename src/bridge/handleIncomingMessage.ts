@@ -251,6 +251,19 @@ function recordHumanHandoff(deps: HandleIncomingMessageDeps, message: Normalized
   }
 }
 
+function normalizeVisionCandidateKey(value: string | undefined): string {
+  const digits = (value ?? "").replace(/\D/g, "");
+  return digits.startsWith("00") ? digits.slice(2) : digits;
+}
+
+export function isInstallationVisionCandidateAllowed(
+  message: Pick<NormalizedIncomingMessage, "phone_number" | "sender_id">,
+  allowedCandidates: string[],
+): boolean {
+  const candidateKey = normalizeVisionCandidateKey(message.phone_number || message.sender_id);
+  return candidateKey.length > 0 && allowedCandidates.includes(candidateKey);
+}
+
 function syntheticPrivateMessage(phone: string, text: string, correlationId: string): NormalizedIncomingMessage {
   return {
     correlation_id: correlationId,
@@ -613,7 +626,9 @@ export async function handleIncomingMessage(
       const verification = await verifyInstallationMedia({
         media: verificationMessage.media ?? message.media,
         now: deps.nowMs?.() ?? Date.now(),
-        classifier: deps.installationVerificationClassifier,
+        classifier: isInstallationVisionCandidateAllowed(message, deps.env.installationVisionAllowedCandidates)
+          ? deps.installationVerificationClassifier
+          : undefined,
       });
       logger.info({
         event_type: "INSTALLATION_VERIFICATION_RESULT",
