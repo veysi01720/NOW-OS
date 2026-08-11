@@ -548,6 +548,15 @@ Ayri, acil bir sorun kesfedildi - bkz Bolum 0-P0.
 
 > **TEK GERCEK PRODUCTION ENV DOSYASI:** `/root/deploy_package/now_os_backend/.env` (`now_os_backend_src` DEGIL). Bundan sonra HICBIR ajan/oturum `now_os_backend_src/.env` dosyasi olusturmamali veya duzenlememelidir; bu dosya bilerek kaldirildi, 2026-07-29.
 
+### MODEL_OUTPUT_CONTRACT_FAILURE_IN_WORK_MODEL_DISCLOSURE (2026-08-11)
+
+WORK_MODEL_DISCLOSURE asamasinda modelin izinli action sozlesmesini ihlal
+ettigi tespit edildi ve ayni gun dar bir repair kuraliyla duzeltildi. Yas,
+cinsiyet ve gunluk sure biliniyorken modelin `explain_work_model` ve
+`request_work_model_acceptance` action'larini uretmesi zorunlu hale getirildi;
+tek repair denemesi de bu sozlesmeyi acikca belirtir. Repair basarisiz olursa
+mevcut deterministic safety fallback korunur. Ayrintilar commit gecmisindedir.
+
 ### Vision provider decision (2026-08-11)
 
 Vision saglayici karari: OpenAI (GPT-4.1) ile devam edilecek. Gercek maliyet

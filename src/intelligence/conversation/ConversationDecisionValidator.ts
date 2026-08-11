@@ -90,6 +90,18 @@ export function validateConversationDecision(
     }
   }
 
+  if (
+    context.derived_state.dialogue_phase === "WORK_MODEL_DISCLOSURE" &&
+    context.derived_state.intake_complete &&
+    context.candidate_state.work_model_acceptance !== "accepted" &&
+    !isFirstContactIntent(context.latest_message.inferred_intent) &&
+    !isFirstContactIntent(decision.intent.primary) &&
+    (!decision.chosen_actions.includes("explain_work_model") ||
+      !decision.chosen_actions.includes("request_work_model_acceptance"))
+  ) {
+    reasons.push("WORK_MODEL_DISCLOSURE_ACTIONS_MISSING");
+  }
+
   if (latest.includes("nasil") || latest.includes("nasıl") || latest.includes("hesabi") || latest.includes("hesabı") || latest.includes("anlamadim")) {
     if (!decision.direct_question.answered_in_reply || !decision.self_check.answered_latest_message) {
       reasons.push("QUESTION_NOT_FULLY_ANSWERED");

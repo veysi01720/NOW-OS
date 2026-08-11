@@ -99,6 +99,18 @@ function buildDecisionPrompt(context: ConversationDecisionContext, repairInput?:
     "structured_facts is backend-owned official grounding. Copy approved app names, iPhone names, codes, and capabilities exactly; never invent or override it with model knowledge.",
     "Treat canonical_policy_facts as atomic facts, not as a ready-made reply.",
     "Do not ask known age/gender/daily_hours again.",
+    context.derived_state.dialogue_phase === "WORK_MODEL_DISCLOSURE"
+      ? [
+          "WORK_MODEL_DISCLOSURE positive example:",
+          "When candidate_state.age, candidate_state.gender, and candidate_state.daily_hours are known and work_model_acceptance is not accepted, use this decision pattern:",
+          JSON.stringify({
+            chosen_actions: ["answer_user_question", "explain_work_model", "request_work_model_acceptance"],
+            state_patch: { work_model_disclosed: true, work_model_acceptance: "pending" },
+            next_action: "request_work_model_acceptance"
+          }),
+          "Do not ask for age, gender, daily_hours, phone_type, or selected_app in this phase."
+        ].join("\n")
+      : "",
     "If latest_message.inferred_intent is clarify_previous_explanation, do not repeat the previous assistant reply; explain it in simpler, more concrete words.",
     "Do not repeat the most recent assistant reply word-for-word; if the user pushes back or sends a different message, answer that latest message with a fresh, concrete sentence.",
     "If the user says they did not understand, answer the unclear point directly before asking anything.",
@@ -133,6 +145,15 @@ function buildDecisionPrompt(context: ConversationDecisionContext, repairInput?:
       : "",
     repairInput?.reasonCodes.includes("GENERIC_CONVERSATION_CLOSER")
       ? "For GENERIC_CONVERSATION_CLOSER repair, remove the generic closing and replace it with the concrete next operational step only."
+      : "",
+    repairInput?.reasonCodes.includes("WORK_MODEL_DISCLOSURE_ACTIONS_MISSING")
+      ? [
+          "For WORK_MODEL_DISCLOSURE_ACTIONS_MISSING repair, the candidate age, gender, and daily availability are already known.",
+          "chosen_actions MUST include exactly these core actions: answer_user_question, explain_work_model, request_work_model_acceptance.",
+          "Do not include ask_missing_age, ask_missing_gender, ask_missing_daily_hours, ask_phone_type, or any free-form action.",
+          "Set state_patch.work_model_disclosed=true, state_patch.work_model_acceptance=pending, and next_action=request_work_model_acceptance.",
+          "Reply with one concise grounded explanation of the chat/message work model followed by one acceptance question."
+        ].join("\n")
       : "",
     repairInput?.reasonCodes.includes("RECENT_REPLY_REPEATED")
       ? "For RECENT_REPLY_REPEATED repair, do not reuse the previous reply. Acknowledge the latest user message and give a fresh, specific answer in different words."

@@ -271,6 +271,50 @@ describe("Conversation Decision V2 candidate route", () => {
     expect(testDeps.assistantClient.runCalls.map((call) => call.threadId)).toEqual(["thread_1", "thread_1"]);
   });
 
+  it("repairs missing WORK_MODEL_DISCLOSURE actions after compact intake", async () => {
+    const repairedReply =
+      "Onayli uygulama icinde gelen sohbetlere yaziyla cevap vererek ilerlersin. Bu calisma modeli sana uygunsa uygun yazman yeterli.";
+    const testDeps = deps([
+      decision({
+        reply: {
+          text: "Bilgilerini aldim; once yasini tekrar netlestirelim.",
+          language: "tr",
+          tone: "natural_concise",
+          contains_question: true
+        },
+        chosen_actions: ["answer_user_question", "ask_missing_age"],
+        state_patch: {},
+        next_action: "ask_missing_age"
+      }),
+      decision({
+        reply: { text: repairedReply, language: "tr", tone: "natural_concise", contains_question: true },
+        chosen_actions: ["answer_user_question", "explain_work_model", "request_work_model_acceptance"],
+        state_patch: { work_model_disclosed: true, work_model_acceptance: "pending" },
+        policy_facts_used: ["male_candidate_work_model", "work_model_acceptance_required", "candidate_work_steps_chat_based"],
+        next_action: "request_work_model_acceptance"
+      })
+    ]);
+
+    await handleIncomingMessage(message("27 erkek 4 saat", "work-model-disclosure-repair"), testDeps);
+
+    expect(testDeps.assistantClient.runCalls).toHaveLength(2);
+    expect(testDeps.assistantClient.runCalls[0]?.content).toContain("WORK_MODEL_DISCLOSURE positive example");
+    expect(testDeps.assistantClient.runCalls[1]?.content).toContain("WORK_MODEL_DISCLOSURE_ACTIONS_MISSING");
+    expect(testDeps.assistantClient.runCalls[1]?.content).toContain("explain_work_model");
+    expect(testDeps.assistantClient.runCalls[1]?.content).toContain("request_work_model_acceptance");
+    expect(testDeps.sender.sends).toHaveLength(1);
+    expect(testDeps.sender.sends[0]?.text).toBe(repairedReply);
+    expect(testDeps.logger.events).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          event_type: "CONVERSATION_DECISION_V2_TRACE",
+          final_reply_origin: "conversation_decision_v2_model_repair",
+          mutation_source: "model_repair"
+        })
+      ])
+    );
+  });
+
   it("does not repeat the exact production work-model paragraph on clarification", async () => {
     const simpleClarification = "Basitçe şöyle: Layla içinde gelen sohbetlere yazıyla cevap vererek ilerlersin. Kamera zorunlu diye bir kural yok; önce bu mesajlaşma ağırlıklı çalışma biçiminin sana uyup uymadığını netleştiriyoruz.";
     const testDeps = deps([
