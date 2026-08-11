@@ -1,4 +1,7 @@
 import { describe, expect, it } from "vitest";
+import { mkdtempSync, rmSync } from "node:fs";
+import { join } from "node:path";
+import { tmpdir } from "node:os";
 import { handleIncomingMessage } from "../bridge/handleIncomingMessage.js";
 import type { NormalizedIncomingMessage } from "../bridge/normalizeEvolutionMessage.js";
 import type { AssistantClient } from "../assistant/openaiAssistantClient.js";
@@ -8,6 +11,7 @@ import { InMemoryMessageDedupeStore } from "../storage/messageDedupeStore.js";
 import { InMemoryThreadStore } from "../storage/threadStore.js";
 import { defaultUserState, type UserState } from "../storage/types.js";
 import { createSilentLogger, createTestEnv, FakeSender, InMemoryUserStateStore } from "./testDoubles.js";
+import { writeValidKnowledgeBankFixture } from "./fixtures/knowledgeBankFixture.js";
 
 type CertCategory =
   | "first_contact" | "single_message_intake" | "partial_intake" | "how_work_works" | "clarification"
@@ -45,7 +49,7 @@ export const golden_conversation_pack_v1: CertScenario[] = [
   { id: "cert_009", category: "single_message_intake", turns: ["27 erkek yaklasik 4-5 saat"], requiredState: { age: 27, gender: "erkek", daily_hours: 4 }, requiredReplyIncludes: ["Layla"] },
   { id: "cert_010", category: "partial_intake", turns: ["Selam", "27", "erkek", "4 saat"], requiredState: { age: 27, gender: "erkek", daily_hours: 4 }, requiredReplyIncludes: ["Layla"] },
   { id: "cert_011", category: "how_work_works", turns: ["27 erkek 4", "Bu isi nasil yapacagim?"], requiredReplyIncludes: ["sohbet"] },
-  { id: "cert_012", category: "how_work_works", turns: ["27 erkek 4", "bu is tam olarak ne"], requiredReplyIncludes: ["Layla", "sohbet"] },
+  { id: "cert_012", category: "how_work_works", turns: ["27 erkek 4", "bu is tam olarak ne"], requiredReplyIncludes: ["telefon", "uygulama", "sohbet"] },
   { id: "cert_013", category: "clarification", turns: ["27 erkek 4", "Calisma modelini anlamadim"], requiredReplyIncludes: ["basit", "mesaj"] },
   { id: "cert_014", category: "clarification", turns: ["27 erkek 4", "Nasil yani?"], requiredReplyIncludes: ["basit"] },
   { id: "cert_015", category: "clarification", turns: ["27 erkek 4", "Daha basit anlat"], requiredReplyIncludes: ["basit"] },
@@ -159,6 +163,7 @@ class CertificationAssistantClient implements AssistantClient {
 
     if (/model_unique_reply_78421/i.test(latest)) return decision({ text: "MODEL_UNIQUE_REPLY_78421", intent: "ask_how_work_is_done", actions: ["answer_user_question"], direct: true, facts: facts.includes("male_candidate_work_model") ? ["male_candidate_work_model"] : [] });
     if (intakeMissing.length > 0) return decision({ text: `Dogru yonlendirebilmem icin ${intakeMissing.join(", ")} yazar misin?`, intent: "collect_candidate_intake", actions: [...(state.age === null ? ["ask_missing_age"] : []), ...(state.gender === null ? ["ask_missing_gender"] : []), ...(state.daily_hours === null ? ["ask_missing_daily_hours"] : [])], nextAction: state.age === null ? "ask_missing_age" : state.gender === null ? "ask_missing_gender" : "ask_missing_daily_hours" });
+    if (context.latest_message.inferred_intent === "ask_job_definition") return decision({ text: "Calisma telefon ve uygulama uzerinden ilerler; profil hazirlanir ve uygulama icindeki kisilerle sohbet edilir.", intent: "ask_job_definition", actions: ["answer_user_question", "explain_work_model"], facts: ["general_work_model"], direct: true });
     if (latest.includes("erkek hes") || latest.includes("erkek profil")) return decision({ text: "Erkek hesabi ya da erkek profil acilacagina dair dogrulanmis kural yok. Bu detayi uydurmayalim; gerekiyorsa ekip netlestirir.", intent: "account_profile_question", actions: ["answer_user_question"], facts: facts.includes("male_account_policy_boundary") ? ["male_account_policy_boundary"] : [], direct: true });
     if (/(anlamadim|nasil yani|daha basit|tam anlamadim|ne demek|ornek|mesajlasma nasil|kamera acacak|kisa anlat|anlat dedim)/u.test(latest)) return decision({ text: latest.includes("kamera") ? "Kamera tarafinda dogrulanmis zorunluluk soylemiyoruz. Basitce aday uygulamada mesajlara yaziyla cevap vererek ilerler." : latest.includes("ornek") ? "Ornek olarak: uygulamada sana gelen mesaja kisa ve duzgun cevap verirsin; ekip de hangi adimda ne yapacagini soyler." : latest.includes("kisa") ? "Kisaca: calisma modeli su; Layla icinde mesajlasma uzerinden yaziyla cevap verirsin." : "Daha basit anlatayim: Layla icinde sohbetlere yaziyla cevap vererek ilerlersin. Once bu mesajlasma agirlikli modelin sana uyup uymadigini netlestiriyoruz.", intent: "clarify_previous_explanation", actions: ["answer_user_question", "clarify_previous_explanation", "explain_work_model"], facts: facts.filter((id: string) => ["male_candidate_work_model", "candidate_work_steps_chat_based"].includes(id)), direct: true });
     if (/(nasil yapacagim|bu isi nasil|bu is tam|tam olarak ne|kamera|yazisma|guvenli|para isi|kamerasiz)/u.test(latest)) return decision({ text: latest.includes("guvenli") || latest.includes("para") ? "Dogrulanmis bilgi disina cikmadan soyleyeyim: surec ekip yonlendirmesiyle uygulama icinden ilerler; kesin soz vermiyoruz, takildigin kismi ekip netlestirir." : latest.includes("kamera") || latest.includes("yazisma") || latest.includes("kamerasiz") ? "Kamera zorunlu degil diye yonlendirebiliriz; Layla mesajlasma agirlikli ilerlemek isteyen aday icin uygundur." : "Layla icinde sohbetlere yaziyla cevap vererek ilerlersin. Ekip adimlari soyler; kurulumdan once bu calisma modelinin sana uygun oldugunu netlestirelim.", intent: context.latest_message.inferred_intent === "ask_job_definition" ? "ask_job_definition" : "ask_how_work_is_done", actions: ["answer_user_question", "explain_work_model", "request_work_model_acceptance"], statePatch: { work_model_disclosed: true, work_model_acceptance: "pending" }, facts: facts.filter((id: string) => ["male_candidate_work_model", "work_model_acceptance_required", "candidate_work_steps_chat_based"].includes(id)), nextAction: "request_work_model_acceptance", direct: true });
@@ -181,12 +186,22 @@ function makeDeps(options: { client?: CertificationAssistantClient; state?: Part
 
 async function runScenario(scenario: CertScenario, runId = "r1") {
   const d = makeDeps({ state: scenario.initialState });
+  const previousKnowledgeDir = process.env.KNOWLEDGE_BANK_DIR;
+  const knowledgeDir = mkdtempSync(join(tmpdir(), "nowos-certification-facts-"));
+  writeValidKnowledgeBankFixture(knowledgeDir);
+  process.env.KNOWLEDGE_BANK_DIR = knowledgeDir;
   const replies: string[] = [];
-  for (const [index, text] of scenario.turns.entries()) { await handleIncomingMessage(message(text, `${scenario.id}_${runId}_${index}`), d); const sent = d.sender.sends.at(-1)?.text; if (sent) replies.push(sent); }
-  const finalReply = replies.at(-1) ?? "";
-  const finalState = d.userStateStore.states.get("905550000001") ?? defaultUserState();
-  const traces = d.logger.events.filter((event) => event.event_type === "CONVERSATION_DECISION_V2_TRACE");
-  return { d, replies, finalReply, finalState, traces };
+  try {
+    for (const [index, text] of scenario.turns.entries()) { await handleIncomingMessage(message(text, `${scenario.id}_${runId}_${index}`), d); const sent = d.sender.sends.at(-1)?.text; if (sent) replies.push(sent); }
+    const finalReply = replies.at(-1) ?? "";
+    const finalState = d.userStateStore.states.get("905550000001") ?? defaultUserState();
+    const traces = d.logger.events.filter((event) => event.event_type === "CONVERSATION_DECISION_V2_TRACE");
+    return { d, replies, finalReply, finalState, traces };
+  } finally {
+    if (previousKnowledgeDir === undefined) delete process.env.KNOWLEDGE_BANK_DIR;
+    else process.env.KNOWLEDGE_BANK_DIR = previousKnowledgeDir;
+    rmSync(knowledgeDir, { recursive: true, force: true });
+  }
 }
 
 function assertNoForbidden(text: string, extra: string[] = []) { for (const phrase of [...FORBIDDEN, ...extra]) expect(normalize(text), phrase).not.toContain(normalize(phrase)); }

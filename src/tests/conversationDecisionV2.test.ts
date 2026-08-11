@@ -84,7 +84,7 @@ function deps(responses: string[]) {
 describe("Conversation Decision V2 candidate route", () => {
   it("blocks generic closers and incomplete job-definition answers", async () => {
     const incomplete = "İş, Layla uygulamasında sohbet ederek ilerliyor. Kamera zorunlu değil, ekip adım adım yönlendirecek. Başka sormak istediğin var mı?";
-    const complete = "İşin temel kısmı, onaylı uygulama içinde gelen sohbetlere yazıyla düzgün cevap vermek. Kamera zorunlu diye bir kural söylemiyoruz; mesajlaşma ağırlıklı ilerleyebilirsin. Şimdi uygun ilerleyebilmem için yaş, cinsiyet ve günlük ayırabileceğin süreyi netleştirelim.";
+    const complete = "Çalışma telefon ve uygulama üzerinden ilerler; profil hazırlanır ve uygulama içindeki kişilerle sohbet edilir.";
     const testDeps = deps([
       decision({
         intent: { primary: "candidate_first_contact", secondary: [], confidence: 0.8 },
@@ -97,12 +97,22 @@ describe("Conversation Decision V2 candidate route", () => {
         direct_question: { present: true, question_summary: "Aday işin ne olduğunu soruyor", answered_in_reply: true },
         reply: { text: complete, language: "tr", tone: "natural_concise", contains_question: false },
         chosen_actions: ["answer_user_question", "explain_work_model", "ask_missing_age", "ask_missing_gender", "ask_missing_daily_hours"],
-        policy_facts_used: [],
+        policy_facts_used: ["general_work_model"],
         next_action: "ask_missing_age"
       })
     ]);
 
-    await handleIncomingMessage(message("Selam iş nedir", "job-definition"), testDeps);
+    const previousKnowledgeDir = process.env.KNOWLEDGE_BANK_DIR;
+    const knowledgeDir = mkdtempSync(join(tmpdir(), "nowos-job-definition-facts-"));
+    writeValidKnowledgeBankFixture(knowledgeDir);
+    process.env.KNOWLEDGE_BANK_DIR = knowledgeDir;
+    try {
+      await handleIncomingMessage(message("Selam iş nedir", "job-definition"), testDeps);
+    } finally {
+      if (previousKnowledgeDir === undefined) delete process.env.KNOWLEDGE_BANK_DIR;
+      else process.env.KNOWLEDGE_BANK_DIR = previousKnowledgeDir;
+      rmSync(knowledgeDir, { recursive: true, force: true });
+    }
 
     expect(testDeps.sender.sends).toHaveLength(1);
     expect(testDeps.sender.sends[0]?.text).toBe(complete);
@@ -112,10 +122,10 @@ describe("Conversation Decision V2 candidate route", () => {
         expect.objectContaining({
           event_type: "CONVERSATION_DECISION_V2_TRACE",
           intent: "ask_job_definition",
-          final_reply_origin: "conversation_decision_v2_model_repair",
-          mutation_source: "model_repair",
-          validation_reason_codes: expect.arrayContaining(["GENERIC_CONVERSATION_CLOSER"]),
-          quality_reason_codes: expect.arrayContaining(["GENERIC_CONVERSATION_CLOSER", "JOB_EXPLANATION_INCOMPLETE"])
+          final_reply_origin: "deterministic_safety_response",
+          mutation_source: "final_validation_safety_response",
+          validation_reason_codes: expect.arrayContaining(["JOB_EXPLANATION_INCOMPLETE"]),
+          quality_reason_codes: expect.arrayContaining(["JOB_EXPLANATION_INCOMPLETE"])
         })
       ])
     );
