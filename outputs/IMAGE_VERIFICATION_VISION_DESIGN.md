@@ -157,6 +157,67 @@ prior approval, and image/file inputs have limitations. Therefore:
 
 No claim of zero provider retention may appear in product or operator copy.
 
+### Candidate disclosure placeholder
+
+Before live activation, the product/legal owner must replace and approve a
+short disclosure shown at the point an installation image is requested. The
+design placeholder is:
+
+> Kurulum doğrulaması için gönderdiğin ekran görüntüsü, yalnızca bu kontrolü
+> yapmak üzere güvenli bir görsel analiz sağlayıcısına iletilebilir. Görsel
+> uygulama tarafından kalıcı olarak saklanmaz; sağlayıcının veri saklama
+> politikaları geçerli olabilir. Devam etmek istemezsen insan desteği
+> isteyebilirsin.
+
+This text is not final legal advice. It must be reviewed for Turkish privacy
+requirements, the actual OpenAI project retention configuration, and the
+candidate's consent/alternative path before activation.
+
+### ZDR/MAM decision gate
+
+Zero Data Retention (ZDR) or Modified Abuse Monitoring (MAM) is not assumed
+by this design. The owner must record whether the OpenAI project is approved
+for either control and whether image inputs are covered by the selected
+control. If the answer is unknown or not approved, live candidate image
+processing remains off; synthetic non-personal fixtures are allowed for
+engineering acceptance only. Even approved controls do not override the
+documented exceptional retention for safety review of certain image inputs.
+
+## 5A. Cost and Capacity Estimate
+
+The unit of cost is one additional vision request per accepted installation
+image. The normal text conversation request must not be duplicated for the
+same event. The first implementation should therefore use:
+
+- one image request per inbound image;
+- no automatic vision retry for semantic ambiguity;
+- one bounded transport retry only if later approved;
+- a small output cap of 128-256 tokens;
+- no full transcript or 18,000-token context in the vision request;
+- no image request for text-only messages, groups, owner commands, or states
+  outside installation verification.
+
+Operationally, the expected provider cost is:
+
+```text
+monthly_vision_cost ~= accepted_installation_images
+                       x configured_vision_input_cost
+                       + configured_vision_output_cost
+```
+
+The exact monetary value is intentionally not hardcoded because it depends
+on the selected model, image detail setting, image dimensions, and current
+account pricing. Before canary, record a measured sample containing request
+count, latency, input/output token usage, rate-limit responses, and cost
+estimate without retaining image content. The canary stop threshold must
+include both cost-per-verified-image and p95 vision latency, with the owner
+setting the numeric budget after the configured model is confirmed.
+
+The preferred default is low image detail and a tightly constrained prompt,
+unless the verification fixture demonstrates that the relevant UI text is
+not legible. Raising image detail or allowing repeated calls requires a new
+qualification result because it changes both cost and latency.
+
 ## 6. Failure and Safety Policy
 
 Vision failures are fail-closed:

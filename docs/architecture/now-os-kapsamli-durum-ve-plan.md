@@ -556,3 +556,14 @@ riskini dagitmak ve kampanya bazli candidate takibi yapmaktir. Mimari buna
 uygundur: backend tek kalabilir, birden fazla Evolution instance'i
 baglanabilir ve mesajin geldigi instance payload icinde izlenebilir. Bu hedef
 Faz 9 (kapasite/worker) olgunlastiktan sonra ele alinacak; su an aktif degildir.
+
+### GÃ¶rÃ¼ntÃ¼ Ä°ÅŸleme - Yedek Plan
+
+OpenAI retention riski ileride sorun yaratÄ±rsa (mevzuat deÄŸiÅŸikliÄŸi, aday
+ÅŸikÃ¢yeti veya owner kararÄ±nÄ±n deÄŸiÅŸmesi), veriyi Ã¼Ã§Ã¼ncÃ¼ bir saÄŸlayÄ±cÄ±ya
+gÃ¶ndermeden kendi sunucumuzda iÅŸleyebilen self-hosted/open-weight gÃ¶rsel
+anlama modelleri (Ã¶rn. Gemma gibi uygun aÃ§Ä±k aÄŸÄ±rlÄ±klÄ± modeller) veya
+Tesseract gibi klasik OCR deÄŸerlendirilecektir. Maliyet, doÄŸruluk, RAM/GPU
+ihtiyacÄ±, gecikme ve bakÄ±m yÃ¼kÃ¼ OpenAI planÄ±yla karÅŸÄ±laÅŸtÄ±rÄ±lacaktÄ±r.
+Ã–ncelik dÃ¼ÅŸÃ¼ktÃ¼r; yalnÄ±zca OpenAI planÄ± retention nedeniyle kabul edilemez
+hale gelirse devreye alÄ±nacak. Bu yedek plan henÃ¼z aktif deÄŸildir.
