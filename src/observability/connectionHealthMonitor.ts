@@ -71,6 +71,7 @@ export interface ConnectionHealthMonitorOptions {
   now?: () => Date;
   autoReconnectEnabled?: boolean;
   reconnectBaseDelayMs?: number;
+  connectingTimeoutMs?: number;
   logoutEventsPath?: string;
   sessionIntegrityCheck?: () => Promise<"nonempty" | "empty" | "unavailable" | "error">;
   onLogout401?: (input: { instance: string; reason: number }) => void;
@@ -100,6 +101,7 @@ export class ConnectionHealthMonitor {
   private readonly now: () => Date;
   private readonly autoReconnectEnabled: boolean;
   private readonly reconnectBaseDelayMs: number;
+  private readonly connectingTimeoutMs: number;
   private readonly logoutEventsPath?: string;
   private readonly sessionIntegrityCheck?: ConnectionHealthMonitorOptions["sessionIntegrityCheck"];
   private readonly onLogout401?: ConnectionHealthMonitorOptions["onLogout401"];
@@ -108,6 +110,7 @@ export class ConnectionHealthMonitor {
   private reconnectInProgress = false;
   private reconnectAttempt = 0;
   private reconnectWindowStartedAt: number | null = null;
+  private connectingSince: number | null = null;
   private logoutEvents: string[] = [];
 
   constructor(private readonly options: ConnectionHealthMonitorOptions) {
@@ -117,6 +120,7 @@ export class ConnectionHealthMonitor {
     this.now = options.now ?? (() => new Date());
     this.autoReconnectEnabled = options.autoReconnectEnabled ?? false;
     this.reconnectBaseDelayMs = options.reconnectBaseDelayMs ?? 5_000;
+    this.connectingTimeoutMs = options.connectingTimeoutMs ?? 90_000;
     this.logoutEventsPath = options.logoutEventsPath;
     this.sessionIntegrityCheck = options.sessionIntegrityCheck;
     this.onLogout401 = options.onLogout401;
@@ -246,12 +250,18 @@ export class ConnectionHealthMonitor {
     if (input.state === "open") {
       this.reconnectAttempt = 0;
       this.reconnectWindowStartedAt = null;
+      this.connectingSince = null;
+      return;
+    }
+    if (input.state === "connecting") {
+      this.connectingSince ??= this.now().getTime();
+      void this.reconnectIfStuck();
       return;
     }
     if (input.state === "close" && input.statusReason === 401) {
       this.recordLogout401();
     }
-    if (input.state === "close") void this.reconnectIfClosed();
+    if (input.state === "close") void this.reconnectIfNeeded();
   }
 
   private loadLogoutEvents(): void {
@@ -286,8 +296,13 @@ export class ConnectionHealthMonitor {
     this.onLogout401?.({ instance: this.options.evolutionInstance, reason: 401 });
   }
 
-  private async reconnectIfClosed(): Promise<void> {
-    if (!this.autoReconnectEnabled || this.reconnectInProgress || this.evolutionConnectionState !== "close") return;
+  private async reconnectIfNeeded(): Promise<void> {
+    if (!this.autoReconnectEnabled || this.reconnectInProgress) return;
+    const state = this.evolutionConnectionState;
+    const connectingStuck = state === "connecting"
+      && this.connectingSince !== null
+      && this.now().getTime() - this.connectingSince >= this.connectingTimeoutMs;
+    if (state !== "close" && !connectingStuck) return;
     const nowMs = this.now().getTime();
     if (this.reconnectWindowStartedAt === null || nowMs - this.reconnectWindowStartedAt > 60 * 60 * 1000) {
       this.reconnectWindowStartedAt = nowMs;
@@ -305,9 +320,15 @@ export class ConnectionHealthMonitor {
       const response = await this.fetchImpl(`${this.options.evolutionApiBaseUrl.replace(/\/$/u, "")}/instance/connect/${encodeURIComponent(this.options.evolutionInstance)}`, {
         method: "GET", headers: { apikey: this.options.evolutionApiKey }, signal: AbortSignal.timeout(this.reachabilityTimeoutMs),
       });
-      this.options.logger.info({ event_type: response.ok ? "EVOLUTION_RECONNECT_REQUESTED" : "EVOLUTION_RECONNECT_FAILED", evolution_instance: this.options.evolutionInstance, attempt, http_status: response.status });
+      this.options.logger.info({
+        event_type: response.ok ? "EVOLUTION_RECONNECT_REQUESTED" : "EVOLUTION_RECONNECT_FAILED",
+        evolution_instance: this.options.evolutionInstance,
+        attempt,
+        trigger: connectingStuck ? "connecting_timeout" : "close",
+        http_status: response.status,
+      });
     } catch (error) {
-      this.options.logger.warn({ event_type: "EVOLUTION_RECONNECT_FAILED", evolution_instance: this.options.evolutionInstance, attempt, error: redactSecrets(error instanceof Error ? error.message : String(error)) });
+      this.options.logger.warn({ event_type: "EVOLUTION_RECONNECT_FAILED", evolution_instance: this.options.evolutionInstance, attempt, trigger: connectingStuck ? "connecting_timeout" : "close", error: redactSecrets(error instanceof Error ? error.message : String(error)) });
     } finally { this.reconnectInProgress = false; }
   }
 
@@ -338,7 +359,12 @@ export class ConnectionHealthMonitor {
       this.lastReachabilityOk = response.status < 500;
       const body = await response.clone().json().catch(() => ({})) as { instance?: { state?: string; statusReason?: number }; state?: string; statusReason?: number };
       this.evolutionConnectionState = body.instance?.state ?? body.state ?? null;
-      if (this.evolutionConnectionState === "close") void this.reconnectIfClosed();
+      if (this.evolutionConnectionState === "connecting") {
+        this.connectingSince ??= this.now().getTime();
+        void this.reconnectIfStuck();
+      } else if (this.evolutionConnectionState === "close") {
+        void this.reconnectIfNeeded();
+      }
       if (body.instance?.state === "close" && body.instance.statusReason === 401) {
         this.recordLogout401();
       }
@@ -371,6 +397,12 @@ export class ConnectionHealthMonitor {
       });
     }
     return snapshot;
+  }
+
+  private async reconnectIfStuck(): Promise<void> {
+    if (this.evolutionConnectionState !== "connecting" || this.connectingSince === null) return;
+    if (this.now().getTime() - this.connectingSince < this.connectingTimeoutMs) return;
+    await this.reconnectIfNeeded();
   }
 
   private isRecent(value: Date | null): boolean {

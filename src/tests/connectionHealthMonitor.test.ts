@@ -165,6 +165,36 @@ describe("ConnectionHealthMonitor", () => {
     expect(JSON.stringify(logger.events)).not.toContain("secret-key");
   });
 
+  it("reconnects after a connecting state exceeds its timeout", async () => {
+    const logger = createSilentLogger();
+    const calls: string[] = [];
+    let nowMs = Date.parse("2026-08-12T00:00:00.000Z");
+    const monitor = new ConnectionHealthMonitor({
+      evolutionInstance: "nowakademi_bot",
+      evolutionApiBaseUrl: "http://evolution.local",
+      evolutionApiKey: "secret-key",
+      logger,
+      autoReconnectEnabled: true,
+      reconnectBaseDelayMs: 1,
+      connectingTimeoutMs: 90_000,
+      now: () => new Date(nowMs),
+      fetchImpl: (async (url) => {
+        calls.push(String(url));
+        return new Response(JSON.stringify({ instance: { state: "connecting" } }), { status: 200 });
+      }) as typeof fetch,
+    });
+
+    monitor.recordEvolutionConnectionUpdate({ state: "connecting" });
+    await new Promise((resolve) => setTimeout(resolve, 5));
+    expect(calls).toHaveLength(0);
+
+    nowMs += 90_001;
+    monitor.recordEvolutionConnectionUpdate({ state: "connecting" });
+    await new Promise((resolve) => setTimeout(resolve, 10));
+    expect(calls).toContain("http://evolution.local/instance/connect/nowakademi_bot");
+    expect(JSON.stringify(logger.events)).toContain("connecting_timeout");
+  });
+
   it("persists and reports 401 logout counts without exposing payloads", async () => {
     const logger = createSilentLogger();
     const path = `${process.cwd()}/.tmp-evolution-logout-${Date.now()}.json`;
