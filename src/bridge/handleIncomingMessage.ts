@@ -608,7 +608,21 @@ export async function handleIncomingMessage(
       message_id: message.message_id,
       command_text: message.text.trim().toLowerCase(),
     });
-    await sendReply(message, ownerCommandRes.reply_text, deps, latencyTracker);
+    const guardedOwnerCommandReply = guardUnbackedOwnerSuccessClaim({
+      reply: ownerCommandRes.reply_text,
+      senderRole,
+      executionSucceeded: ownerCommandRes.execution_succeeded === true,
+    });
+    if (guardedOwnerCommandReply.blocked) {
+      logger.warn({
+        event_type: "OWNER_SUCCESS_CLAIM_BLOCKED",
+        correlation_id: message.correlation_id,
+        reason: guardedOwnerCommandReply.reason,
+        sender_role: senderRole,
+        command_path: true,
+      });
+    }
+    await sendReply(message, guardedOwnerCommandReply.reply, deps, latencyTracker);
     return latencyTracker.finish({ status: "sent", correlation_id: message.correlation_id });
   }
   const lockedResult: HandleIncomingMessageResult = await deps.userRunLock.runExclusive(conversationKey, async () => {

@@ -30,4 +30,23 @@ describe("owner success claim guard", () => {
     });
     expect(result.blocked).toBe(false);
   });
+
+  it("blocks the same unbacked claim for a legacy/general owner reply", () => {
+    const result = guardUnbackedOwnerSuccessClaim({
+      reply: "Bilgi senkronizasyonu tamamlandi.",
+      senderRole: "owner",
+      executionSucceeded: false,
+    });
+    expect(result.blocked).toBe(true);
+    expect(result.reason).toBe("OWNER_SUCCESS_CLAIM_WITHOUT_EXECUTION_RESULT");
+  });
+
+  it("allows a deterministic command claim only after execution succeeds", () => {
+    const result = guardUnbackedOwnerSuccessClaim({
+      reply: "Bilgi senkronizasyonu tamamlandi.",
+      senderRole: "owner",
+      executionSucceeded: true,
+    });
+    expect(result.blocked).toBe(false);
+  });
 });

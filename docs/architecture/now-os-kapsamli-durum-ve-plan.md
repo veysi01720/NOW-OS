@@ -598,7 +598,7 @@ hale gelirse devreye alÄ±nacak. Bu yedek plan henÃ¼z aktif deÄŸildir.
 ### Orta vade (gercek trafik birikince)
 
 - Faz 9 worker aktivasyonu, gozlem pencereleri yeterli kanita ulastiktan sonra degerlendirilecek.
-- Owner learning queue 105'ten 5'e dususunun arsiv/reset aciklamasi ayri read-only incelemeyle kapatilacak.
+- Owner learning queue 105'ten 5'e dususunun nedeni **kesin olarak aciklanamadi**: runtime'da mevcut bes kayit, eski kopyalar ve analiz artefaktlari bulundu; ancak silme/arsiv/reset icin yetkili bir kayit bulunamadi. Mevcut bes kayit korunacak; konu bu kanitla kapali kabul edilecek.
 - ownerSuccessClaimGuard legacy/V2 genel owner yanit yolunu da kapsayacak sekilde genisletilecek.
 
 ### Uzun vade (roadmap'te mevcut)

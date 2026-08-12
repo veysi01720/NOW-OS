@@ -11,15 +11,17 @@ import { activateLearningFactDryRun, createLearningFactDryRun } from "./learning
 export interface OwnerCommandResult {
   is_command: boolean;
   reply_text?: string;
+  execution_succeeded?: boolean;
   detected_mode?: CoreMode;
   assistant_run_skipped?: boolean;
   skip_reason?: string;
 }
 
-function commandResult(replyText: string, skipReason: string): OwnerCommandResult {
+function commandResult(replyText: string, skipReason: string, executionSucceeded = false): OwnerCommandResult {
   return {
     is_command: true,
     reply_text: replyText,
+    execution_succeeded: executionSucceeded,
     detected_mode: "authority_command_mode",
     assistant_run_skipped: true,
     skip_reason: skipReason
@@ -314,7 +316,8 @@ export function handleOwnerCommand(
         sync.action_result?.success === true
           ? "Bilgi senkronizasyonu tamamlandı."
           : "Bilgi senkronizasyonu tamamlanamadı; aktif bilgi değiştirilmedi.",
-        "owner_knowledge_sync_command"
+        "owner_knowledge_sync_command",
+        sync.action_result?.success === true
       );
     }
     if (message.chat_type === "private" && learningActivation) {
@@ -375,7 +378,8 @@ export function handleOwnerCommand(
       sync.action_result?.success === true
         ? "Bilgi senkronizasyonu tamamlandı."
         : "Bilgi senkronizasyonu tamamlanamadı; aktif bilgi değiştirilmedi.",
-      "owner_knowledge_sync_command"
+      "owner_knowledge_sync_command",
+      sync.action_result?.success === true
     );
   }
 

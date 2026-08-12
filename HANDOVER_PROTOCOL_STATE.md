@@ -289,3 +289,11 @@ src/tests/workspaceLock.test.ts                                  |   1 +
 - `dual_write` is active and observable.
 - Production workers remain off pending the planned observation windows.
 - No production behavior canary was armed and no real WhatsApp message was sent.
+
+## Overnight Read-Only Checkpoint - 2026-08-12
+
+- Local owner-success hardening is prepared for commit: deterministic owner-command replies now carry an explicit execution-success result, and owner/manager command replies pass through the same unbacked-success guard as legacy/model replies. Candidate replies remain unchanged.
+- Focused guard tests pass (`5/5`) and the local TypeScript build passes. No production deploy was performed in this checkpoint.
+- The historical approved-learning reduction from 105 to 5 is **kesin olarak aciklanamadi**. Runtime inspection found the current five-item file and older backup/analysis artifacts, but no authoritative deletion, archive, or reset record.
+- The current VPS health and readiness endpoints returned 200; backend, Evolution, and PostgreSQL containers were running with restart count zero. Evolution connection state was not verified because the local read-only request received 401; no connection-state claim is made here.
+- No candidate message, owner approval, canary activation, test-candidate reset, Evolution logout, or container recreation was performed by this checkpoint.
