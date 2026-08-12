@@ -583,3 +583,31 @@ Tesseract gibi klasik OCR deÄŸerlendirilecektir. Maliyet, doÄŸruluk, RAM/GPU
 ihtiyacÄ±, gecikme ve bakÄ±m yÃ¼kÃ¼ OpenAI planÄ±yla karÅŸÄ±laÅŸtÄ±rÄ±lacaktÄ±r.
 Ã–ncelik dÃ¼ÅŸÃ¼ktÃ¼r; yalnÄ±zca OpenAI planÄ± retention nedeniyle kabul edilemez
 hale gelirse devreye alÄ±nacak. Bu yedek plan henÃ¼z aktif deÄŸildir.
+## Kalan Isler - 2026-08-12
+
+### Acil (baglanti kurtarilinca hemen)
+
+- Terra allowlist canli testi: kontrollu candidate ile Terra/Responses route'u, approval, final reply ve outbound kaydi birlikte dogrulanacak.
+- Goruntu isleme canli testi: net ve belirsiz kurulum gorseli, state ilerlemesi, handoff ve ham gorsel sizintisi kontrolleriyle test edilecek.
+
+### Kisa vade (reklam oncesi)
+
+- Insan gibi yanit gecikmesi ve rate-limit davranisi gercek trafik uzerinde gozlemlenecek.
+- Yeni WhatsApp numarasinin isinma sureci owner tarafindan manuel takip edilecek; yuksek hacimli test trafigiyle hizlandirilmayacak.
+
+### Orta vade (gercek trafik birikince)
+
+- Faz 9 worker aktivasyonu, gozlem pencereleri yeterli kanita ulastiktan sonra degerlendirilecek.
+- Owner learning queue 105'ten 5'e dususunun arsiv/reset aciklamasi ayri read-only incelemeyle kapatilacak.
+- ownerSuccessClaimGuard legacy/V2 genel owner yanit yolunu da kapsayacak sekilde genisletilecek.
+
+### Uzun vade (roadmap'te mevcut)
+
+- PostgreSQL migrasyonu (Faz 8).
+- Reklam kampanyalari icin coklu WhatsApp numarasi ve Evolution instance destegi.
+- Owner/manager trafiginin Terra'ya kademeli tasinmasi.
+- Resmi WhatsApp Business API'ye gecis degerlendirmesi.
+
+### Izleme (staging, metrik paneli)
+
+- Bilerek ertelendi; ihtiyac ortaya ciktiginda staging izolasyonu, metrikler ve alarm esikleri ayri tasarlanacak.
