@@ -611,3 +611,9 @@ hale gelirse devreye alÄ±nacak. Bu yedek plan henÃ¼z aktif deÄŸildir.
 ### Izleme (staging, metrik paneli)
 
 - Bilerek ertelendi; ihtiyac ortaya ciktiginda staging izolasyonu, metrikler ve alarm esikleri ayri tasarlanacak.
+
+### WhatsApp baglanti kararsizligi - kok neden ve kural (2026-08-12)
+
+- Kok neden: Evolution 2.3.7/Baileys pairing-notification `Invalid buffer` hatasi; upstream'de bilinen issue ile uyumlu. Bu hata 515 stream kapanmasi ve 401 logout dongusune yol acabiliyor.
+- KURAL: Logout/pairing islemi GEREKMEDIKCE tekrarlanmayacak; tekrarli denemeler ayni bug'i tetikleyebilir.
+- Kalici cozum secenekleri: (a) bug fix iceren bir Evolution surumune gecmeden once staging'de test etmek, (b) uzun vadede resmi WhatsApp Business API'ye gecisi degerlendirmek.
