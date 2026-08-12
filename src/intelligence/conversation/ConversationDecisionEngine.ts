@@ -307,6 +307,7 @@ async function runModelDecision(input: {
         model_adapter_canary_tenants: input.env.modelAdapterCanaryTenants,
         model_adapter_canary_roles: input.env.modelAdapterCanaryRoles,
         model_adapter_canary_intents: input.env.modelAdapterCanaryIntents,
+        model_adapter_canary_allowed_candidates: input.env.modelAdapterCanaryAllowedCandidates,
         model_adapter_canary_percent: input.env.modelAdapterCanaryPercent,
         responses_missing_policy_normalization_enabled: input.env.responsesMissingPolicyNormalizationEnabled
       },
