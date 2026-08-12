@@ -211,6 +211,39 @@ describe("ConnectionHealthMonitor", () => {
     expect(logger.events).toEqual(expect.arrayContaining([expect.objectContaining({ event_type: "EVOLUTION_SESSION_LOGOUT_401" })]));
   });
 
+  it("starts a cooldown after three reconnect attempts and blocks further attempts", async () => {
+    const logger = createSilentLogger();
+    const calls: string[] = [];
+    let nowMs = Date.parse("2026-08-12T00:00:00.000Z");
+    const monitor = new ConnectionHealthMonitor({
+      evolutionInstance: "nowakademi_bot",
+      evolutionApiBaseUrl: "http://evolution.local",
+      evolutionApiKey: "secret-key",
+      logger,
+      autoReconnectEnabled: true,
+      reconnectBaseDelayMs: 1,
+      reconnectCooldownMs: 30 * 60 * 1000,
+      now: () => new Date(nowMs),
+      fetchImpl: (async (url) => {
+        calls.push(String(url));
+        return new Response(JSON.stringify({ instance: { state: "close" } }), { status: 200 });
+      }) as typeof fetch,
+    });
+
+    for (let i = 0; i < 3; i += 1) {
+      monitor.recordEvolutionConnectionUpdate({ state: "close" });
+      await new Promise((resolve) => setTimeout(resolve, 5));
+    }
+    monitor.recordEvolutionConnectionUpdate({ state: "close" });
+    await new Promise((resolve) => setTimeout(resolve, 5));
+    monitor.recordEvolutionConnectionUpdate({ state: "close" });
+    await new Promise((resolve) => setTimeout(resolve, 5));
+
+    expect(calls).toHaveLength(3);
+    expect(monitor.snapshot().reconnect_cooldown_until).toBe("2026-08-12T00:30:00.000Z");
+    expect(JSON.stringify(logger.events)).toContain("EVOLUTION_RECONNECT_COOLDOWN_ACTIVE");
+  });
+
   it("retains session integrity in the connection-doctor snapshot", async () => {
     const logger = createSilentLogger();
     const monitor = new ConnectionHealthMonitor({

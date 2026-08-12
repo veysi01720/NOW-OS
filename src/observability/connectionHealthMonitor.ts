@@ -40,6 +40,7 @@ export interface ConnectionHealthSnapshot {
   evolution_connection_state?: string | null;
   reconnect_in_progress?: boolean;
   reconnect_attempt?: number;
+  reconnect_cooldown_until?: string | null;
   logout_401_count_last_24h?: number;
   session_integrity?: "nonempty" | "empty" | "unavailable" | "error";
 }
@@ -71,6 +72,7 @@ export interface ConnectionHealthMonitorOptions {
   now?: () => Date;
   autoReconnectEnabled?: boolean;
   reconnectBaseDelayMs?: number;
+  reconnectCooldownMs?: number;
   connectingTimeoutMs?: number;
   logoutEventsPath?: string;
   sessionIntegrityCheck?: () => Promise<"nonempty" | "empty" | "unavailable" | "error">;
@@ -101,6 +103,7 @@ export class ConnectionHealthMonitor {
   private readonly now: () => Date;
   private readonly autoReconnectEnabled: boolean;
   private readonly reconnectBaseDelayMs: number;
+  private readonly reconnectCooldownMs: number;
   private readonly connectingTimeoutMs: number;
   private readonly logoutEventsPath?: string;
   private readonly sessionIntegrityCheck?: ConnectionHealthMonitorOptions["sessionIntegrityCheck"];
@@ -110,6 +113,7 @@ export class ConnectionHealthMonitor {
   private reconnectInProgress = false;
   private reconnectAttempt = 0;
   private reconnectWindowStartedAt: number | null = null;
+  private reconnectCooldownUntil: number | null = null;
   private connectingSince: number | null = null;
   private logoutEvents: string[] = [];
 
@@ -120,6 +124,7 @@ export class ConnectionHealthMonitor {
     this.now = options.now ?? (() => new Date());
     this.autoReconnectEnabled = options.autoReconnectEnabled ?? false;
     this.reconnectBaseDelayMs = options.reconnectBaseDelayMs ?? 5_000;
+    this.reconnectCooldownMs = options.reconnectCooldownMs ?? 30 * 60 * 1000;
     this.connectingTimeoutMs = options.connectingTimeoutMs ?? 90_000;
     this.logoutEventsPath = options.logoutEventsPath;
     this.sessionIntegrityCheck = options.sessionIntegrityCheck;
@@ -240,6 +245,7 @@ export class ConnectionHealthMonitor {
       evolution_connection_state: this.evolutionConnectionState,
       reconnect_in_progress: this.reconnectInProgress,
       reconnect_attempt: this.reconnectAttempt,
+      reconnect_cooldown_until: this.reconnectCooldownUntil === null ? null : new Date(this.reconnectCooldownUntil).toISOString(),
       logout_401_count_last_24h: this.recentLogoutCount(),
       session_integrity: this.sessionIntegrity,
     };
@@ -308,8 +314,16 @@ export class ConnectionHealthMonitor {
       this.reconnectWindowStartedAt = nowMs;
       this.reconnectAttempt = 0;
     }
+    if (this.reconnectCooldownUntil !== null) {
+      if (nowMs < this.reconnectCooldownUntil) {
+        this.options.logger.warn({ event_type: "EVOLUTION_RECONNECT_COOLDOWN_ACTIVE", evolution_instance: this.options.evolutionInstance });
+        return;
+      }
+      this.reconnectCooldownUntil = null;
+    }
     if (this.reconnectAttempt >= 3) {
-      this.options.logger.warn({ event_type: "EVOLUTION_RECONNECT_HALTED", evolution_instance: this.options.evolutionInstance, reason: "max_attempts_per_hour" });
+      this.reconnectCooldownUntil = nowMs + this.reconnectCooldownMs;
+      this.options.logger.warn({ event_type: "EVOLUTION_RECONNECT_HALTED", evolution_instance: this.options.evolutionInstance, reason: "max_attempts_cooldown_started", cooldown_minutes: Math.round(this.reconnectCooldownMs / 60_000) });
       return;
     }
     this.reconnectInProgress = true;

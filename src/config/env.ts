@@ -12,6 +12,7 @@ export interface EnvConfig {
   evolutionApiKey: string;
   evolutionAutoReconnectEnabled?: boolean;
   evolutionReconnectBaseDelayMs?: number;
+  evolutionReconnectCooldownMs?: number;
   evolutionSessionDatabaseUrl?: string;
   openaiApiKey: string;
   openaiAssistantId: string;
@@ -130,6 +131,7 @@ export function loadEnv(): EnvConfig {
     evolutionApiKey: readEnv("EVOLUTION_API_KEY"),
     evolutionAutoReconnectEnabled: process.env.EVOLUTION_AUTO_RECONNECT_ENABLED !== "false",
     evolutionReconnectBaseDelayMs: parsePositiveInteger(process.env.EVOLUTION_RECONNECT_BASE_DELAY_MS, 5_000),
+    evolutionReconnectCooldownMs: parsePositiveInteger(process.env.EVOLUTION_RECONNECT_COOLDOWN_MS, 30 * 60 * 1000),
     evolutionSessionDatabaseUrl: process.env.EVOLUTION_SESSION_DATABASE_URL?.trim() || undefined,
     openaiApiKey: readEnv("OPENAI_API_KEY"),
     openaiAssistantId: readEnv("OPENAI_ASSISTANT_ID"),

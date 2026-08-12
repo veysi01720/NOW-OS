@@ -312,6 +312,7 @@ export async function buildServer() {
     logger,
     autoReconnectEnabled: env.evolutionAutoReconnectEnabled,
     reconnectBaseDelayMs: env.evolutionReconnectBaseDelayMs,
+    reconnectCooldownMs: env.evolutionReconnectCooldownMs,
     logoutEventsPath: resolve(DATA_DIR, "evolution-logout-events.json"),
     sessionIntegrityCheck,
     onLogout401: ({ instance }) => {

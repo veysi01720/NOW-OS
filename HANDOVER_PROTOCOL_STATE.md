@@ -297,3 +297,12 @@ src/tests/workspaceLock.test.ts                                  |   1 +
 - The historical approved-learning reduction from 105 to 5 is **kesin olarak aciklanamadi**. Runtime inspection found the current five-item file and older backup/analysis artifacts, but no authoritative deletion, archive, or reset record.
 - The current VPS health and readiness endpoints returned 200; backend, Evolution, and PostgreSQL containers were running with restart count zero. Evolution connection state was not verified because the local read-only request received 401; no connection-state claim is made here.
 - No candidate message, owner approval, canary activation, test-candidate reset, Evolution logout, or container recreation was performed by this checkpoint.
+
+## Overnight Engineering Checkpoint - 2026-08-12
+
+- Evolution/Baileys research: upstream issues report the same pairing/passkey, `Invalid buffer`, 515, 401/device-removed, and missing webhook symptoms. No confirmed fixed release for Evolution 2.3.7 was identified; no upgrade was performed.
+- Reconnect protection: added an env-configurable 30-minute cooldown after three automatic reconnect attempts. The monitor exposes a sanitized cooldown timestamp and logs cooldown activation. Focused monitor tests pass.
+- Full local verification: build PASS, full suite `685/685` PASS, `npm audit --omit=dev` reports `0 vulnerabilities`.
+- Provenance helper still reports `PROVENANCE_VERIFIED=NO` because the local dist/source-tree artifact is stale or missing; this was not used to deploy and requires a separate build-artifact refresh before any deployment.
+- Owner learning queue: no authoritative 2026-07-28 runtime log proving deletion/archive/reset was found; the reduction remains conclusively unexplained and is closed as an evidence gap.
+- No live WhatsApp message, owner approval, canary activation, logout, pairing, Evolution recreate, backend deploy, or database change was performed in this checkpoint.
