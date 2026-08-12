@@ -36,6 +36,7 @@ import type {
 import type { MaintenanceStore } from "../store/maintenanceStore.js";
 import { handleOwnerCommand } from "./ownerCommands.js";
 import { guardUnbackedOwnerSuccessClaim } from "./ownerSuccessClaimGuard.js";
+import { waitForHumanReplyDelay } from "./humanReplyDelay.js";
 import {
   checkApprovedAppGate,
   SAFE_APPROVED_APP_GATE_REPLY,
@@ -1564,6 +1565,15 @@ async function sendReply(
 ): Promise<boolean> {
   try {
     latencyTracker?.markSendStart();
+    if (deps.env.humanReplyDelayEnabled === true) {
+      const delayMs = await waitForHumanReplyDelay(text);
+      deps.logger.info({
+        event_type: "HUMAN_REPLY_DELAY_APPLIED",
+        correlation_id: message.correlation_id,
+        delay_ms: delayMs,
+        reply_length: text.length,
+      });
+    }
     if (isOutboundShadowEnabled(deps.env.outboundQueueMode)) {
       enqueueOutboundShadow({
         store: deps.reliabilityQueueStore,

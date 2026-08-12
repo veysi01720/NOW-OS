@@ -25,6 +25,7 @@ export interface EnvConfig {
   dashboardManagerToken: string;
   webhookQueueMode: "off" | "dual_write" | "queue_only";
   outboundQueueMode: "off" | "enqueue_shadow" | "queue_only";
+  humanReplyDelayEnabled?: boolean;
   fastAckEnabled: boolean;
   workersEnabled: boolean;
   behaviorOrchestratorEnabled: boolean;
@@ -142,6 +143,7 @@ export function loadEnv(): EnvConfig {
     dashboardManagerToken: process.env.DASHBOARD_MANAGER_TOKEN ?? "",
     webhookQueueMode: parseEnum("WEBHOOK_QUEUE_MODE", process.env.WEBHOOK_QUEUE_MODE, ["off", "dual_write", "queue_only"] as const, "off"),
     outboundQueueMode: parseEnum("OUTBOUND_QUEUE_MODE", process.env.OUTBOUND_QUEUE_MODE, ["off", "enqueue_shadow", "queue_only"] as const, "off"),
+    humanReplyDelayEnabled: process.env.HUMAN_REPLY_DELAY_ENABLED !== "false",
     fastAckEnabled: process.env.FAST_ACK_ENABLED === "true",
     workersEnabled: process.env.WORKERS_ENABLED === "true",
     behaviorOrchestratorEnabled: process.env.BEHAVIOR_ORCHESTRATOR_ENABLED === "true",
