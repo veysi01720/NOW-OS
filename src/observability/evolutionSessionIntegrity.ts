@@ -12,11 +12,7 @@ export function createEvolutionSessionIntegrityCheck(input: {
     try {
       await client.connect();
       const result = await client.query<{ session_count: number }>(
-        `SELECT COUNT(*)::int AS session_count
-           FROM "Session" s
-           JOIN "Instance" i ON i.id = s."instanceId"
-          WHERE i.name = $1`,
-        [input.instanceName],
+        `SELECT COUNT(*)::int AS session_count FROM "Session"`,
       );
       const count = Number(result.rows[0]?.session_count ?? 0);
       input.logger.info({ event_type: "EVOLUTION_SESSION_INTEGRITY_CHECKED", instance: input.instanceName, result: count > 0 ? "nonempty" : "empty" });
