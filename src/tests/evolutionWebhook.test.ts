@@ -289,12 +289,50 @@ describe("POST /webhooks/evolution", () => {
     });
 
     expect(response.statusCode).toBe(200);
-    expect(response.json()).toEqual({ status: "ignored", reason: "non_message_event" });
+    expect(response.json()).toEqual({ status: "ignored", reason: "connection_update_observed" });
     expect(assistantClient.runCalls).toHaveLength(0);
     expect(logger.events).toEqual(expect.arrayContaining([
-      expect.objectContaining({ event_type: "NON_MESSAGE_WEBHOOK_IGNORED", event_name: "CONNECTION_UPDATE" }),
+      expect.objectContaining({ event_type: "EVOLUTION_CONNECTION_UPDATE_OBSERVED", state: "open" }),
     ]));
 
+    await app.close();
+  });
+
+  it("records a 401 connection close and does not run the assistant", async () => {
+    const app = Fastify({ logger: false });
+    const logger = createSilentLogger();
+    const connectionHealthMonitor = new ConnectionHealthMonitor({
+      evolutionInstance: "nowakademi_bot",
+      evolutionApiBaseUrl: "http://evolution.local",
+      evolutionApiKey: "secret-key",
+      logger,
+      autoReconnectEnabled: false,
+    });
+    const assistantClient = new FakeAssistantClient([]);
+    registerEvolutionWebhook(app, {
+      env: createTestEnv(),
+      assistantClient,
+      sender: new FakeSender(),
+      threadStore: new InMemoryThreadStore(),
+      memoryStore: new InMemoryStore(),
+      messageDedupeStore: new InMemoryMessageDedupeStore(),
+      userStateStore: new InMemoryUserStateStore(),
+      userRunLock: new UserRunLock(),
+      logger,
+      connectionHealthMonitor,
+    });
+    const response = await app.inject({
+      method: "POST",
+      url: "/webhooks/evolution",
+      payload: { event: "CONNECTION_UPDATE", data: { state: "close", statusReason: 401 } },
+    });
+    expect(response.statusCode).toBe(200);
+    expect(assistantClient.runCalls).toHaveLength(0);
+    expect(connectionHealthMonitor.snapshot().logout_401_count_last_24h).toBe(1);
+    expect(logger.events).toEqual(expect.arrayContaining([
+      expect.objectContaining({ event_type: "EVOLUTION_SESSION_LOGOUT_401" }),
+      expect.objectContaining({ event_type: "EVOLUTION_CONNECTION_UPDATE_OBSERVED", state: "close", status_reason: 401 }),
+    ]));
     await app.close();
   });
 

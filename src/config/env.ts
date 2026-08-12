@@ -10,6 +10,9 @@ export interface EnvConfig {
   evolutionApiBaseUrl: string;
   evolutionInstance: string;
   evolutionApiKey: string;
+  evolutionAutoReconnectEnabled?: boolean;
+  evolutionReconnectBaseDelayMs?: number;
+  evolutionSessionDatabaseUrl?: string;
   openaiApiKey: string;
   openaiAssistantId: string;
   openaiVectorStoreId?: string;
@@ -124,6 +127,9 @@ export function loadEnv(): EnvConfig {
     evolutionApiBaseUrl: readEnv("EVOLUTION_API_BASE_URL"),
     evolutionInstance: readEnv("EVOLUTION_INSTANCE"),
     evolutionApiKey: readEnv("EVOLUTION_API_KEY"),
+    evolutionAutoReconnectEnabled: process.env.EVOLUTION_AUTO_RECONNECT_ENABLED !== "false",
+    evolutionReconnectBaseDelayMs: parsePositiveInteger(process.env.EVOLUTION_RECONNECT_BASE_DELAY_MS, 5_000),
+    evolutionSessionDatabaseUrl: process.env.EVOLUTION_SESSION_DATABASE_URL?.trim() || undefined,
     openaiApiKey: readEnv("OPENAI_API_KEY"),
     openaiAssistantId: readEnv("OPENAI_ASSISTANT_ID"),
     openaiVectorStoreId: process.env.OPENAI_VECTOR_STORE_ID,

@@ -31,6 +31,7 @@ import { InMemoryReliabilityQueueStore } from "./reliability/inMemoryReliability
 import { PersistentHumanHandoffStore } from "./store/humanHandoffStore.js";
 import { PersistentTrainingHandoffStore } from "./store/trainingHandoffStore.js";
 import { createOpenAIInstallationVisionClassifier } from "./bridge/openaiInstallationVisionClassifier.js";
+import { createEvolutionSessionIntegrityCheck } from "./observability/evolutionSessionIntegrity.js";
 
 const DEFAULT_RESPONSES_SHADOW_SNAPSHOT: ResponsesShadowSnapshot = {
   enabled: false,
@@ -298,11 +299,35 @@ export async function buildServer() {
       logger,
     },
   );
+  const humanHandoffStore = new PersistentHumanHandoffStore(resolve(DATA_DIR, "human-handoffs.json"));
+  const sessionIntegrityCheck = createEvolutionSessionIntegrityCheck({
+    databaseUrl: env.evolutionSessionDatabaseUrl,
+    instanceName: env.evolutionInstance,
+    logger,
+  });
   const connectionHealthMonitor = new ConnectionHealthMonitor({
     evolutionInstance: env.evolutionInstance,
     evolutionApiBaseUrl: env.evolutionApiBaseUrl,
     evolutionApiKey: env.evolutionApiKey,
     logger,
+    autoReconnectEnabled: env.evolutionAutoReconnectEnabled,
+    reconnectBaseDelayMs: env.evolutionReconnectBaseDelayMs,
+    logoutEventsPath: resolve(DATA_DIR, "evolution-logout-events.json"),
+    sessionIntegrityCheck,
+    onLogout401: ({ instance }) => {
+      const result = humanHandoffStore.create({
+        tenant_id: "now_os",
+        reason_code: "evolution_session_logout_401",
+        urgency: "high",
+        conversation_key_hash: `evolution:${instance}`,
+        source_correlation_id: "evolution-session-monitor",
+      });
+      logger.warn({
+        event_type: result.created ? "EVOLUTION_LOGOUT_HANDOFF_RECORDED" : "EVOLUTION_LOGOUT_HANDOFF_ALREADY_PRESENT",
+        reason_code: "evolution_session_logout_401",
+        created: result.created,
+      });
+    },
     modeSnapshotProvider: () => ({
       inbound_queue_mode: env.webhookQueueMode,
       outbound_queue_mode: env.outboundQueueMode,
@@ -363,7 +388,6 @@ export async function buildServer() {
   // enqueueInboundShadow/enqueueOutboundShadow only write to it once one of
   // those modes is explicitly turned on.
   const reliabilityQueueStore = new InMemoryReliabilityQueueStore();
-  const humanHandoffStore = new PersistentHumanHandoffStore(resolve(DATA_DIR, "human-handoffs.json"));
   const trainingHandoffStore = new PersistentTrainingHandoffStore(resolve(DATA_DIR, "training-handoffs.json"));
   const installationVerificationClassifier = env.installationVisionEnabled && env.openaiResponsesModel
     ? await createOpenAIInstallationVisionClassifier({

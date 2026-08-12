@@ -143,4 +143,55 @@ describe("ConnectionHealthMonitor", () => {
       error_rate: 0,
     });
   });
+
+  it("requests a bounded reconnect once for a closed Evolution state", async () => {
+    const logger = createSilentLogger();
+    const calls: string[] = [];
+    const monitor = new ConnectionHealthMonitor({
+      evolutionInstance: "nowakademi_bot",
+      evolutionApiBaseUrl: "http://evolution.local",
+      evolutionApiKey: "secret-key",
+      logger,
+      autoReconnectEnabled: true,
+      reconnectBaseDelayMs: 1,
+      fetchImpl: (async (url) => {
+        calls.push(String(url));
+        return new Response(JSON.stringify({ instance: { state: "close" } }), { status: 200 });
+      }) as typeof fetch,
+    });
+    await monitor.runReachabilityCheck("periodic");
+    await new Promise((resolve) => setTimeout(resolve, 10));
+    expect(calls).toContain("http://evolution.local/instance/connect/nowakademi_bot");
+    expect(JSON.stringify(logger.events)).not.toContain("secret-key");
+  });
+
+  it("persists and reports 401 logout counts without exposing payloads", async () => {
+    const logger = createSilentLogger();
+    const path = `${process.cwd()}/.tmp-evolution-logout-${Date.now()}.json`;
+    const monitor = new ConnectionHealthMonitor({
+      evolutionInstance: "nowakademi_bot",
+      evolutionApiBaseUrl: "http://evolution.local",
+      evolutionApiKey: "secret-key",
+      logger,
+      logoutEventsPath: path,
+      fetchImpl: (async () => new Response(JSON.stringify({ instance: { state: "close", statusReason: 401 } }), { status: 200 })) as typeof fetch,
+    });
+    const snapshot = await monitor.runReachabilityCheck("periodic");
+    expect(snapshot.logout_401_count_last_24h).toBe(1);
+    expect(logger.events).toEqual(expect.arrayContaining([expect.objectContaining({ event_type: "EVOLUTION_SESSION_LOGOUT_401" })]));
+  });
+
+  it("retains session integrity in the connection-doctor snapshot", async () => {
+    const logger = createSilentLogger();
+    const monitor = new ConnectionHealthMonitor({
+      evolutionInstance: "nowakademi_bot",
+      evolutionApiBaseUrl: "http://evolution.local",
+      evolutionApiKey: "secret-key",
+      logger,
+      sessionIntegrityCheck: async () => "nonempty",
+      fetchImpl: (async () => new Response(JSON.stringify({ instance: { state: "open" } }), { status: 200 })) as typeof fetch,
+    });
+    const snapshot = await monitor.runReachabilityCheck("startup");
+    expect(snapshot.session_integrity).toBe("nonempty");
+  });
 });

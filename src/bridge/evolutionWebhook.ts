@@ -27,6 +27,11 @@ function isMessagesUpsertEvent(eventName: string): boolean {
   return normalized === "" || normalized === "messages.upsert" || normalized === "messages_upsert";
 }
 
+function isConnectionUpdateEvent(eventName: string): boolean {
+  const normalized = eventName.trim().toLowerCase();
+  return normalized === "connection.update" || normalized === "connection_update" || normalized === "connectionupdate";
+}
+
 export function registerEvolutionWebhook(app: FastifyInstance, deps: HandleIncomingMessageDeps): void {
   app.post("/webhooks/evolution", async (request, reply) => {
     let correlationId: string | undefined;
@@ -35,6 +40,22 @@ export function registerEvolutionWebhook(app: FastifyInstance, deps: HandleIncom
       const webhookReceivedAtMs = Date.now();
       deps.logger.info({ event_type: "WEBHOOK_RECEIVED" });
       const eventName = getEvolutionEventName(request.body);
+      if (isConnectionUpdateEvent(eventName)) {
+        const root = getRecord(request.body);
+        const data = getRecord(root.data);
+        const instance = getRecord(data.instance ?? root.instance);
+        const state = typeof (data.state ?? instance.state ?? root.state) === "string"
+          ? String(data.state ?? instance.state ?? root.state)
+          : undefined;
+        const statusReasonValue = data.statusReason ?? instance.statusReason ?? root.statusReason;
+        const statusReason = typeof statusReasonValue === "number" ? statusReasonValue : Number(statusReasonValue);
+        deps.connectionHealthMonitor?.recordEvolutionConnectionUpdate({
+          state,
+          statusReason: Number.isFinite(statusReason) ? statusReason : undefined,
+        });
+        deps.logger.info({ event_type: "EVOLUTION_CONNECTION_UPDATE_OBSERVED", state, status_reason: Number.isFinite(statusReason) ? statusReason : undefined });
+        return reply.code(200).send({ status: "ignored", reason: "connection_update_observed" });
+      }
       if (!isMessagesUpsertEvent(eventName)) {
         deps.logger.info({ event_type: "NON_MESSAGE_WEBHOOK_IGNORED", event_name: eventName || "unknown" });
         return reply.code(200).send({ status: "ignored", reason: "non_message_event" });

@@ -2,6 +2,8 @@ import { redactSecrets } from "../utils/redaction.js";
 import type { Logger } from "./logger.js";
 import type { QueueBacklogSnapshot } from "../reliability/queueTypes.js";
 import { evaluateMigrationReadiness, type MigrationReadinessSnapshot } from "./migrationReadiness.js";
+import { readFileSync, writeFileSync, mkdirSync, renameSync } from "node:fs";
+import { dirname } from "node:path";
 
 export interface ConnectionHealthSnapshot {
   evolution_instance: string;
@@ -35,6 +37,11 @@ export interface ConnectionHealthSnapshot {
   };
   recommended_action: string;
   diagnosis: string;
+  evolution_connection_state?: string | null;
+  reconnect_in_progress?: boolean;
+  reconnect_attempt?: number;
+  logout_401_count_last_24h?: number;
+  session_integrity?: "nonempty" | "empty" | "unavailable" | "error";
 }
 
 export interface ShadowQueueWriteStats {
@@ -62,6 +69,11 @@ export interface ConnectionHealthMonitorOptions {
   };
   fetchImpl?: typeof fetch;
   now?: () => Date;
+  autoReconnectEnabled?: boolean;
+  reconnectBaseDelayMs?: number;
+  logoutEventsPath?: string;
+  sessionIntegrityCheck?: () => Promise<"nonempty" | "empty" | "unavailable" | "error">;
+  onLogout401?: (input: { instance: string; reason: number }) => void;
 }
 
 type ReachabilityReason = "startup" | "periodic" | "manual";
@@ -86,12 +98,29 @@ export class ConnectionHealthMonitor {
   private readonly reachabilityTimeoutMs: number;
   private readonly fetchImpl: typeof fetch;
   private readonly now: () => Date;
+  private readonly autoReconnectEnabled: boolean;
+  private readonly reconnectBaseDelayMs: number;
+  private readonly logoutEventsPath?: string;
+  private readonly sessionIntegrityCheck?: ConnectionHealthMonitorOptions["sessionIntegrityCheck"];
+  private readonly onLogout401?: ConnectionHealthMonitorOptions["onLogout401"];
+  private evolutionConnectionState: string | null = null;
+  private sessionIntegrity: "nonempty" | "empty" | "unavailable" | "error" = "unavailable";
+  private reconnectInProgress = false;
+  private reconnectAttempt = 0;
+  private reconnectWindowStartedAt: number | null = null;
+  private logoutEvents: string[] = [];
 
   constructor(private readonly options: ConnectionHealthMonitorOptions) {
     this.degradedThresholdMs = options.degradedThresholdMs ?? 10 * 60 * 1000;
     this.reachabilityTimeoutMs = options.reachabilityTimeoutMs ?? 3000;
     this.fetchImpl = options.fetchImpl ?? fetch;
     this.now = options.now ?? (() => new Date());
+    this.autoReconnectEnabled = options.autoReconnectEnabled ?? false;
+    this.reconnectBaseDelayMs = options.reconnectBaseDelayMs ?? 5_000;
+    this.logoutEventsPath = options.logoutEventsPath;
+    this.sessionIntegrityCheck = options.sessionIntegrityCheck;
+    this.onLogout401 = options.onLogout401;
+    this.loadLogoutEvents();
   }
 
   recordInboundConfirmed(input: { correlation_id?: string; message_id?: string; chat_type?: string }): void {
@@ -204,7 +233,82 @@ export class ConnectionHealthMonitor {
       },
       recommended_action: this.recommendedAction(),
       diagnosis: this.diagnosis(),
+      evolution_connection_state: this.evolutionConnectionState,
+      reconnect_in_progress: this.reconnectInProgress,
+      reconnect_attempt: this.reconnectAttempt,
+      logout_401_count_last_24h: this.recentLogoutCount(),
+      session_integrity: this.sessionIntegrity,
     };
+  }
+
+  recordEvolutionConnectionUpdate(input: { state?: string; statusReason?: number }): void {
+    this.evolutionConnectionState = input.state ?? null;
+    if (input.state === "open") {
+      this.reconnectAttempt = 0;
+      this.reconnectWindowStartedAt = null;
+      return;
+    }
+    if (input.state === "close" && input.statusReason === 401) {
+      this.recordLogout401();
+    }
+    if (input.state === "close") void this.reconnectIfClosed();
+  }
+
+  private loadLogoutEvents(): void {
+    if (!this.logoutEventsPath) return;
+    try {
+      const parsed = JSON.parse(readFileSync(this.logoutEventsPath, "utf8")) as unknown;
+      this.logoutEvents = Array.isArray(parsed) ? parsed.filter((x): x is string => typeof x === "string") : [];
+    } catch { this.logoutEvents = []; }
+    this.pruneLogoutEvents(false);
+  }
+
+  private recentLogoutCount(): number {
+    this.pruneLogoutEvents(false);
+    return this.logoutEvents.length;
+  }
+
+  private pruneLogoutEvents(save: boolean): void {
+    const cutoff = this.now().getTime() - 24 * 60 * 60 * 1000;
+    this.logoutEvents = this.logoutEvents.filter((value) => Date.parse(value) >= cutoff);
+    if (save && this.logoutEventsPath) {
+      mkdirSync(dirname(this.logoutEventsPath), { recursive: true });
+      const temp = `${this.logoutEventsPath}.tmp`;
+      writeFileSync(temp, JSON.stringify(this.logoutEvents), { mode: 0o600 });
+      renameSync(temp, this.logoutEventsPath);
+    }
+  }
+
+  private recordLogout401(): void {
+    this.logoutEvents.push(this.now().toISOString());
+    this.pruneLogoutEvents(true);
+    this.options.logger.warn({ event_type: "EVOLUTION_SESSION_LOGOUT_401", evolution_instance: this.options.evolutionInstance, logout_401_count_last_24h: this.logoutEvents.length });
+    this.onLogout401?.({ instance: this.options.evolutionInstance, reason: 401 });
+  }
+
+  private async reconnectIfClosed(): Promise<void> {
+    if (!this.autoReconnectEnabled || this.reconnectInProgress || this.evolutionConnectionState !== "close") return;
+    const nowMs = this.now().getTime();
+    if (this.reconnectWindowStartedAt === null || nowMs - this.reconnectWindowStartedAt > 60 * 60 * 1000) {
+      this.reconnectWindowStartedAt = nowMs;
+      this.reconnectAttempt = 0;
+    }
+    if (this.reconnectAttempt >= 3) {
+      this.options.logger.warn({ event_type: "EVOLUTION_RECONNECT_HALTED", evolution_instance: this.options.evolutionInstance, reason: "max_attempts_per_hour" });
+      return;
+    }
+    this.reconnectInProgress = true;
+    const attempt = ++this.reconnectAttempt;
+    const delay = Math.min(this.reconnectBaseDelayMs * 2 ** Math.max(0, attempt - 1), 5 * 60 * 1000);
+    await new Promise((resolve) => setTimeout(resolve, delay));
+    try {
+      const response = await this.fetchImpl(`${this.options.evolutionApiBaseUrl.replace(/\/$/u, "")}/instance/connect/${encodeURIComponent(this.options.evolutionInstance)}`, {
+        method: "GET", headers: { apikey: this.options.evolutionApiKey }, signal: AbortSignal.timeout(this.reachabilityTimeoutMs),
+      });
+      this.options.logger.info({ event_type: response.ok ? "EVOLUTION_RECONNECT_REQUESTED" : "EVOLUTION_RECONNECT_FAILED", evolution_instance: this.options.evolutionInstance, attempt, http_status: response.status });
+    } catch (error) {
+      this.options.logger.warn({ event_type: "EVOLUTION_RECONNECT_FAILED", evolution_instance: this.options.evolutionInstance, attempt, error: redactSecrets(error instanceof Error ? error.message : String(error)) });
+    } finally { this.reconnectInProgress = false; }
   }
 
   private shadowQueueStatsFor(queueName: string): ShadowQueueWriteStats {
@@ -223,7 +327,7 @@ export class ConnectionHealthMonitor {
     this.lastReachabilityError = null;
 
     try {
-      const response = await this.fetchImpl(this.options.evolutionApiBaseUrl, {
+      const response = await this.fetchImpl(`${this.options.evolutionApiBaseUrl.replace(/\/$/u, "")}/instance/connectionState/${encodeURIComponent(this.options.evolutionInstance)}`, {
         method: "GET",
         headers: {
           apikey: this.options.evolutionApiKey,
@@ -232,11 +336,20 @@ export class ConnectionHealthMonitor {
       });
       this.lastReachabilityStatus = response.status;
       this.lastReachabilityOk = response.status < 500;
+      const body = await response.clone().json().catch(() => ({})) as { instance?: { state?: string; statusReason?: number }; state?: string; statusReason?: number };
+      this.evolutionConnectionState = body.instance?.state ?? body.state ?? null;
+      if (this.evolutionConnectionState === "close") void this.reconnectIfClosed();
+      if (body.instance?.state === "close" && body.instance.statusReason === 401) {
+        this.recordLogout401();
+      }
     } catch (error) {
       this.lastReachabilityOk = false;
       this.lastReachabilityError = redactSecrets(error instanceof Error ? error.message : String(error));
     }
 
+    if (this.sessionIntegrityCheck) {
+      this.sessionIntegrity = await this.sessionIntegrityCheck();
+    }
     const snapshot = this.snapshot();
     this.options.logger.info({
       event_type: "GATEWAY_REACHABILITY_CHECK",
