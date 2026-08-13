@@ -310,4 +310,13 @@ describe("ConversationDecisionV3 semantic validator", () => {
     for (const code of LAYER_1_REASON_CODES) expect(classifyValidatorReasonCode(code)).toBe("layer_1");
     for (const code of LAYER_2_REASON_CODES) expect(classifyValidatorReasonCode(code)).toBe("layer_2");
   });
+
+  it("keeps unknown reason codes fail-closed and reports them separately", async () => {
+    const { splitValidatorReasonCodes } = await import("../intelligence/conversation/ConversationValidatorReasonCatalog.js");
+    expect(splitValidatorReasonCodes(["FUTURE_UNCLASSIFIED_REASON"])).toEqual({
+      layer_1_reason_codes: ["FUTURE_UNCLASSIFIED_REASON"],
+      layer_2_reason_codes: [],
+      unknown_reason_codes: ["FUTURE_UNCLASSIFIED_REASON"],
+    });
+  });
 });

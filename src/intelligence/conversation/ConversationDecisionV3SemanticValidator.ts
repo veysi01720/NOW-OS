@@ -34,6 +34,7 @@ export interface ConversationDecisionV3SemanticValidationResult {
   layer_1_reason_codes: string[];
   layer_2_result: "pass" | "accepted_with_variance" | "fail";
   layer_2_reason_codes: string[];
+  unknown_reason_codes: string[];
   semantic_question_answered: boolean;
 }
 
@@ -293,6 +294,7 @@ export function validateConversationDecisionV3Semantics(
       layer_1_reason_codes: shape.reason_codes,
       layer_2_result: "pass",
       layer_2_reason_codes: [],
+      unknown_reason_codes: [],
       semantic_question_answered: false,
     };
   }
@@ -357,6 +359,7 @@ export function validateConversationDecisionV3Semantics(
     layer_1_reason_codes: split.layer_1_reason_codes,
     layer_2_result: layer2Result,
     layer_2_reason_codes: split.layer_2_reason_codes,
+    unknown_reason_codes: split.unknown_reason_codes,
     semantic_question_answered: semanticQuestionAnswered,
   };
 }

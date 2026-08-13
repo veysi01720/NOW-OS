@@ -153,6 +153,35 @@ describe("ConversationDecisionV3 transition preparation", () => {
     expect(result.proposed_state.missing_fields).toEqual(["model_acceptance"]);
   });
 
+  it("accepts Evet uygun work-model acceptance and advances state", () => {
+    const current = {
+      ...defaultUserState(),
+      age: 27,
+      gender: "erkek" as const,
+      daily_hours: 4,
+      eligibility_status: "eligible" as const,
+      work_model_disclosed: true,
+      current_state: "WORK_MODEL_DISCLOSURE" as const,
+      missing_fields: ["model_acceptance"],
+    };
+    const result = prepareConversationDecisionV3Transition(decision({
+      next_action: "update_candidate_state",
+      chosen_actions: ["acknowledge_information", "record_work_model_acceptance"],
+      patch: { work_model_acceptance: "accepted" },
+      evidence: [{ field: "work_model_acceptance", source: "current_message", evidence_ref: null }],
+      reply: "Tamam, uygun oldugunu kaydettim.",
+    }), context({
+      candidate_state: current,
+      latest_message: "Evet uygun",
+      allowed_actions: ["acknowledge_information", "record_work_model_acceptance"],
+    }));
+
+    expect(result.valid).toBe(true);
+    expect(result.proposed_state.model_acceptance).toBe("accepted");
+    expect(result.proposed_state.current_state).toBe("WAITING_FOR_APP");
+    expect(result.proposed_state.missing_fields).toEqual(["selected_app", "phone_type"]);
+  });
+
   it("maps explicit missing-info escalation without state mutation", () => {
     const result = prepareConversationDecisionV3Transition(decision({
       next_action: "escalate_missing_info",

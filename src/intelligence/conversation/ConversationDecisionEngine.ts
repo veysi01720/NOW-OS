@@ -439,6 +439,15 @@ export async function executeConversationDecisionV2(input: {
         layer2Result = modelResult.semanticValidation.layer_2_result;
         layer2ReasonCodes = modelResult.semanticValidation.layer_2_reason_codes;
         semanticQuestionAnswered = modelResult.semanticValidation.semantic_question_answered;
+        for (const reasonCode of modelResult.semanticValidation.unknown_reason_codes) {
+          input.logger.warn({
+            event_type: "CONVERSATION_VALIDATOR_UNKNOWN_REASON_CODE",
+            reason_code: reasonCode,
+            fail_closed_layer: "layer_1",
+            correlation_id: context.request_id,
+            warning: "unknown_reason_code_fail_closed",
+          });
+        }
       }
       logMissingPolicyNormalization(input.logger, context.request_id, modelResult.normalization);
     }

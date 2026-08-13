@@ -11,7 +11,6 @@ export const LAYER_1_REASON_CODES = new Set([
   "CHOSEN_ACTION_NOT_ALLOWED",
   "POLICY_FACT_NOT_GROUNDED",
   "NEXT_ACTION_STATE_UPDATE_WITHOUT_PATCH",
-  "NEXT_ACTION_STATE_UPDATE_INCOMPATIBLE",
   "NEXT_ACTION_ESCALATION_INCOMPATIBLE",
   "NEXT_ACTION_MISSING_INFO_ESCALATION_INCOMPATIBLE",
   "NEXT_ACTION_NO_REPLY_INCOMPATIBLE",
@@ -28,6 +27,11 @@ export const LAYER_1_REASON_CODES = new Set([
   "STATE_PATCH_EXISTING_STATE_EVIDENCE_MISMATCH",
   "STATE_PATCH_REPLY_EVIDENCE_INCOMPATIBLE",
   "STATE_PATCH_POLICY_EVIDENCE_INCOMPATIBLE",
+  "STATE_PATCH_EVIDENCE_MISSING",
+  "STATE_PATCH_EVIDENCE_DUPLICATE",
+  "STATE_PATCH_ACCEPTANCE_WITHOUT_EVIDENCE",
+  "STATE_PATCH_SELECTED_APP_WITHOUT_EVIDENCE",
+  "STATE_PATCH_PHONE_TYPE_WITHOUT_EVIDENCE",
   "UNAPPROVED_APP_IN_REPLY",
   "SENSITIVE_DATA_REQUEST",
   "UNSUPPORTED_POLICY_FACT",
@@ -38,6 +42,8 @@ export const LAYER_1_REASON_CODES = new Set([
 export const LAYER_2_REASON_CODES = new Set([
   "NEXT_ACTION_MISSING_INFO_INCOMPATIBLE",
   "NEXT_ACTION_DIRECT_ANSWER_INCOMPATIBLE",
+  "NEXT_ACTION_STATE_UPDATE_INCOMPATIBLE",
+  "STATE_PATCH_WITHOUT_UPDATE_NEXT_ACTION",
   "ACTION_ORDER_VARIANCE",
   "PARTIAL_INTAKE_RESPONSE_VARIANCE",
   "WORK_MODEL_DISCLOSURE_ACTIONS_MISSING",
@@ -56,10 +62,21 @@ export function classifyValidatorReasonCode(code: string): ValidatorLayer {
 export function splitValidatorReasonCodes(reasonCodes: string[]): {
   layer_1_reason_codes: string[];
   layer_2_reason_codes: string[];
+  unknown_reason_codes: string[];
 } {
   return reasonCodes.reduce((result, code) => {
-    if (classifyValidatorReasonCode(code) === "layer_1") result.layer_1_reason_codes.push(code);
-    else result.layer_2_reason_codes.push(code);
+    if (!LAYER_1_REASON_CODES.has(code) && !LAYER_2_REASON_CODES.has(code)) {
+      result.unknown_reason_codes.push(code);
+      result.layer_1_reason_codes.push(code);
+    } else if (classifyValidatorReasonCode(code) === "layer_1") {
+      result.layer_1_reason_codes.push(code);
+    } else {
+      result.layer_2_reason_codes.push(code);
+    }
     return result;
-  }, { layer_1_reason_codes: [] as string[], layer_2_reason_codes: [] as string[] });
+  }, {
+    layer_1_reason_codes: [] as string[],
+    layer_2_reason_codes: [] as string[],
+    unknown_reason_codes: [] as string[],
+  });
 }
