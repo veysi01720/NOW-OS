@@ -182,6 +182,22 @@ describe("ConversationDecisionV3 semantic validator", () => {
     expectRejected(mismatch, "STATE_PATCH_CURRENT_MESSAGE_EVIDENCE_MISMATCH");
   });
 
+  it("accepts canonical phone evidence when the model uses Android or iPhone labels", () => {
+    const android = validateConversationDecisionV3Semantics(decision({
+      next_action: "update_candidate_state",
+      chosen_actions: ["acknowledge_information"],
+      patch: { phone_type: "Android" },
+    }), context({ latest_message: "Android" }));
+    expect(android.layer_1_reason_codes).not.toContain("STATE_PATCH_CURRENT_MESSAGE_EVIDENCE_MISMATCH");
+
+    const iphone = validateConversationDecisionV3Semantics(decision({
+      next_action: "update_candidate_state",
+      chosen_actions: ["acknowledge_information"],
+      patch: { phone_type: "iPhone" },
+    }), context({ latest_message: "iPhone" }));
+    expect(iphone.layer_1_reason_codes).not.toContain("STATE_PATCH_CURRENT_MESSAGE_EVIDENCE_MISMATCH");
+  });
+
   it("enforces approved app state patches and deterministic unapproved app vocabulary in replies", () => {
     expectRejected(validateConversationDecisionV3Semantics(decision({
       next_action: "update_candidate_state",

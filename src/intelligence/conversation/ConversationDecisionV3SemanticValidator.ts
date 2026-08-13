@@ -155,7 +155,11 @@ function currentMessageSupports(
     const detected = detectApprovedApp(context.latest_message, context.allowed_apps);
     return detected !== null && normalize(detected) === normalize(String(value));
   }
-  if (field === "phone_type") return detectPhoneType(context.latest_message).phone_type === value;
+  if (field === "phone_type") {
+    const detected = detectPhoneType(context.latest_message).phone_type;
+    const requested = detectPhoneType(String(value)).phone_type;
+    return detected !== null && detected === requested;
+  }
   if (field === "work_model_acceptance") return detectModelAcceptance(context.latest_message) === value;
 
   const latest = normalize(context.latest_message);

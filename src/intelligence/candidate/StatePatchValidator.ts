@@ -44,7 +44,8 @@ export function validateAndApplyStatePatch(
 
   if (patch.phone_type !== undefined && patch.phone_type !== null) {
     const detectedPhone = detectPhoneType(context.latest_message.text);
-    if (detectedPhone.phone_type === patch.phone_type) {
+    const requestedPhone = detectPhoneType(String(patch.phone_type)).phone_type;
+    if (detectedPhone.phone_type !== null && detectedPhone.phone_type === requestedPhone) {
       next.phone_type = patch.phone_type;
     } else {
       reasons.push("STATE_PATCH_PHONE_TYPE_WITHOUT_EVIDENCE");
