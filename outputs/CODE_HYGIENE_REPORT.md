@@ -1,6 +1,6 @@
 # Code Hygiene Report
 
-Generated: 2026-08-13T23:26:27.300Z
+Generated: 2026-08-13T23:32:51.738Z
 
 This is a heuristic review aid. It does not delete code and every finding requires owner review before removal.
 

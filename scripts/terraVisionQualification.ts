@@ -1,7 +1,8 @@
 import { createOpenAIInstallationVisionClassifier } from "../src/bridge/openaiInstallationVisionClassifier.js";
+import { readFileSync } from "node:fs";
 
-const CLEAR_PNG = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=";
-const AMBIGUOUS_PNG = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=";
+const CLEAR_PNG = readFileSync(new URL("./fixtures/clear-installation.png", import.meta.url));
+const AMBIGUOUS_PNG = readFileSync(new URL("./fixtures/ambiguous-installation.png", import.meta.url));
 
 async function main(): Promise<void> {
   if (process.env.RESPONSES_QUALIFICATION_REAL !== "true") throw new Error("REAL_QUALIFICATION_FLAG_REQUIRED");
@@ -10,13 +11,13 @@ async function main(): Promise<void> {
   if (!apiKey || !model) throw new Error("QUALIFICATION_CONFIG_MISSING");
   const classifier = await createOpenAIInstallationVisionClassifier({ apiKey, model });
   const clear = await classifier({
-    buffer: Buffer.from(CLEAR_PNG, "base64"),
+    buffer: CLEAR_PNG,
     mimetype: "image/png",
     file_name: "synthetic-clear-installation-fixture.png",
     caption: "Synthetic fixture: installation completion screen is clear and complete.",
   });
   const ambiguous = await classifier({
-    buffer: Buffer.from(AMBIGUOUS_PNG, "base64"),
+    buffer: AMBIGUOUS_PNG,
     mimetype: "image/png",
     file_name: "synthetic-ambiguous-installation-fixture.png",
     caption: "Synthetic fixture: installation screen is partial and ambiguous.",
