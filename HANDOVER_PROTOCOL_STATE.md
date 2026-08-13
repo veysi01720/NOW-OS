@@ -306,3 +306,11 @@ src/tests/workspaceLock.test.ts                                  |   1 +
 - Provenance helper still reports `PROVENANCE_VERIFIED=NO` because the local dist/source-tree artifact is stale or missing; this was not used to deploy and requires a separate build-artifact refresh before any deployment.
 - Owner learning queue: no authoritative 2026-07-28 runtime log proving deletion/archive/reset was found; the reduction remains conclusively unexplained and is closed as an evidence gap.
 - No live WhatsApp message, owner approval, canary activation, logout, pairing, Evolution recreate, backend deploy, or database change was performed in this checkpoint.
+
+## Overnight Engineering Checkpoint - 2026-08-14
+
+- `384ac37` was deployed to the backend only. Test gate: `102` files and `702` tests passed; health and readiness returned 200; Evolution and PostgreSQL were not recreated.
+- Knowledge setup flow from the owner-approved training ZIP was added to `data/knowledge_bank/app_facts.md`; the owner-triggered sync subsequently published structured facts with seven app facts.
+- Added `scripts/code-hygiene-report.mjs` and `npm run report:code-hygiene`. It only writes `outputs/CODE_HYGIENE_REPORT.md`; it never deletes code. Findings are heuristic and require owner review.
+- Added `scripts/terraIntakeChainQualification.ts` and `npm run test:terra:chain-real`. It is no-outbound and records only sanitized action/next-action/state-patch fields. Real Terra execution remains pending until run on the VPS.
+- `npm audit --omit=dev`: `0 vulnerabilities` locally and in the VPS-mounted source check; no `npm audit fix` or lockfile change was necessary.
