@@ -13,6 +13,12 @@ export function recordDecisionTrace(input: {
   replyMutatedAfterModel: boolean;
   mutationSource: string | null;
   behaviorPromptVersion: string;
+  layer1Result?: "pass" | "fail" | null;
+  layer1ReasonCodes?: string[];
+  layer2Result?: "pass" | "accepted_with_variance" | "fail" | null;
+  layer2ReasonCodes?: string[];
+  repairAttempted?: boolean;
+  semanticQuestionAnswered?: boolean | null;
 }): void {
   input.logger.info({
     event_type: "CONVERSATION_DECISION_V2_TRACE",
@@ -35,6 +41,12 @@ export function recordDecisionTrace(input: {
     reply_origin: input.decision.origin ?? "conversation_decision_v2",
     reply_mutated_after_model: input.replyMutatedAfterModel,
     mutation_source: input.mutationSource,
+    layer_1_result: input.layer1Result ?? null,
+    layer_1_reason_codes: input.layer1ReasonCodes ?? [],
+    layer_2_result: input.layer2Result ?? null,
+    layer_2_reason_codes: input.layer2ReasonCodes ?? [],
+    repair_attempted: input.repairAttempted ?? false,
+    semantic_question_answered: input.semanticQuestionAnswered ?? null,
     raw_text_logged: false
   });
 }

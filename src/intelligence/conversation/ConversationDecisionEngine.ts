@@ -40,6 +40,12 @@ export interface ConversationDecisionEngineResult {
   reply_mutated_after_model: boolean;
   mutation_source: string | null;
   behavior_prompt_version: "conversation_behavior_v2.1";
+  layer_1_result: "pass" | "fail" | null;
+  layer_1_reason_codes: string[];
+  layer_2_result: "pass" | "accepted_with_variance" | "fail" | null;
+  layer_2_reason_codes: string[];
+  repair_attempted: boolean;
+  semantic_question_answered: boolean | null;
 }
 
 export const CONVERSATION_BEHAVIOR_PROMPT_VERSION = "conversation_behavior_v2.1";
@@ -276,6 +282,7 @@ async function runModelDecision(input: {
   decision: ConversationDecision | null;
   rawText: string;
   normalization: ConversationDecisionV3PolicyNormalizationResult | null;
+  semanticValidation: ReturnType<typeof validateConversationDecisionV3Semantics> | null;
 }> {
   const payload = {
     ...input.backendContext,
@@ -310,7 +317,8 @@ async function runModelDecision(input: {
         model_adapter_canary_intents: input.env.modelAdapterCanaryIntents,
         model_adapter_canary_allowed_candidates: input.env.modelAdapterCanaryAllowedCandidates,
         model_adapter_canary_percent: input.env.modelAdapterCanaryPercent,
-        responses_missing_policy_normalization_enabled: input.env.responsesMissingPolicyNormalizationEnabled
+        responses_missing_policy_normalization_enabled: input.env.responsesMissingPolicyNormalizationEnabled,
+        two_layer_validator_enabled: input.env.twoLayerValidatorEnabled
       },
       inferredIntent: input.context.latest_message.inferred_intent,
       candidatePhone: input.backendContext.sender_role === "candidate"
@@ -325,7 +333,7 @@ async function runModelDecision(input: {
     try {
       value = JSON.parse(modelOutput.rawText);
     } catch {
-      return { decision: null, rawText: modelOutput.rawText, normalization: null };
+      return { decision: null, rawText: modelOutput.rawText, normalization: null, semanticValidation: null };
     }
     const shape = validateConversationDecisionV3Shape(value);
     const normalization = shape.ok
@@ -337,21 +345,21 @@ async function runModelDecision(input: {
       buildConversationDecisionV3SemanticContext(adapterInput),
     );
     if (!shape.ok || !semantics.ok) {
-      return { decision: null, rawText: modelOutput.rawText, normalization };
+      return { decision: null, rawText: modelOutput.rawText, normalization, semanticValidation: semantics };
     }
     const v3 = evaluatedValue as ConversationDecisionV3;
     const decision = mapConversationDecisionV3ToBackendDecision(
       v3,
       input.repairInput ? "conversation_decision_v2_model_repair" : "conversation_decision_v2_model",
     );
-    return { decision, rawText: modelOutput.rawText, normalization };
+    return { decision, rawText: modelOutput.rawText, normalization, semanticValidation: semantics };
   }
 
   const decision = parseConversationDecision(modelOutput.rawText);
   if (decision) {
     decision.origin = input.repairInput ? "conversation_decision_v2_model_repair" : "conversation_decision_v2_model";
   }
-  return { decision, rawText: modelOutput.rawText, normalization: null };
+  return { decision, rawText: modelOutput.rawText, normalization: null, semanticValidation: null };
 }
 
 export async function executeConversationDecisionV2(input: {
@@ -377,6 +385,12 @@ export async function executeConversationDecisionV2(input: {
   let modelCallCount = 0;
   let replyMutatedAfterModel = false;
   let mutationSource: string | null = null;
+  let layer1Result: "pass" | "fail" | null = null;
+  let layer1ReasonCodes: string[] = [];
+  let layer2Result: "pass" | "accepted_with_variance" | "fail" | null = null;
+  let layer2ReasonCodes: string[] = [];
+  let repairAttempted = false;
+  let semanticQuestionAnswered: boolean | null = null;
 
   try {
     decision = buildCandidateToneBoundaryDecision(context);
@@ -419,6 +433,13 @@ export async function executeConversationDecisionV2(input: {
       });
       decision = modelResult.decision;
       rawModelOutput = modelResult.rawText;
+      if (modelResult.semanticValidation) {
+        layer1Result = modelResult.semanticValidation.layer_1_result;
+        layer1ReasonCodes = modelResult.semanticValidation.layer_1_reason_codes;
+        layer2Result = modelResult.semanticValidation.layer_2_result;
+        layer2ReasonCodes = modelResult.semanticValidation.layer_2_reason_codes;
+        semanticQuestionAnswered = modelResult.semanticValidation.semantic_question_answered;
+      }
       logMissingPolicyNormalization(input.logger, context.request_id, modelResult.normalization);
     }
   } catch (error) {
@@ -446,6 +467,7 @@ export async function executeConversationDecisionV2(input: {
       const repairReasons = [...new Set([...validation.reason_codes, ...quality.reason_codes])];
       if (modelCallCount > 0) {
         try {
+          repairAttempted = true;
           modelCallCount += 1;
           const repairResult = await runModelDecision({
             modelExecutionService: input.modelExecutionService,
@@ -528,7 +550,13 @@ export async function executeConversationDecisionV2(input: {
     modelCallCount,
     replyMutatedAfterModel,
     mutationSource,
-    behaviorPromptVersion: CONVERSATION_BEHAVIOR_PROMPT_VERSION
+    behaviorPromptVersion: CONVERSATION_BEHAVIOR_PROMPT_VERSION,
+    layer1Result,
+    layer1ReasonCodes,
+    layer2Result,
+    layer2ReasonCodes,
+    repairAttempted,
+    semanticQuestionAnswered
   });
 
   return {
@@ -543,6 +571,12 @@ export async function executeConversationDecisionV2(input: {
     model_call_count: modelCallCount,
     reply_mutated_after_model: replyMutatedAfterModel,
     mutation_source: mutationSource,
-    behavior_prompt_version: CONVERSATION_BEHAVIOR_PROMPT_VERSION
+    behavior_prompt_version: CONVERSATION_BEHAVIOR_PROMPT_VERSION,
+    layer_1_result: layer1Result,
+    layer_1_reason_codes: layer1ReasonCodes,
+    layer_2_result: layer2Result,
+    layer_2_reason_codes: layer2ReasonCodes,
+    repair_attempted: repairAttempted,
+    semantic_question_answered: semanticQuestionAnswered
   };
 }

@@ -10,6 +10,7 @@ import {
   type ConversationDecisionV3SemanticContext,
 } from "../intelligence/conversation/ConversationDecisionV3SemanticValidator.js";
 import { defaultUserState } from "../storage/types.js";
+import { LAYER_1_REASON_CODES, LAYER_2_REASON_CODES, classifyValidatorReasonCode } from "../intelligence/conversation/ConversationValidatorReasonCatalog.js";
 
 function context(input: Partial<ConversationDecisionV3SemanticContext> = {}): ConversationDecisionV3SemanticContext {
   return {
@@ -257,5 +258,56 @@ describe("ConversationDecisionV3 semantic validator", () => {
       next_action: "reply_only",
       chosen_actions: ["answer_user_question"],
     }), context({ role: "group", channel_type: "group", allowed_actions: ["answer_user_question"] })), "GROUP_DECISION_NOT_SAFE_IGNORED");
+  });
+
+  it("accepts a safe result with action-order variance only when the opt-in flag is enabled", () => {
+    const safe = decision({
+      next_action: "answer_direct_question",
+      chosen_actions: ["answer_user_question"],
+    });
+    const strict = validateConversationDecisionV3Semantics(safe, context({
+      allowed_actions: ["answer_user_question"],
+      two_layer_validator_enabled: false,
+    }));
+    expect(strict.ok).toBe(true);
+    expect(strict.layer_2_result).toBe("pass");
+
+    const varied = validateConversationDecisionV3Semantics(decision({
+      next_action: "ask_missing_info",
+      chosen_actions: ["answer_user_question"],
+    }), context({
+      allowed_actions: ["answer_user_question"],
+      two_layer_validator_enabled: true,
+    }));
+    expect(varied.ok).toBe(true);
+    expect(varied.layer_1_result).toBe("pass");
+    expect(varied.layer_2_result).toBe("accepted_with_variance");
+    expect(varied.reason_codes).toEqual([]);
+  });
+
+  it("validates partial intake patches for age, gender, and daily hours", () => {
+    const cases = [
+      { latest_message: "27", patch: { age: 27 } },
+      { latest_message: "erkek", patch: { gender: "erkek" } },
+      { latest_message: "4 saat", patch: { daily_hours: 4 } },
+    ] as const;
+
+    for (const item of cases) {
+      const result = validateConversationDecisionV3Semantics(decision({
+        next_action: "update_candidate_state",
+        chosen_actions: ["acknowledge_information"],
+        patch: item.patch,
+      }), context({
+        latest_message: item.latest_message,
+        allowed_actions: ["acknowledge_information"],
+      }));
+      expect(result.ok).toBe(true);
+      expect(result.layer_1_result).toBe("pass");
+    }
+  });
+
+  it("keeps every catalogued Layer 1 reason fail-closed and separates Layer 2", () => {
+    for (const code of LAYER_1_REASON_CODES) expect(classifyValidatorReasonCode(code)).toBe("layer_1");
+    for (const code of LAYER_2_REASON_CODES) expect(classifyValidatorReasonCode(code)).toBe("layer_2");
   });
 });

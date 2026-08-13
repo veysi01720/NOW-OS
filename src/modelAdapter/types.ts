@@ -37,6 +37,7 @@ export interface ModelAdapterInput {
       model_adapter_canary_allowed_candidates?: string[];
       model_adapter_canary_percent?: number;
       responses_missing_policy_normalization_enabled?: boolean;
+      two_layer_validator_enabled?: boolean;
     };
     inferredIntent?: string | null;
     candidatePhone?: string | null;

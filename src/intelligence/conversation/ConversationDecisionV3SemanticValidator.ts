@@ -13,6 +13,7 @@ import {
   type ConversationDecisionV3Action,
   type ConversationDecisionV3StatePatchField,
 } from "./ConversationDecisionV3Schema.js";
+import { splitValidatorReasonCodes } from "./ConversationValidatorReasonCatalog.js";
 
 export interface ConversationDecisionV3SemanticContext {
   role: ConversationDecisionV3["role"];
@@ -22,12 +23,18 @@ export interface ConversationDecisionV3SemanticContext {
   allowed_apps: string[];
   allowed_actions: ConversationDecisionV3Action[];
   canonical_policy_fact_ids: string[];
+  two_layer_validator_enabled?: boolean;
 }
 
 export interface ConversationDecisionV3SemanticValidationResult {
   ok: boolean;
   shape_valid: boolean;
   reason_codes: string[];
+  layer_1_result: "pass" | "fail";
+  layer_1_reason_codes: string[];
+  layer_2_result: "pass" | "accepted_with_variance" | "fail";
+  layer_2_reason_codes: string[];
+  semantic_question_answered: boolean;
 }
 
 const CANDIDATE_STATE_ACTIONS = new Set<ConversationDecisionV3Action>([
@@ -104,6 +111,7 @@ export function buildConversationDecisionV3SemanticContext(
     allowed_apps: [...input.contextPayload.allowed_apps],
     allowed_actions: [...new Set(actions)],
     canonical_policy_fact_ids: [...new Set(facts)],
+    two_layer_validator_enabled: input.metadata.featureFlags.two_layer_validator_enabled === true,
   };
 }
 
@@ -276,7 +284,18 @@ export function validateConversationDecisionV3Semantics(
   context: ConversationDecisionV3SemanticContext,
 ): ConversationDecisionV3SemanticValidationResult {
   const shape = validateConversationDecisionV3Shape(value);
-  if (!shape.ok) return { ok: false, shape_valid: false, reason_codes: shape.reason_codes };
+  if (!shape.ok) {
+    return {
+      ok: false,
+      shape_valid: false,
+      reason_codes: shape.reason_codes,
+      layer_1_result: "fail",
+      layer_1_reason_codes: shape.reason_codes,
+      layer_2_result: "pass",
+      layer_2_reason_codes: [],
+      semantic_question_answered: false,
+    };
+  }
 
   const decision = value as ConversationDecisionV3;
   const reasons: string[] = [];
@@ -318,9 +337,26 @@ export function validateConversationDecisionV3Semantics(
   });
   if (!appGate.ok) reasons.push("UNAPPROVED_APP_IN_REPLY");
 
+  const uniqueReasons = [...new Set(reasons)];
+  const split = splitValidatorReasonCodes(uniqueReasons);
+  const layer1Failed = split.layer_1_reason_codes.length > 0;
+  const layer2Failed = split.layer_2_reason_codes.length > 0;
+  const semanticQuestionAnswered = !decision.direct_question.present || decision.direct_question.answered_in_reply;
+  const layer2Result = layer2Failed
+    ? (context.two_layer_validator_enabled && semanticQuestionAnswered ? "accepted_with_variance" : "fail")
+    : "pass";
+  const accepted = !layer1Failed && (!layer2Failed || layer2Result === "accepted_with_variance");
+
   return {
-    ok: reasons.length === 0,
+    ok: accepted,
     shape_valid: true,
-    reason_codes: [...new Set(reasons)],
+    reason_codes: context.two_layer_validator_enabled
+      ? split.layer_1_reason_codes
+      : uniqueReasons,
+    layer_1_result: layer1Failed ? "fail" : "pass",
+    layer_1_reason_codes: split.layer_1_reason_codes,
+    layer_2_result: layer2Result,
+    layer_2_reason_codes: split.layer_2_reason_codes,
+    semantic_question_answered: semanticQuestionAnswered,
   };
 }

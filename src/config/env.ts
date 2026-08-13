@@ -53,6 +53,7 @@ export interface EnvConfig {
   installationVisionAllowedCandidates: string[];
   responsesMissingPolicyNormalizationEnabled?: boolean;
   conversationDecisionV2Enabled?: boolean;
+  twoLayerValidatorEnabled?: boolean;
   versions: VersionConfig;
 }
 
@@ -176,6 +177,7 @@ export function loadEnv(): EnvConfig {
       .filter(Boolean),
     responsesMissingPolicyNormalizationEnabled: process.env.RESPONSES_MISSING_POLICY_NORMALIZATION_ENABLED === "true",
     conversationDecisionV2Enabled: process.env.CONVERSATION_DECISION_V2_ENABLED !== "false",
+    twoLayerValidatorEnabled: process.env.TWO_LAYER_VALIDATOR_ENABLED === "true",
     versions: {
       assistant_response_contract_version: SUPPORTED_ASSISTANT_RESPONSE_CONTRACT_VERSION,
       system_prompt_version: readEnv("SYSTEM_PROMPT_VERSION"),
