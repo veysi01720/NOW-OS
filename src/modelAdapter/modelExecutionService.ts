@@ -404,7 +404,11 @@ export class ModelExecutionService {
           });
       this.lastDecision = {
         ...decision,
-        adapterName: adapter.name === "AssistantAdapter" ? "assistant_adapter" : adapter.name,
+        adapterName: adapter.name === "AssistantAdapter"
+          ? "assistant_adapter"
+          : adapter.name === "ResponsesAdapter"
+            ? "responses_adapter"
+            : adapter.name,
         provider: adapter.provider,
       };
       this.lastResponsesApiUsed = decision.useAdapterLayer && adapter.provider === "openai_responses";

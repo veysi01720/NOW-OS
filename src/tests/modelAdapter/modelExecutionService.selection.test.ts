@@ -6,6 +6,7 @@ import { InMemoryThreadStore } from "../../storage/threadStore.js";
 import { FakeAssistantClient } from "../testDoubles.js";
 import { parseAssistantResponseV1 } from "../../contracts/assistantResponseContract.js";
 import { AssistantAdapter } from "../../modelAdapter/AssistantAdapter.js";
+import type { IModelAdapter } from "../../modelAdapter/IModelAdapter.js";
 
 function backendContext(): BackendContextPayloadV1 {
   return {
@@ -91,6 +92,31 @@ function modelService(client: FakeAssistantClient): ModelExecutionService {
   });
 }
 
+function responsesFixture(): IModelAdapter {
+  return {
+    name: "ResponsesAdapter",
+    provider: "openai_responses",
+    async run() {
+      return {
+        rawText: '{"decision_version":"3.1"}',
+        normalizedResponse: null,
+        rawProviderResponseStored: false,
+        providerTrace: {
+          provider: "openai_responses",
+          adapter: "ResponsesAdapter",
+          response_contract_version: "conversation_decision_v3",
+        },
+      };
+    },
+    async health() {
+      return { ok: true, provider: "openai_responses", supportsResponseContractVersion: "1.0" as const };
+    },
+    getIdentity() {
+      return { adapter_name: "ResponsesAdapter", provider: "openai_responses", model: "fixture" };
+    },
+  };
+}
+
 describe("ModelExecutionService adapter selection", () => {
   it("uses legacy-equivalent boundary path when scoped adapter is off", async () => {
     const client = new FakeAssistantClient([
@@ -108,6 +134,48 @@ describe("ModelExecutionService adapter selection", () => {
       reason: "disabled_mode_off",
       canary_scope: "off",
     });
+  });
+
+  it("uses Responses globally even when the canary intent scope is empty", async () => {
+    const client = new FakeAssistantClient([]);
+    const threadStore = new InMemoryThreadStore();
+    const service = new ModelExecutionService(client, threadStore, {
+      modelAdapterLayerEnabled: true,
+      modelAdapterCanaryMode: "off",
+      canaryAdapter: responsesFixture(),
+    });
+
+    const output = await service.execute(modelInput({
+      model_adapter_layer_enabled: true,
+      model_adapter_canary_mode: "off",
+      model_adapter_canary_intents: [],
+    }));
+    const snapshot = service.snapshot();
+
+    expect(output.providerTrace?.provider).toBe("openai_responses");
+    expect(snapshot.model_adapter_selected_adapter).toBe("responses_adapter");
+    expect(snapshot.model_adapter_provider).toBe("openai_responses");
+    expect(snapshot.responses_api_used).toBe(true);
+  });
+
+  it("keeps legacy behavior when the global flag is false", async () => {
+    const client = new FakeAssistantClient([
+      '{"contract_version":"1.0","reply":"Legacy ok","internal_boss_note":""}',
+    ]);
+    const service = new ModelExecutionService(client, new InMemoryThreadStore(), {
+      modelAdapterLayerEnabled: false,
+      modelAdapterCanaryMode: "off",
+      canaryAdapter: responsesFixture(),
+    });
+
+    const output = await service.execute(modelInput({
+      model_adapter_layer_enabled: false,
+      model_adapter_canary_mode: "off",
+      model_adapter_canary_intents: [],
+    }));
+
+    expect(output.providerTrace?.provider).toBe("openai_assistant");
+    expect(service.snapshot().responses_api_used).toBe(false);
   });
 
   it("executes flag-off legacy behavior through the canonical adapter interface", async () => {

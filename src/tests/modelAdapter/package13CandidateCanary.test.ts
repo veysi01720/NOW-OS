@@ -315,7 +315,7 @@ describe("Package 13 candidate first-contact canary", () => {
     expect(assistantClient.runCalls).toHaveLength(0);
     expect(outboundSpy.sends).toHaveLength(1);
     expect(service.snapshot()).toMatchObject({
-      model_adapter_selected_adapter: "ResponsesAdapter",
+      model_adapter_selected_adapter: "responses_adapter",
       model_adapter_provider: "openai_responses",
       responses_api_used: true,
       canary_reservation_count: 1,

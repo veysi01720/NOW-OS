@@ -250,7 +250,8 @@ export async function buildServer() {
   let responsesShadowService: ResponsesShadowService | undefined;
   const responsesCanaryConfigured = env.modelAdapterCanaryMode !== "off"
     && env.modelAdapterCanaryIntents.length > 0;
-  const responsesRuntimeNeeded = (env.responsesShadowEnabled && env.responsesShadowMode !== "off")
+  const responsesRuntimeNeeded = env.modelAdapterLayerEnabled
+    || (env.responsesShadowEnabled && env.responsesShadowMode !== "off")
     || responsesCanaryConfigured;
   const responsesAdapter = responsesRuntimeNeeded && env.openaiResponsesModel
     ? await createOpenAIResponsesAdapter({

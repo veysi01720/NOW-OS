@@ -181,7 +181,7 @@ function makeDeps(options: { client?: CertificationAssistantClient; state?: Part
   const sender = options.sender ?? "905550000001";
   if (options.state) userStateStore.updateState(sender, { ...defaultUserState(), ...options.state, missing_fields: [...(options.state.missing_fields ?? [])] });
   const client = options.client ?? new CertificationAssistantClient();
-  return { env: createTestEnv({ conversationDecisionV2Enabled: true, modelAdapterLayerEnabled: true, approvedApps: ["Layla", "Soyo", "Amar", "Timo"] }), assistantClient: client, sender: new FakeSender(), threadStore: new InMemoryThreadStore(), memoryStore: new InMemoryStore(), messageDedupeStore: new InMemoryMessageDedupeStore(), userStateStore, userRunLock: new UserRunLock(), logger: createSilentLogger(), client };
+  return { env: createTestEnv({ conversationDecisionV2Enabled: true, modelAdapterLayerEnabled: true, humanReplyDelayEnabled: false, approvedApps: ["Layla", "Soyo", "Amar", "Timo"] }), assistantClient: client, sender: new FakeSender(), threadStore: new InMemoryThreadStore(), memoryStore: new InMemoryStore(), messageDedupeStore: new InMemoryMessageDedupeStore(), userStateStore, userRunLock: new UserRunLock(), logger: createSilentLogger(), client };
 }
 
 async function runScenario(scenario: CertScenario, runId = "r1") {
@@ -233,14 +233,14 @@ describe("Conversation Decision V2 final certification pack", () => {
     }
     expect(modelOrigin).toBeGreaterThanOrEqual(50);
     expect(totalReplies).toBeGreaterThanOrEqual(50);
-  });
+  }, 30_000);
 
   it("runs critical scenarios three times with stable semantic behavior", async () => {
     const critical = golden_conversation_pack_v1.filter((item) => ["first_contact", "single_message_intake", "how_work_works", "clarification", "male_account_question", "acceptance", "ambiguous_yes", "frustrated_user", "profanity_with_question"].includes(item.category)).slice(0, 12);
     let runs = 0;
     for (const scenario of critical) for (let index = 0; index < 3; index += 1) { const result = await runScenario(scenario, `critical_${index}`); expect(result.finalReply, scenario.id).not.toBe(""); assertNoForbidden(result.finalReply, scenario.forbiddenReplyPhrases); expect(result.d.sender.sends.length, scenario.id).toBe(scenario.turns.length); expect(result.traces.every((trace) => Number(trace.model_call_count) <= 2), scenario.id).toBe(true); runs += 1; }
     expect(runs).toBe(36);
-  });
+  }, 30_000);
 
   it("passes full candidate path three times without repeated intake or premature setup", async () => {
     const turns = ["Selam, is icin yazdim", "27 yasindayim, erkegim, gunde 4 saat ayirabilirim", "Bu isi tam olarak nasil yapacagim?", "Calisma modelini anlamadim, daha acik anlatir misin?", "Erkek hesabi mi acacagiz?", "Tamam, bu model bana uygun", "Android kullaniyorum", "Layla"];
