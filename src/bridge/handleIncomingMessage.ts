@@ -51,6 +51,7 @@ import {
   type ContextProfile,
 } from "../utils/contextBudget.js";
 import { applyCandidateIntakeStateMachine } from "./candidateIntakeStateMachine.js";
+import { buildCandidateIntakeDeterministicReply } from "./candidateIntakeDeterministicReply.js";
 import { evaluateFollowUpQueue } from "./followUpQueue.js";
 import { detectOwnerReportIntent } from "./ownerReport.js";
 import {
@@ -794,6 +795,25 @@ export async function handleIncomingMessage(
           ? { status: "sent", correlation_id: message.correlation_id }
           : { status: "reply_send_failed", correlation_id: message.correlation_id, error_layer: "EvolutionSendText" };
       }
+    }
+    const deterministicIntakeReply = buildCandidateIntakeDeterministicReply(stateMachineResult);
+    if (deterministicIntakeReply) {
+      const sent = await sendReply(message, deterministicIntakeReply.text, deps, latencyTracker);
+      if (sent) deps.memoryStore.appendBotReply(conversationKey, deterministicIntakeReply.text);
+      logger.info({
+        event_type: "CANDIDATE_INTAKE_DETERMINISTIC_FAST_PATH",
+        correlation_id: message.correlation_id,
+        origin: deterministicIntakeReply.origin,
+        chosen_actions: deterministicIntakeReply.chosen_actions,
+        next_action: deterministicIntakeReply.next_action,
+        state_patch_fields: deterministicIntakeReply.state_patch_fields,
+        captured_fields: stateMachineResult.captured_fields,
+        previous_state: stateMachineResult.previous_state.current_state,
+        next_state: stateMachineResult.next_state.current_state,
+      });
+      return sent
+        ? { status: "sent", correlation_id: message.correlation_id }
+        : { status: "reply_send_failed", correlation_id: message.correlation_id, error_layer: "EvolutionSendText" };
     }
     latencyTracker.markStateMachineDone();
     const reportIntent = detectOwnerReportIntent(message.text);

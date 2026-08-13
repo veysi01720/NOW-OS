@@ -252,7 +252,7 @@ describe("Quality Pack 1 V2 golden skeletons", () => {
     ]));
   });
 
-  it("carries candidate-provided prerequisites into the next V2 prompt context", async () => {
+  it("captures work-model acceptance deterministically after prerequisites are present", async () => {
     const deps = makeDeps([
       decision({
         text: "Bilgilerini aldim. Layla icinde sohbetlere yaziyla cevap vererek ilerlersin; bu calisma modeli sana uygun mu?",
@@ -273,16 +273,14 @@ describe("Quality Pack 1 V2 golden skeletons", () => {
     await handleIncomingMessage(candidateMessage("27 erkek gunde 4 saat", "prereq-1"), deps);
     await handleIncomingMessage(candidateMessage("Tamam devam", "prereq-2"), deps);
 
-    const secondPrompt = latestRunContent(deps);
-    const decisionContext = extractJsonBlock(secondPrompt, "conversation_decision_context_json");
-
-    expect(decisionContext.candidate_state).toEqual(expect.objectContaining({
+    expect(deps.assistantClient.runCalls).toHaveLength(1);
+    expect(deps.userStateStore.states.get(CANDIDATE_PHONE)).toEqual(expect.objectContaining({
       age: 27,
       gender: "erkek",
       daily_hours: 4,
+      model_acceptance: "accepted",
     }));
-    expect(decisionContext.derived_state.intake_complete).toBe(true);
-    expect(decisionContext.facts_extracted_from_current_message).toContain("model_acceptance");
+    expect(deps.sender.sends.at(-1)?.text).toContain("Hangi onayli uygulama");
   });
 
   it("repairs a live work-model parrot reply instead of sending the same answer again", async () => {

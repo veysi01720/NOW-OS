@@ -6,6 +6,8 @@ import { InMemoryMessageDedupeStore } from "../storage/messageDedupeStore.js";
 import { UserRunLock } from "../queue/userRunLock.js";
 import { createTestEnv } from "./testDoubles.js";
 import { defaultUserState, UserState, UserIdentityInput } from "../storage/types.js";
+import { applyCandidateIntakeStateMachine } from "../bridge/candidateIntakeStateMachine.js";
+import { buildCandidateIntakeDeterministicReply } from "../bridge/candidateIntakeDeterministicReply.js";
 
 class TestUserStateStore {
   public states = new Map<string, UserState>();
@@ -53,6 +55,72 @@ function message(overrides: Partial<NormalizedIncomingMessage> = {}): Normalized
 }
 
 describe("Candidate Intake Regression Fixture", () => {
+  it("runs the complete intake contract without delegating simple transitions to the model", () => {
+    const store = new TestUserStateStore();
+    const intakeEnv = createTestEnv({ approvedApps: ["Layla"] });
+
+    const run = (text: string) => applyCandidateIntakeStateMachine(
+      message({ text }),
+      intakeEnv,
+      store,
+    );
+
+    const greeting = run("Selam");
+    expect(greeting.next_state.current_state).toBe("NEW_LEAD");
+    expect(buildCandidateIntakeDeterministicReply(greeting)).toBeNull();
+
+    const age = run("27");
+    expect(age.next_state.age).toBe(27);
+    expect(buildCandidateIntakeDeterministicReply(age)).toMatchObject({
+      origin: "deterministic_partial_intake_fast_path",
+      chosen_actions: ["acknowledge_information", "ask_missing_gender"],
+      next_action: "ask_missing_info",
+      text: expect.stringContaining("Cinsiyetin nedir?"),
+    });
+
+    const core = run("erkek 4 saat");
+    expect(core.next_state.current_state).toBe("WORK_MODEL_DISCLOSURE");
+    expect(buildCandidateIntakeDeterministicReply(core)).toBeNull();
+
+    // Work-model explanation is the only model-owned checkpoint in this path.
+    store.updateState("905333333333", {
+      ...core.next_state,
+      work_model_disclosed: true,
+      model_acceptance: "pending",
+      current_state: "WORK_MODEL_ACCEPTANCE",
+      missing_fields: ["model_acceptance"],
+      expected_next_step: "ask_work_model_acceptance",
+    });
+
+    const acceptance = run("Evet uygun");
+    expect(acceptance.next_state.current_state).toBe("WAITING_FOR_APP");
+    expect(buildCandidateIntakeDeterministicReply(acceptance)).toMatchObject({
+      origin: "deterministic_model_acceptance_fast_path",
+      chosen_actions: ["acknowledge_information", "record_work_model_acceptance", "ask_selected_app", "ask_phone_type"],
+      next_action: "update_candidate_state",
+      text: expect.stringContaining("Hangi onayli uygulama"),
+    });
+
+    const app = run("Layla");
+    expect(app.next_state.current_state).toBe("WAITING_FOR_PHONE_TYPE");
+    expect(buildCandidateIntakeDeterministicReply(app)).toMatchObject({
+      origin: "deterministic_app_selection_fast_path",
+      chosen_actions: ["acknowledge_information", "ask_phone_type"],
+      next_action: "ask_missing_info",
+      text: expect.stringContaining("Telefonun Android mi, iPhone mu"),
+    });
+
+    const phone = run("Android");
+    expect(phone.next_state.current_state).toBe("INSTALLATION_IN_PROGRESS");
+    expect(phone.next_state.installation_status).toBe("in_progress");
+    expect(buildCandidateIntakeDeterministicReply(phone)).toMatchObject({
+      origin: "deterministic_installation_start_fast_path",
+      chosen_actions: ["acknowledge_information", "begin_setup", "provide_installation_instruction"],
+      next_action: "update_candidate_state",
+      text: expect.stringContaining("Kurulum adimlarina"),
+    });
+  });
+
   it("forces candidate to provide age, gender and daily time before progressing", async () => {
     const memoryStore = new InMemoryStore();
     const userStateStore = new TestUserStateStore();
@@ -160,7 +228,7 @@ describe("Candidate Intake Regression Fixture", () => {
     expect(userStateStore.states.get("905333333333")?.current_state).toBe("INSTALLATION_IN_PROGRESS");
     expect(deps.modelExecutionService.execute).not.toHaveBeenCalled();
     expect(deps.sender.sendText).toHaveBeenCalledWith(
-      expect.objectContaining({ text: expect.stringContaining("Android bilgini aldım") }),
+      expect.objectContaining({ text: expect.stringContaining("Kurulum adimlarina") }),
     );
     expect(deps.sender.sendText).not.toHaveBeenCalledWith(
       expect.objectContaining({ text: expect.stringMatching(/ekip|doğrulanmamış|doÄŸrulanmamÄ±ÅŸ/) }),
