@@ -66,6 +66,18 @@ describe("Responses decision context boundary", () => {
     expect(serialized).toContain("M9W5B8");
   });
 
+  it("carries the bounded recent conversation window in order", () => {
+    const input = buildResponsesGoldenAdapterInput(RESPONSES_GOLDEN_SCENARIOS[0]);
+    input.contextPayload.memory.last_5_user_messages = ["u1", "u2", "u3", "u4", "u5"];
+    input.contextPayload.memory.last_5_bot_replies = ["a1", "a2", "a3", "a4", "a5"];
+
+    const context = buildResponsesDecisionContext(input);
+
+    expect(context.memory.recent_user_messages).toEqual(["u1", "u2", "u3", "u4", "u5"]);
+    expect(context.memory.recent_bot_replies).toEqual(["a1", "a2", "a3", "a4", "a5"]);
+    expect(context.memory.recent_user_messages).not.toContain("assistant_thread_history");
+  });
+
   it("keeps state, grounding, role, and no-outbound rules in backend-owned instructions", () => {
     const instructions = buildResponsesSystemInstructions();
 

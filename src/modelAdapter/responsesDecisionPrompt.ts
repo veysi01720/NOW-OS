@@ -1,6 +1,7 @@
 import type { ModelAdapterInput } from "./types.js";
 
 export const RESPONSES_BEHAVIOR_PROMPT_VERSION = "conversation_behavior_v3.8-shadow";
+export const RESPONSES_RECENT_MESSAGE_LIMIT = 5;
 
 export interface ResponsesDecisionContext {
   role: ModelAdapterInput["senderRole"];
@@ -79,8 +80,8 @@ export function buildResponsesDecisionContext(input: ModelAdapterInput): Respons
     candidate_state: input.contextPayload.state,
     memory: {
       conversation_summary: input.contextPayload.memory.conversation_summary,
-      recent_user_messages: [...input.contextPayload.memory.last_5_user_messages],
-      recent_bot_replies: [...input.contextPayload.memory.last_5_bot_replies],
+      recent_user_messages: input.contextPayload.memory.last_5_user_messages.slice(-RESPONSES_RECENT_MESSAGE_LIMIT),
+      recent_bot_replies: input.contextPayload.memory.last_5_bot_replies.slice(-RESPONSES_RECENT_MESSAGE_LIMIT),
     },
     allowed_apps: [...input.contextPayload.allowed_apps],
     structured_facts: input.contextPayload.structured_facts ?? null,

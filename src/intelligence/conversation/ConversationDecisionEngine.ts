@@ -25,6 +25,7 @@ import {
   normalizeConversationDecisionV3MissingPolicy,
   type ConversationDecisionV3PolicyNormalizationResult,
 } from "./ConversationDecisionV3PolicyNormalizer.js";
+import { mapConversationDecisionV3ToBackendDecision } from "./ConversationDecisionV3Mapper.js";
 
 export interface ConversationDecisionEngineResult {
   context: ConversationDecisionContext;
@@ -339,41 +340,10 @@ async function runModelDecision(input: {
       return { decision: null, rawText: modelOutput.rawText, normalization };
     }
     const v3 = evaluatedValue as ConversationDecisionV3;
-    const supportedActions = v3.chosen_actions.filter((action): action is ConversationDecision["chosen_actions"][number] =>
-      action !== "record_work_preference",
+    const decision = mapConversationDecisionV3ToBackendDecision(
+      v3,
+      input.repairInput ? "conversation_decision_v2_model_repair" : "conversation_decision_v2_model",
     );
-    const mappedNextAction = supportedActions.find((action) =>
-      v3.next_action === "ask_missing_info"
-        ? action.startsWith("ask_missing_")
-        : v3.next_action === "answer_direct_question" || v3.next_action === "reply_only"
-          ? action === "answer_user_question" || action === "acknowledge_information"
-          : v3.next_action === "escalate_missing_info"
-            ? action === "escalate_policy_missing"
-            : false,
-    ) ?? "none";
-    const decision: ConversationDecision = {
-      decision_version: "2.0",
-      intent: v3.intent,
-      direct_question: v3.direct_question,
-      reply: v3.reply,
-      chosen_actions: supportedActions,
-      state_patch: {
-        age: v3.state_patch.age,
-        gender: v3.state_patch.gender,
-        daily_hours: v3.state_patch.daily_hours,
-        work_model_acceptance: v3.state_patch.work_model_acceptance,
-        selected_app: v3.state_patch.selected_app,
-        phone_type: v3.state_patch.phone_type,
-        work_model_disclosed: v3.state_patch.work_model_disclosed ?? undefined,
-      },
-      policy_facts_used: v3.policy_facts_used,
-      next_action: mappedNextAction,
-      requires_escalation: v3.requires_escalation,
-      escalation_reason: v3.escalation_reason,
-      risk_flags: v3.risk_flags,
-      self_check: v3.self_check,
-      origin: input.repairInput ? "conversation_decision_v2_model_repair" : "conversation_decision_v2_model",
-    };
     return { decision, rawText: modelOutput.rawText, normalization };
   }
 

@@ -11,14 +11,30 @@ export type ConversationDecisionAction =
   | "explain_work_model"
   | "request_work_model_acceptance"
   | "record_work_model_acceptance"
+  | "record_work_preference"
+  | "respond_to_off_topic_question"
   | "ask_selected_app"
   | "ask_phone_type"
   | "begin_setup"
   | "provide_installation_instruction"
   | "clarify_ambiguous_input"
   | "escalate_policy_missing"
-  | "respond_to_off_topic_question"
   | "handle_user_frustration";
+
+export type ConversationDecisionNextAction =
+  | ConversationDecisionAction
+  | "none"
+  | "reply_only"
+  | "ask_missing_info"
+  | "answer_direct_question"
+  | "update_candidate_state"
+  | "enqueue_followup"
+  | "owner_report"
+  | "manager_summary"
+  | "request_human_handoff"
+  | "escalate_missing_info"
+  | "no_reply"
+  | "escalate";
 
 export interface ConversationPolicyFact {
   id: string;
@@ -98,9 +114,11 @@ export interface ConversationDecision {
     selected_app?: string | null;
     phone_type?: string | null;
     work_model_disclosed?: boolean;
+    preferred_work_mode?: "text_only" | "video_or_voice_allowed" | null;
+    video_allowed?: boolean | null;
   };
   policy_facts_used: string[];
-  next_action: ConversationDecisionAction | "none";
+  next_action: ConversationDecisionNextAction;
   requires_escalation: boolean;
   escalation_reason: string | null;
   risk_flags: string[];

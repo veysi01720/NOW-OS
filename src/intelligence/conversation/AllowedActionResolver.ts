@@ -12,7 +12,9 @@ export function resolveAllowedActions(state: UserState): AllowedActionSet {
     "clarify_previous_explanation",
     "clarify_ambiguous_input",
     "handle_user_frustration",
-    "explain_work_model"
+    "explain_work_model",
+    "record_work_preference",
+    "respond_to_off_topic_question"
   ];
   const forbidden = new Set<string>();
 

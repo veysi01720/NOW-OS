@@ -33,6 +33,7 @@ function decision(input: {
   requires_escalation?: boolean;
   escalation_reason?: string | null;
   reply?: string;
+  policy_facts_used?: string[];
 } = {}): ConversationDecisionV3 {
   const patch: ConversationDecisionV3["state_patch"] = {
     age: null,
@@ -65,7 +66,7 @@ function decision(input: {
     state_patch: patch,
     state_patch_evidence: evidence,
     missing_fields: [],
-    policy_facts_used: [],
+    policy_facts_used: input.policy_facts_used ?? [],
     requires_escalation: input.requires_escalation ?? false,
     escalation_reason: input.escalation_reason ?? null,
     risk_flags: [],
@@ -123,6 +124,33 @@ describe("ConversationDecisionV3 transition preparation", () => {
     expect(result.proposed_state.behavior_conversation_state?.preferredWorkMode).toBe("text_only");
     expect(result.proposed_state.behavior_conversation_state?.videoAllowed).toBe(false);
     expect(result.state_write_count).toBe(0);
+  });
+
+  it("previews WORK_MODEL_DISCLOSURE without reopening intake", () => {
+    const current = {
+      ...defaultUserState(),
+      age: 27,
+      gender: "erkek",
+      daily_hours: 4,
+      current_state: "WORK_MODEL_DISCLOSURE",
+      missing_fields: ["selected_app", "phone_type"],
+    };
+    const result = prepareConversationDecisionV3Transition(decision({
+      chosen_actions: ["acknowledge_information", "explain_work_model", "request_work_model_acceptance"],
+      patch: { work_model_disclosed: true },
+      evidence: [{ field: "work_model_disclosed", source: "reply_content", evidence_ref: null }],
+      policy_facts_used: ["work_fact"],
+      reply: "Mesajlara yazarak cevap verirsin. Uygun mu?",
+    }), context({
+      candidate_state: current,
+      latest_message: "27 erkek 4 saat",
+      allowed_actions: ["acknowledge_information", "explain_work_model", "request_work_model_acceptance"],
+    }));
+
+    expect(result.valid).toBe(true);
+    expect(result.proposed_state.work_model_disclosed).toBe(true);
+    expect(result.proposed_state.model_acceptance).toBeNull();
+    expect(result.proposed_state.missing_fields).toEqual(["model_acceptance"]);
   });
 
   it("maps explicit missing-info escalation without state mutation", () => {
