@@ -241,6 +241,39 @@ function buildCameraAccountBoundarySafetyDecision(context: ConversationDecisionC
   };
 }
 
+export function buildPartialIntakeSafetyDecision(context: ConversationDecisionContext): ConversationDecision | null {
+  if (context.role !== "candidate" || context.channel !== "private") return null;
+  if (context.facts_extracted_from_current_message.length === 0) return null;
+
+  const missing: Array<{ action: ConversationDecisionAction; label: string }> = [];
+  if (context.candidate_state.age === null) missing.push({ action: "ask_missing_age", label: "yasini" });
+  if (context.candidate_state.gender === null) missing.push({ action: "ask_missing_gender", label: "cinsiyetini" });
+  if (context.candidate_state.daily_hours === null) {
+    missing.push({ action: "ask_missing_daily_hours", label: "gunluk ayirabilecegin sureyi" });
+  }
+  if (missing.length === 0) return null;
+
+  const capturedLabels = context.facts_extracted_from_current_message
+    .map((field) => ({ age: "yas", gender: "cinsiyet", daily_hours: "gunluk sure" }[field] ?? field))
+    .join(", ");
+  const missingLabels = missing.map((item) => item.label).join(" ve ");
+  const reply = `${capturedLabels} bilgisini aldim. Simdi ${missingLabels} yazar misin?`;
+  return {
+    ...baseDecision(reply, context, "deterministic_safety_response"),
+    intent: { primary: "candidate_next_step", secondary: ["partial_intake"], confidence: 1 },
+    direct_question: {
+      present: false,
+      question_summary: "Adayin tek veya kismi intake bilgisi verdi",
+      answered_in_reply: true,
+    },
+    chosen_actions: ["answer_user_question", ...missing.map((item) => item.action)],
+    policy_facts_used: [],
+    next_action: missing[0]?.action ?? "ask_missing_age",
+    requires_escalation: false,
+    escalation_reason: null,
+  };
+}
+
 export function buildCandidateToneBoundaryDecision(context: ConversationDecisionContext): ConversationDecision | null {
   if (context.role !== "candidate" || context.channel !== "private") return null;
   if (!hasDisrespectfulCandidateTone(context.latest_message.text)) return null;
@@ -274,6 +307,11 @@ export function buildDeterministicSafetyDecision(
 
   if (reason === "invalid_model_decision" && asksCameraAccountOrProfile(context.latest_message.text)) {
     return buildCameraAccountBoundarySafetyDecision(context);
+  }
+
+  if (reason === "invalid_model_decision") {
+    const partialIntakeDecision = buildPartialIntakeSafetyDecision(context);
+    if (partialIntakeDecision) return partialIntakeDecision;
   }
 
   if (reason === "invalid_model_decision" && context.latest_message.inferred_intent === "ask_job_definition") {

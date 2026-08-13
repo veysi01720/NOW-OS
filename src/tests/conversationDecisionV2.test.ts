@@ -15,6 +15,7 @@ import {
   InMemoryUserStateStore
 } from "./testDoubles.js";
 import { writeValidKnowledgeBankFixture } from "./fixtures/knowledgeBankFixture.js";
+import { buildDeterministicSafetyDecision } from "../intelligence/conversation/ConversationDecisionRepair.js";
 
 const PREVIOUS_WORK_MODEL_REPLY =
   "Bilgilerini aldım. Erkek adaylar için onaylı yönlendirme şu: Layla, mesajlaşma ağırlıklı ve kamera açmadan ilerlemek isteyen adaylar için uygundur. Kuruluma geçmeden önce bu çalışma modelinin sana uygun olduğunu netleştirelim. Uygun mu?";
@@ -82,6 +83,67 @@ function deps(responses: string[]) {
 }
 
 describe("Conversation Decision V2 candidate route", () => {
+  it("turns a single captured age into the next intake question instead of an escalation fallback", () => {
+    const result = buildDeterministicSafetyDecision({
+      request_id: "corr_partial_age",
+      decision_version: "conversation_v2",
+      tenant_id: "now_os",
+      instance_id: "antigravity",
+      channel: "private",
+      role: "candidate",
+      latest_message: {
+        id: "msg_partial_age",
+        text: "27",
+        timestamp: "2026-08-13T10:21:07.000Z",
+        language: "tr",
+        inferred_intent: null,
+      },
+      recent_messages: [],
+      candidate_state: {
+        age: 27,
+        gender: null,
+        daily_hours: null,
+        work_model_acceptance: null,
+        selected_app: null,
+        phone_type: null,
+      },
+      derived_state: {
+        intake_complete: false,
+        eligibility_status: "eligible",
+        dialogue_phase: "NEW_LEAD",
+      },
+      facts_extracted_from_current_message: ["age"],
+      canonical_policy_facts: [],
+      structured_facts: {
+        app_facts_source_status: "loaded",
+        app_facts_source_hash: "fixture",
+        app_facts: [],
+        general_work_model: null,
+        errors: [],
+      },
+      allowed_actions: ["answer_user_question", "ask_missing_gender", "ask_missing_daily_hours"],
+      forbidden_actions: [],
+      runtime_constraints: {
+        max_reply_length: 800,
+        max_questions: 1,
+        must_answer_direct_question_first: true,
+        facts_must_be_grounded: true,
+        behavior_prompt_version: "conversation_behavior_v2.1",
+      },
+    }, "invalid_model_decision");
+
+    expect(result).not.toBeNull();
+    expect(result?.next_action).toBe("ask_missing_gender");
+    expect(result?.chosen_actions).toEqual([
+      "answer_user_question",
+      "ask_missing_gender",
+      "ask_missing_daily_hours",
+    ]);
+    expect(result?.reply.text).toContain("cinsiyetini");
+    expect(result?.reply.text).toContain("gunluk ayirabilecegin sureyi");
+    expect(result?.requires_escalation).toBe(false);
+  });
+
   it("blocks generic closers and incomplete job-definition answers", async () => {
     const incomplete = "İş, Layla uygulamasında sohbet ederek ilerliyor. Kamera zorunlu değil, ekip adım adım yönlendirecek. Başka sormak istediğin var mı?";
     const complete = "Çalışma telefon ve uygulama üzerinden ilerler; profil hazırlanır ve uygulama içindeki kişilerle sohbet edilir.";
