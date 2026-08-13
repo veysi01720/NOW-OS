@@ -422,19 +422,19 @@ describe("handleIncomingMessage", () => {
     expect(testDeps.assistantClient.runCalls[0]?.content).toContain('"chat_type":"group"');
   });
 
-  it("captures candidate phone_type deterministically before any model run", async () => {
+  it("updates backend_context with candidate phone_type before Assistant run", async () => {
     const userStateStore = new MutableUserStateStore();
     const testDeps = deps('{"contract_version":"1.0","reply":"App secimini netlestirelim","internal_boss_note":""}');
 
     await handleIncomingMessage(message({ text: "Android kullanıyorum" }), { ...testDeps, userStateStore });
 
-    expect(testDeps.assistantClient.runCalls).toHaveLength(0);
-    expect(userStateStore.states.get("905333333333")?.phone_type).toBe("android");
-    expect(testDeps.sender.sends[0]?.text).toContain("Android bilgisini aldim");
-    expect(testDeps.sender.sends[0]?.text).toContain("onayli uygulama");
+    expect(testDeps.assistantClient.runCalls[0]?.content).toContain('"phone_type":"android"');
+    expect(testDeps.assistantClient.runCalls[0]?.content).toContain('"missing_fields":["selected_app"]');
+    expect(testDeps.assistantClient.runCalls[0]?.content).toContain('"expected_next_step":"ask_selected_app"');
+    expect(testDeps.assistantClient.runCalls[0]?.content).not.toContain('"expected_next_step":"ask_selected_app_or_phone_type"');
   });
 
-  it("captures an approved selected_app deterministically before any model run", async () => {
+  it("updates backend_context with approved selected_app before Assistant run", async () => {
     const userStateStore = new MutableUserStateStore();
     const testDeps = deps('{"contract_version":"1.0","reply":"Telefon tipini netlestirelim","internal_boss_note":""}');
 
@@ -444,9 +444,9 @@ describe("handleIncomingMessage", () => {
       userStateStore
     });
 
-    expect(testDeps.assistantClient.runCalls).toHaveLength(0);
-    expect(userStateStore.states.get("905333333333")?.selected_app).toBe("Layla");
-    expect(testDeps.sender.sends[0]?.text).toBe("Layla bilgisini aldim. Telefonun Android mi, iPhone mu?");
+    expect(testDeps.assistantClient.runCalls[0]?.content).toContain('"selected_app":"Layla"');
+    expect(testDeps.assistantClient.runCalls[0]?.content).toContain('"missing_fields":["phone_type"]');
+    expect(testDeps.assistantClient.runCalls[0]?.content).toContain('"expected_next_step":"ask_phone_type"');
   });
 
   it("does not persist unapproved app names but keeps Approved App Gate active", async () => {

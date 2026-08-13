@@ -289,9 +289,6 @@ export function detectPhoneType(text: string): { phone_type: "android" | "ios" |
 
 export function detectModelAcceptance(text: string): "accepted" | "rejected" | null {
   const normalizedText = normalizeText(text);
-  // Topic-specific objections are handled by the policy/model path; they are
-  // not acceptance or rejection of the work model itself.
-  if (/(kamera|telefon|uygulama|hesap|iban|odeme|mesaj|yazisma|gÃ¶rsel|gÃ¶rÃ¼ntÃ¼)/iu.test(normalizedText)) return null;
   if (/\b(kabul|uygun|tamam|olur|evet|baslayalim|baÅŸlayalim|anladim)\b/u.test(normalizedText)) {
     return "accepted";
   }

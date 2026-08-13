@@ -276,7 +276,7 @@ describe("behavior orchestrator feature flag", () => {
     ]));
   });
 
-  it("keeps normal user on candidate intake path even if message claims owner", async () => {
+  it("keeps normal user on legacy path even if message claims owner", async () => {
     const assistantClient = new FakeAssistantClient([
       '{"contract_version":"1.0","reply":"NIVI","internal_boss_note":"operator only"}',
     ]);
@@ -295,9 +295,17 @@ describe("behavior orchestrator feature flag", () => {
       logger,
     });
 
+    const content = assistantClient.runCalls[0]?.content ?? "";
     expect(result.status).toBe("sent");
-    expect(assistantClient.runCalls).toHaveLength(0);
-    expect(sender.sends[0]?.text).toContain("iPhone/iOS bilgisini aldim");
+    expect(content).toContain('"behavior_context"');
+    expect(logger.events).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        event_type: "BEHAVIOR_CANARY_ELIGIBILITY_DECIDED",
+        behavior_eligible: true,
+        behavior_eligibility_reason: "tenant_allowed",
+        sender_role_category: "candidate",
+      }),
+    ]));
   });
 
   it("runs adapter path with behavior flag off without adding behavior context", async () => {
