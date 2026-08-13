@@ -54,16 +54,6 @@ for (const file of guardFiles) {
   }
 }
 
-const unreachable = [];
-for (const [file, text] of source) {
-  const lines = text.split(/\r?\n/);
-  lines.forEach((line, index) => {
-    if (/^\s*(?:return|throw)\b/.test(line) && /^\s*\S/.test(lines[index + 1] ?? "") && !/^\s*[}\]);,]/.test(lines[index + 1])) {
-      unreachable.push(`${rel(file)}:${index + 1}`);
-    }
-  });
-}
-
 const untested = [];
 for (const [file, text] of source) {
   if (isTest(file)) continue;
@@ -85,7 +75,7 @@ function bullets(items, empty = "- None detected.") {
 }
 
 mkdirSync(join(root, "outputs"), { recursive: true });
-const report = `# Code Hygiene Report\n\nGenerated: ${new Date().toISOString()}\n\nThis is a heuristic review aid. It does not delete code and every finding requires owner review before removal.\n\n## Dead or Unreferenced Candidates\n\n${bullets(deadFiles.map(rel))}\n\nWhy suspicious: no static import/reference from another source file.\nBefore removal: check dynamic imports, compose entrypoints, scripts, reflection, and deployment packaging.\n\n## Low-Reference Functions\n\n${bullets(functionCandidates.map(({ file, name }) => `${rel(file)}:${name}`))}\n\nWhy suspicious: declaration was found without another static source reference.\nBefore removal: check public exports, runtime dependency injection, tests, and string-based dispatch.\n\n## Overlapping Guard/Validator Surface\n\n${bullets(guardNames)}\n\nWhy suspicious: multiple guard/fallback/validator-like components exist and may enforce adjacent contracts.\nBefore removal: compare reason-code ownership, ordering, fail-closed behavior, and security history.\n\n## Possible Unreachable Statements\n\n${bullets(unreachable)}\n\nWhy suspicious: a non-closing statement follows return/throw.\nBefore removal: inspect braces, intentional logging, and generated/transpiled source.\n\n## Exported Functions Without Nearby Test References\n\n${bullets(untested)}\n\nWhy suspicious: exported function name was not found in test sources.\nBefore removal or change: add focused coverage, especially for security, state, outbound, and persistence behavior.\n\n## TODO/FIXME/Temporary Markers\n\n${bullets(markers)}\n\nWhy suspicious: marker may represent unfinished or temporary behavior.\nBefore removal: link each marker to an issue or explicitly close it with evidence.\n`;
+const report = `# Code Hygiene Report\n\nGenerated: ${new Date().toISOString()}\n\nThis is a heuristic review aid. It does not delete code and every finding requires owner review before removal.\n\n## Dead or Unreferenced Candidates\n\n${bullets(deadFiles.map(rel))}\n\nWhy suspicious: no static import/reference from another source file.\nBefore removal: check dynamic imports, compose entrypoints, scripts, reflection, and deployment packaging.\n\n## Low-Reference Functions\n\n${bullets(functionCandidates.map(({ file, name }) => `${rel(file)}:${name}`))}\n\nWhy suspicious: declaration was found without another static source reference.\nBefore removal: check public exports, runtime dependency injection, tests, and string-based dispatch.\n\n## Overlapping Guard/Validator Surface\n\n${bullets(guardNames)}\n\nWhy suspicious: multiple guard/fallback/validator-like components exist and may enforce adjacent contracts.\nBefore removal: compare reason-code ownership, ordering, fail-closed behavior, and security history.\n\n## Exported Functions Without Nearby Test References\n\n${bullets(untested)}\n\nWhy suspicious: exported function name was not found in test sources.\nBefore removal or change: add focused coverage, especially for security, state, outbound, and persistence behavior.\n\n## TODO/FIXME/Temporary Markers\n\n${bullets(markers)}\n\nWhy suspicious: marker may represent unfinished or temporary behavior.\nBefore removal: link each marker to an issue or explicitly close it with evidence.\n`;
 
 writeFileSync(outputPath, report, "utf8");
 console.log(`CODE_HYGIENE_REPORT_WRITTEN=${rel(outputPath)}`);

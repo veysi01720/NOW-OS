@@ -1,6 +1,10 @@
 import { createOpenAIResponsesAdapter } from "../src/modelAdapter/ResponsesAdapter.js";
 import type { BackendContextPayloadV1 } from "../src/contracts/backendContextPayload.js";
 import type { ModelAdapterInput } from "../src/modelAdapter/types.js";
+import {
+  buildConversationDecisionV3SemanticContext,
+  validateConversationDecisionV3Semantics,
+} from "../src/intelligence/conversation/ConversationDecisionV3SemanticValidator.js";
 
 const steps = [
   { id: "greeting", message: "Selam", intent: "candidate_first_contact", allowed: ["ask_missing_age", "ask_missing_gender", "ask_missing_daily_hours"], expectedNext: "ask_missing_info" },
@@ -67,21 +71,42 @@ function inputFor(step: (typeof steps)[number], state: Record<string, unknown>, 
   };
 }
 
-function parseSanitized(rawText: string, step: (typeof steps)[number]) {
+function parseSanitized(rawText: string, step: (typeof steps)[number], input: ModelAdapterInput) {
   try {
     const decision = JSON.parse(rawText) as Record<string, unknown>;
     const patch = decision.state_patch && typeof decision.state_patch === "object" ? decision.state_patch as Record<string, unknown> : {};
     const chosen = Array.isArray(decision.chosen_actions) ? decision.chosen_actions.filter((value): value is string => typeof value === "string") : [];
     const nextAction = typeof decision.next_action === "string" ? decision.next_action : null;
     const patchKeys = Object.keys(patch).filter((key) => patch[key] !== null);
+    const semantic = validateConversationDecisionV3Semantics(
+      decision,
+      buildConversationDecisionV3SemanticContext(input),
+    );
     return {
       status: nextAction === step.expectedNext && (step.patch ?? []).every((key) => patchKeys.includes(key)) ? "pass" : "fail",
       next_action: nextAction,
       chosen_actions: chosen,
       state_patch_keys: patchKeys,
+      layer_1_result: semantic.layer_1_result,
+      layer_1_reason_codes: semantic.layer_1_reason_codes,
+      layer_2_result: semantic.layer_2_result,
+      layer_2_reason_codes: semantic.layer_2_reason_codes,
+      repair_attempted: false,
+      semantic_question_answered: semantic.semantic_question_answered,
     };
   } catch {
-    return { status: "parse_failed", next_action: null, chosen_actions: [], state_patch_keys: [] };
+    return {
+      status: "parse_failed",
+      next_action: null,
+      chosen_actions: [],
+      state_patch_keys: [],
+      layer_1_result: "fail",
+      layer_1_reason_codes: ["QUALIFICATION_DECISION_PARSE_FAILED"],
+      layer_2_result: "pass",
+      layer_2_reason_codes: [],
+      repair_attempted: false,
+      semantic_question_answered: false,
+    };
   }
 }
 
@@ -97,8 +122,9 @@ async function main(): Promise<void> {
     const state: Record<string, unknown> = { current_state: "NEW_LEAD", age: null, gender: null, daily_hours: null, work_model_acceptance: null, selected_app: null, phone_type: null };
     const stepsReport = [];
     for (const step of steps) {
-      const output = await adapter.run(inputFor(step, state, run));
-      const sanitized = parseSanitized(output.rawText, step);
+      const input = inputFor(step, state, run);
+      const output = await adapter.run(input);
+      const sanitized = parseSanitized(output.rawText, step, input);
       stepsReport.push({ step: step.id, ...sanitized });
       if (sanitized.status === "pass") {
         for (const key of sanitized.state_patch_keys) state[key] = true;
