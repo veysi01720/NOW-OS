@@ -15,6 +15,7 @@
     "test:package12:real": "tsx scripts/responsesModelQualification.ts",
     "test:package12:combined-real": "tsx scripts/responsesQualificationSuite.ts",
     "test:terra:chain-real": "tsx scripts/terraIntakeChainQualification.ts",
+    "test:terra:vision-real": "tsx scripts/terraVisionQualification.ts",
     "test": "vitest run",
     "test:watch": "vitest",
     "backup": "tsx scripts/backup.ts",
