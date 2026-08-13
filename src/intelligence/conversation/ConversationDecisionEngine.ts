@@ -193,6 +193,8 @@ function repeatsLatestAssistantReply(reply: string, context: ConversationDecisio
     .some((message) => message.role === "assistant" && normalizeForRepeatCheck(message.text) === normalizedReply);
 }
 
+/* Retired intake fast-path implementations are intentionally kept only in
+ * history; all intake decisions now go through the model path.
 function buildWorkModelAcceptanceFastPathDecision(context: ConversationDecisionContext): ConversationDecision | null {
   const factIds = context.canonical_policy_facts.map((fact) => fact.id);
   const hasRequiredFacts =
@@ -264,7 +266,7 @@ function buildWorkModelAcceptanceFastPathDecision(context: ConversationDecisionC
       offered_setup_too_early: false,
       used_generic_closing: false,
     },
-    origin: "deterministic_work_model_acceptance_fast_path",
+    origin: "conversation_decision_v2_model",
   };
 }
 
@@ -317,10 +319,11 @@ function buildPhoneTypeCaptureFastPathDecision(
       offered_setup_too_early: false,
       used_generic_closing: false,
     },
-    origin: "deterministic_phone_type_capture_fast_path",
+    origin: "conversation_decision_v2_model",
   };
 }
 
+*/
 async function runModelDecision(input: {
   modelExecutionService: ModelExecutionService;
   backendContext: BackendContextPayloadV1;
@@ -455,27 +458,6 @@ export async function executeConversationDecisionV2(input: {
         fast_path: "candidate_boundary_tone",
         model_call_count: 0,
       });
-    }
-    if (!decision) {
-      decision = buildWorkModelAcceptanceFastPathDecision(context);
-    }
-    if (!decision) {
-      decision = buildPhoneTypeCaptureFastPathDecision(context, input.capturedFields);
-    }
-    if (decision) {
-      if (mutationSource === null) {
-        mutationSource = decision.origin === "deterministic_phone_type_capture_fast_path"
-          ? "deterministic_phone_type_capture_fast_path"
-          : "deterministic_work_model_acceptance_fast_path";
-        input.logger.info({
-          event_type: "CONVERSATION_DECISION_V2_FAST_PATH_SELECTED",
-          correlation_id: context.request_id,
-          fast_path: decision.origin === "deterministic_phone_type_capture_fast_path"
-            ? "phone_type_capture"
-            : "work_model_acceptance",
-          model_call_count: 0,
-        });
-      }
     }
     if (!decision) {
       modelCallCount += 1;

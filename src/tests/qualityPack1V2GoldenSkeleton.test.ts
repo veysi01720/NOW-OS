@@ -288,22 +288,30 @@ describe("Quality Pack 1 V2 golden skeletons", () => {
   it("repairs a live work-model parrot reply instead of sending the same answer again", async () => {
     const liveDuplicateReply =
       "Bilgilerini aldim. Onayli uygulama icinde temel is, gelen sohbet veya mesajlara yaziyla duzenli cevap vermek. Kamera ya da goruntulu calisma zorunlu diye bir kural soylemiyoruz; mesajlasma agirlikli ilerleyebilirsin. Kuruluma gecmeden once bu calisma modeli sana uygun mu?";
-    const deps = makeDeps([], workModelAcceptanceState());
+    const deps = makeDeps([
+      decision({
+        text: "Telefon ve uygulama üzerinden ilerleyen bu çalışma modeli sana uygun mu?",
+        actions: ["answer_user_question", "explain_work_model", "request_work_model_acceptance"],
+        statePatch: { work_model_disclosed: true, work_model_acceptance: "pending" },
+        facts: ["male_candidate_work_model", "work_model_acceptance_required", "candidate_work_steps_chat_based"],
+        nextAction: "request_work_model_acceptance",
+      }),
+    ], workModelAcceptanceState());
     deps.memoryStore.appendBotReply(CANDIDATE_PHONE, liveDuplicateReply);
 
     await handleIncomingMessage(candidateMessage("Selam", "live-parrot-work-model"), deps);
 
     expect(deps.sender.sends).toHaveLength(1);
-    expect(deps.sender.sends[0]?.text).toContain("telefon ve uygulama");
+    expect(deps.sender.sends[0]?.text).toMatch(/telefon ve uygulama/i);
     expect(deps.sender.sends[0]?.text).toContain("uygun");
     expect(deps.sender.sends[0]?.text).not.toMatch(/kamera|goruntulu/iu);
     expect(deps.sender.sends[0]?.text).not.toBe(liveDuplicateReply);
-    expect(deps.assistantClient.runCalls).toHaveLength(0);
+    expect(deps.assistantClient.runCalls).toHaveLength(1);
     expect(deps.logger.events).toEqual(expect.arrayContaining([
       expect.objectContaining({
         event_type: "CONVERSATION_DECISION_V2_TRACE",
-        final_reply_origin: "deterministic_work_model_acceptance_fast_path",
-        model_call_count: 0,
+        final_reply_origin: "conversation_decision_v2_model",
+        model_call_count: 1,
       }),
     ]));
   });

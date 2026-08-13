@@ -251,8 +251,14 @@ describe("Conversation Decision V2 candidate route", () => {
     );
   });
 
-  it("uses a deterministic fast path for work-model acceptance nudges without direct questions", async () => {
-    const testDeps = deps([]);
+  it("uses the model for work-model acceptance nudges without direct questions", async () => {
+    const testDeps = deps([decision({
+      reply: { text: "Telefon ve uygulama üzerinden ilerleyen bu çalışma modeli sana uygun mu?", language: "tr", tone: "natural_concise", contains_question: true },
+      chosen_actions: ["acknowledge_information", "explain_work_model", "request_work_model_acceptance"],
+      state_patch: { work_model_disclosed: true, work_model_acceptance: "pending" },
+      policy_facts_used: ["male_candidate_work_model", "work_model_acceptance_required", "candidate_work_steps_chat_based"],
+      next_action: "request_work_model_acceptance"
+    })]);
     const previousKnowledgeDir = process.env.KNOWLEDGE_BANK_DIR;
     const knowledgeDir = mkdtempSync(join(tmpdir(), "nowos-fast-path-facts-"));
     writeValidKnowledgeBankFixture(knowledgeDir);
@@ -281,24 +287,18 @@ describe("Conversation Decision V2 candidate route", () => {
       rmSync(knowledgeDir, { recursive: true, force: true });
     }
 
-    expect(testDeps.assistantClient.runCalls).toHaveLength(0);
-    expect(testDeps.assistantClient.createThreadCalls).toBe(0);
+    expect(testDeps.assistantClient.runCalls).toHaveLength(1);
+    expect(testDeps.assistantClient.createThreadCalls).toBe(1);
     expect(testDeps.sender.sends).toHaveLength(1);
-    expect(testDeps.sender.sends[0]?.text).toContain("telefon ve uygulama");
-    expect(testDeps.sender.sends[0]?.text).toContain("calisma modeli sana uygun mu");
+    expect(testDeps.sender.sends[0]?.text).toMatch(/telefon ve uygulama/i);
+    expect(testDeps.sender.sends[0]?.text).toMatch(/çalışma modeli sana uygun mu/i);
     expect(testDeps.sender.sends[0]?.text).not.toMatch(/kamera|goruntulu/iu);
     expect(testDeps.logger.events).toEqual(
       expect.arrayContaining([
         expect.objectContaining({
-          event_type: "CONVERSATION_DECISION_V2_FAST_PATH_SELECTED",
-          fast_path: "work_model_acceptance",
-          model_call_count: 0
-        }),
-        expect.objectContaining({
-          event_type: "CONVERSATION_DECISION_V2_TRACE",
-          intent: "candidate_first_contact",
-          final_reply_origin: "deterministic_work_model_acceptance_fast_path",
-          model_call_count: 0
+        event_type: "CONVERSATION_DECISION_V2_TRACE",
+          final_reply_origin: "conversation_decision_v2_model",
+          model_call_count: 1
         })
       ])
     );

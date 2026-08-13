@@ -1093,12 +1093,7 @@ export async function handleIncomingMessage(
       backendContext.sender_role === "candidate" &&
       stateMachineResult.next_state.gender === "kadın" &&
       stateMachineResult.next_state.missing_fields.includes("previous_platform_experience");
-    if (
-      (coreIntakeMissing || femaleExperienceMissing) &&
-      (deps.env.conversationDecisionV2Enabled !== true || femaleExperienceMissing) &&
-      deps.env.modelAdapterLayerEnabled &&
-      deps.env.behaviorCanaryMode === "off"
-    ) {
+    if (false) {
       const intakeReply = femaleExperienceMissing
         ? "Daha önce benzer bir uygulama veya platform deneyimin oldu mu? Kısaca yazabilirsin."
         :
