@@ -1,5 +1,6 @@
 import type { Logger } from "../../observability/logger.js";
 import type { ConversationDecision, ConversationDecisionContext } from "./ConversationDecisionSchema.js";
+import { splitValidatorReasonCodes } from "./ConversationValidatorReasonCatalog.js";
 
 export function recordDecisionTrace(input: {
   logger: Logger;
@@ -20,6 +21,22 @@ export function recordDecisionTrace(input: {
   repairAttempted?: boolean;
   semanticQuestionAnswered?: boolean | null;
 }): void {
+  // Keep trace severity derived from the explicit catalog, including quality and
+  // state-patch validators. The semantic validator is not the only producer.
+  const categorized = splitValidatorReasonCodes([
+    ...input.validationReasons,
+    ...input.qualityReasons,
+    ...input.statePatchReasons,
+    ...(input.layer1ReasonCodes ?? []),
+    ...(input.layer2ReasonCodes ?? []),
+  ]);
+  const layer1ReasonCodes = [...new Set(categorized.layer_1_reason_codes)];
+  const layer2ReasonCodes = [...new Set(categorized.layer_2_reason_codes)];
+  const layer1Result = layer1ReasonCodes.length > 0 ? "fail" : (input.layer1Result ?? "pass");
+  const layer2Result = layer2ReasonCodes.length > 0
+    ? (input.layer2Result === "accepted_with_variance" ? "accepted_with_variance" : (input.layer2Result ?? "fail"))
+    : (input.layer2Result ?? "pass");
+
   input.logger.info({
     event_type: "CONVERSATION_DECISION_V2_TRACE",
     correlation_id: input.context.request_id,
@@ -41,10 +58,10 @@ export function recordDecisionTrace(input: {
     reply_origin: input.decision.origin ?? "conversation_decision_v2",
     reply_mutated_after_model: input.replyMutatedAfterModel,
     mutation_source: input.mutationSource,
-    layer_1_result: input.layer1Result ?? null,
-    layer_1_reason_codes: input.layer1ReasonCodes ?? [],
-    layer_2_result: input.layer2Result ?? null,
-    layer_2_reason_codes: input.layer2ReasonCodes ?? [],
+    layer_1_result: layer1Result,
+    layer_1_reason_codes: layer1ReasonCodes,
+    layer_2_result: layer2Result,
+    layer_2_reason_codes: layer2ReasonCodes,
     repair_attempted: input.repairAttempted ?? false,
     semantic_question_answered: input.semanticQuestionAnswered ?? null,
     raw_text_logged: false

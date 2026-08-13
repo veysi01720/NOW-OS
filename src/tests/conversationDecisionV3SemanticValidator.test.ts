@@ -285,6 +285,44 @@ describe("ConversationDecisionV3 semantic validator", () => {
     expect(varied.reason_codes).toEqual([]);
   });
 
+  it("accepts grounded Layla selection with a follow-up missing-info action as Layer 2 variance", () => {
+    const result = validateConversationDecisionV3Semantics(decision({
+      reply: "Layla seçimini aldım; şimdi telefon türünü yazabilir misin?",
+      next_action: "ask_missing_info",
+      chosen_actions: ["acknowledge_information", "ask_phone_type"],
+      patch: { selected_app: "Layla" },
+      evidence: [{ field: "selected_app", source: "current_message", evidence_ref: null }],
+    }), context({
+      latest_message: "Layla",
+      allowed_actions: ["acknowledge_information", "ask_phone_type"],
+      two_layer_validator_enabled: true,
+    }));
+
+    expect(result.ok).toBe(true);
+    expect(result.layer_1_result).toBe("pass");
+    expect(result.layer_2_result).toBe("accepted_with_variance");
+    expect(result.layer_1_reason_codes).toEqual([]);
+    expect(result.layer_2_reason_codes).toContain("STATE_PATCH_WITHOUT_UPDATE_NEXT_ACTION");
+  });
+
+  it("keeps Layla state evidence strict even when Layer 2 variance is enabled", () => {
+    const result = validateConversationDecisionV3Semantics(decision({
+      reply: "Layla seçimini aldım.",
+      next_action: "ask_missing_info",
+      chosen_actions: ["acknowledge_information", "ask_phone_type"],
+      patch: { selected_app: "Layla" },
+      evidence: [],
+    }), context({
+      latest_message: "Android",
+      allowed_actions: ["acknowledge_information", "ask_phone_type"],
+      two_layer_validator_enabled: true,
+    }));
+
+    expect(result.ok).toBe(false);
+    expect(result.layer_1_result).toBe("fail");
+    expect(result.layer_1_reason_codes).toContain("STATE_PATCH_EVIDENCE_MISSING");
+  });
+
   it("validates partial intake patches for age, gender, and daily hours", () => {
     const cases = [
       { latest_message: "27", patch: { age: 27 } },
