@@ -316,3 +316,12 @@ src/tests/workspaceLock.test.ts                                  |   1 +
 - `npm audit --omit=dev`: `0 vulnerabilities` locally and in the VPS-mounted source check; no `npm audit fix` or lockfile change was necessary.
 - Real VPS Terra stateful-chain qualification completed with five no-outbound runs: `3/5` full-chain passes. Runs 1 and 5 failed only at `app_selection` because no `selected_app` state patch was produced; greeting, age, gender/hours, work acceptance, and phone-type steps passed in all five runs. This is a real model variance finding, not a synthetic PASS.
 - Real VPS Terra vision qualification completed: clear fixture returned `clear / INSTALLATION_SCREEN_CONFIRMED`; ambiguous fixture returned `ambiguous / INSTALLATION_SCREEN_UNCLEAR`; raw provider output was not logged and real WhatsApp outbound count was zero. Fixtures were minimal synthetic image bytes, so this validates the classifier contract/provider path, not a production-quality screenshot corpus.
+
+## Overnight Engineering Checkpoint - 2026-08-14 (final)
+
+- Local and VPS source trees were advanced to `ff0a3b6`; no production deploy, WhatsApp message, owner approval, or instance operation was performed.
+- VPS Terra stateful intake used the real `gpt-5.6-terra` Responses adapter, five repetitions, and no outbound. All 5/5 chains passed the harness transition contract at every step. The production semantic validator reported `layer_1_result=pass` and `layer_2_result=pass` for all steps except phone type, which consistently reported `STATE_PATCH_CURRENT_MESSAGE_EVIDENCE_MISMATCH`; this remains a qualification caveat.
+- VPS Terra vision used meaningful synthetic PNG fixtures with real API calls and no outbound: clear=`clear/INSTALLATION_SCREEN_CONFIRMED`, ambiguous=`ambiguous/INSTALLATION_SCREEN_UNCLEAR`. Raw images and raw model output were not logged.
+- `npm audit --omit=dev` returned 0 vulnerabilities locally and on the VPS source tree. No `npm audit fix` was run because there was no vulnerability or lockfile change to fix.
+- The false-positive code-hygiene `Possible Unreachable Statements` heuristic was removed. Dead-file, overlapping-guard, untested-export, and TODO marker sections remain. Current counts: 5 dead-file candidates, 14 low-reference functions, 77 untested exports, 7 markers.
+- Full local verification: build PASS; 102 test files / 702 tests PASS. Production deploy remains pending owner approval because these harness/report changes are not deployed.
