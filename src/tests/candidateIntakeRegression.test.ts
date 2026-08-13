@@ -5,7 +5,7 @@ import { InMemoryStore } from "../storage/memoryStore.js";
 import { InMemoryMessageDedupeStore } from "../storage/messageDedupeStore.js";
 import { UserRunLock } from "../queue/userRunLock.js";
 import { createTestEnv } from "./testDoubles.js";
-import { UserState, UserIdentityInput } from "../storage/types.js";
+import { defaultUserState, UserState, UserIdentityInput } from "../storage/types.js";
 
 class TestUserStateStore {
   public states = new Map<string, UserState>();
@@ -112,5 +112,58 @@ describe("Candidate Intake Regression Fixture", () => {
 
     // Now model execution should happen.
     expect(deps.modelExecutionService.execute).toHaveBeenCalled();
+  });
+
+  it("records Layla + Android through the V3 transition without the fallback", async () => {
+    const memoryStore = new InMemoryStore();
+    const userStateStore = new TestUserStateStore();
+    userStateStore.states.set("905333333333", {
+      ...defaultUserState(),
+      age: 27,
+      gender: "erkek",
+      daily_hours: 4,
+      eligibility_status: "eligible",
+      work_model_disclosed: true,
+      model_acceptance: "accepted",
+      selected_app: "Layla",
+      current_state: "WAITING_FOR_PHONE_TYPE",
+      missing_fields: ["phone_type"],
+      expected_next_step: "ask_phone_type",
+    });
+    const deps = {
+      env: createTestEnv({
+        behaviorOrchestratorEnabled: false,
+        modelAdapterLayerEnabled: true,
+        behaviorCanaryMode: "off",
+        conversationDecisionV2Enabled: true,
+        approvedApps: ["Layla"],
+      }),
+      sender: { sendText: vi.fn().mockResolvedValue({ success: true, messageId: "msg_out" }) },
+      memoryStore,
+      messageDedupeStore: new InMemoryMessageDedupeStore(),
+      userStateStore,
+      eventLogStore: new TestEventLogStore(),
+      userRunLock: new UserRunLock(),
+      logger: { info: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn() } as any,
+      modelExecutionService: {
+        execute: vi.fn().mockRejectedValue(new Error("model should not be called for phone capture")),
+        evaluateCanaryDecisionForMessage: vi.fn(),
+        finalizeCanaryObservation: vi.fn(),
+      },
+    };
+
+    const result = await handleIncomingMessage(message({ text: "Android" }), deps as any);
+
+    expect(result.status).toBe("sent");
+    expect(userStateStore.states.get("905333333333")?.phone_type).toBe("android");
+    expect(userStateStore.states.get("905333333333")?.installation_status).toBe("in_progress");
+    expect(userStateStore.states.get("905333333333")?.current_state).toBe("INSTALLATION_IN_PROGRESS");
+    expect(deps.modelExecutionService.execute).not.toHaveBeenCalled();
+    expect(deps.sender.sendText).toHaveBeenCalledWith(
+      expect.objectContaining({ text: expect.stringContaining("Android bilgini aldım") }),
+    );
+    expect(deps.sender.sendText).not.toHaveBeenCalledWith(
+      expect.objectContaining({ text: expect.stringMatching(/ekip|doğrulanmamış|doÄŸrulanmamÄ±ÅŸ/) }),
+    );
   });
 });

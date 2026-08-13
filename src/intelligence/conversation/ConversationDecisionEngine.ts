@@ -268,6 +268,59 @@ function buildWorkModelAcceptanceFastPathDecision(context: ConversationDecisionC
   };
 }
 
+function buildPhoneTypeCaptureFastPathDecision(
+  context: ConversationDecisionContext,
+  capturedFields: string[],
+): ConversationDecision | null {
+  const eligible =
+    context.role === "candidate" &&
+    context.channel === "private" &&
+    capturedFields.includes("phone_type") &&
+    context.candidate_state.selected_app !== null &&
+    context.candidate_state.phone_type !== null &&
+    context.derived_state.dialogue_phase === "INSTALLATION_IN_PROGRESS" &&
+    context.allowed_actions.includes("provide_installation_instruction");
+
+  if (!eligible) return null;
+
+  return {
+    decision_version: "2.0",
+    intent: {
+      primary: "confirm_phone_type",
+      secondary: [],
+      confidence: 1,
+    },
+    direct_question: {
+      present: false,
+      question_summary: null,
+      answered_in_reply: true,
+    },
+    reply: {
+      text: `${context.candidate_state.phone_type === "ios" ? "iPhone/iOS" : "Android"} bilgini aldım. Kurulum adımlarına geçebiliriz.`,
+      language: "tr",
+      tone: "natural_concise",
+      contains_question: false,
+    },
+    chosen_actions: ["acknowledge_information", "provide_installation_instruction"],
+    state_patch: {
+      phone_type: context.candidate_state.phone_type,
+    },
+    policy_facts_used: [],
+    next_action: "update_candidate_state",
+    requires_escalation: false,
+    escalation_reason: null,
+    risk_flags: [],
+    self_check: {
+      answered_latest_message: true,
+      asked_known_information_again: false,
+      invented_policy: false,
+      offered_setup_too_early: false,
+      used_generic_closing: false,
+    },
+    origin: "deterministic_phone_type_capture_fast_path",
+  };
+}
+
 async function runModelDecision(input: {
   modelExecutionService: ModelExecutionService;
   backendContext: BackendContextPayloadV1;
@@ -406,13 +459,20 @@ export async function executeConversationDecisionV2(input: {
     if (!decision) {
       decision = buildWorkModelAcceptanceFastPathDecision(context);
     }
+    if (!decision) {
+      decision = buildPhoneTypeCaptureFastPathDecision(context, input.capturedFields);
+    }
     if (decision) {
       if (mutationSource === null) {
-        mutationSource = "deterministic_work_model_acceptance_fast_path";
+        mutationSource = decision.origin === "deterministic_phone_type_capture_fast_path"
+          ? "deterministic_phone_type_capture_fast_path"
+          : "deterministic_work_model_acceptance_fast_path";
         input.logger.info({
           event_type: "CONVERSATION_DECISION_V2_FAST_PATH_SELECTED",
           correlation_id: context.request_id,
-          fast_path: "work_model_acceptance",
+          fast_path: decision.origin === "deterministic_phone_type_capture_fast_path"
+            ? "phone_type_capture"
+            : "work_model_acceptance",
           model_call_count: 0,
         });
       }
