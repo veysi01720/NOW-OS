@@ -131,7 +131,8 @@ function executeOwnerKnowledgeCommand(
   }
   const first = results[0];
   auditOwnerKnowledgeCommand(deps.actionAuditStore, "whatsapp_knowledge_apply", senderRole, jobIds.join(","), "success");
-  return commandResult(`Bilgi uygulandi: ${approved.length} bolum; aktif hash=${first.active_version_hash_masked}; fact_count=${first.fact_count}; activation_status=${first.activation_status}; rollback_pointer=${first.rollback_pointer}.`, "owner_knowledge_apply", true);
+  const verification = first.verification!;
+  return commandResult(`Bilgi uygulandi: ${approved.length} bolum; aktif hash=${first.active_version_hash_masked}; fact_count=${first.fact_count}; activation_status=${first.activation_status}; rollback_pointer=${first.rollback_pointer}; source_present=${verification.source_present}; structured_fields=${verification.structured_fields.join(",")}; context_paths=${verification.context_paths.join(",")}.`, "owner_knowledge_apply", true);
 }
 
 function isPendingLearningListRequest(text: string, includeCommandAliases = false): boolean {

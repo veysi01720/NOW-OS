@@ -69,6 +69,9 @@ describe("owner knowledge transfer chain", () => {
       expect(after).toContain("Approved section 1");
       expect(after).toContain("Approved section 2");
       expect(after).not.toContain("Approved section 3");
+      expect(result.verification?.source_present).toBe(true);
+      expect(result.verification?.structured_fields).toContain("owner_transfer_sections");
+      expect(result.verification?.context_paths).toContain("structured_facts.owner_transfer_sections");
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }
@@ -118,6 +121,24 @@ describe("owner knowledge transfer chain", () => {
       const result = materializeApprovedOwnerKnowledge({ jobId, zipStore: store, knowledgeBankDir: bank });
       expect(result.status).toBe("published");
       expect(readFileSync(factsPath, "utf8")).toContain("Bu bilgi onaydan sonra aktif facts'e eklenir.");
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it("does not claim success when structured verification cannot find the approved section", () => {
+    const dir = mkdtempSync(join(tmpdir(), "owner-transfer-verify-"));
+    try {
+      const bank = join(dir, "knowledge_bank");
+      knowledgeBank(bank);
+      const store = new ZipIngestionStore(join(dir, "zip-store.json"));
+      seed(store, ["## Verified section\nThis must be visible in structured facts.", ...Array.from({ length: 7 }, (_, index) => `## Rejected ${index}\nRejected.`)]);
+      const path = resolve(bank, "app_facts.md");
+      const before = readFileSync(path, "utf8");
+      const result = materializeApprovedOwnerKnowledge({ jobId: "zip_transfer_test", zipStore: store, knowledgeBankDir: bank, forceStructuredVerificationFailure: true });
+      expect(result.status).toBe("failed");
+      expect(result.error_code).toContain("OWNER_TRANSFER_VERIFY_STRUCTURED_MISSING");
+      expect(readFileSync(path, "utf8")).toBe(before);
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }
