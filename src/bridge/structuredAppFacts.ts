@@ -30,6 +30,7 @@ export interface StructuredAppFactsContext {
     section_id: string;
     title: string;
     content: string;
+    classification: "information" | "constraint" | "critical" | "archive";
   }>;
   errors: string[];
 }
@@ -144,7 +145,10 @@ function toOwnerTransferSections(value: unknown): StructuredAppFactsContext["own
     const sectionId = normalizeString(record.section_id);
     const title = normalizeString(record.title);
     const content = normalizeString(record.content);
-    return sectionId && title && content ? [{ section_id: sectionId, title, content }] : [];
+    const classification = record.classification === "constraint" || record.classification === "critical" || record.classification === "archive"
+      ? record.classification
+      : "information";
+    return sectionId && title && content ? [{ section_id: sectionId, title, content, classification }] : [];
   });
 }
 

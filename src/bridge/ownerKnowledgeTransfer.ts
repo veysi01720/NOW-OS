@@ -190,7 +190,7 @@ export function materializeApprovedOwnerKnowledge(input: {
     writeFileSync(backupPath, previous, { encoding: "utf8", mode: 0o600 });
     const additions = approved
       .filter((candidate) => !previous.includes(candidate.extracted_text.trim()))
-      .map((candidate) => `\n\n## Owner Transfer: ${candidate.section_title ?? candidate.section_id ?? candidate.id}\n\n${candidate.extracted_text.trim()}\n`)
+      .map((candidate) => `\n\n## Owner Transfer [${candidate.classification ?? "information"}]: ${candidate.section_title ?? candidate.section_id ?? candidate.id}\n\n${candidate.extracted_text.trim()}\n`)
       .join("");
     atomicWrite(appFactsPath, `${previous.trimEnd()}${additions}\n`);
     const publish = publishStructuredKnowledgeSources({ knowledgeBankDir: dir, mode: "activate", ownerApproval: true });

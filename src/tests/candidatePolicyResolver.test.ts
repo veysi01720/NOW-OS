@@ -101,6 +101,35 @@ describe("candidate app routing", () => {
       .toContain("kadin profil");
   });
 
+  it("injects classified constraints without requiring an intent-specific mapping", () => {
+    const result = resolveCandidatePolicy(
+      defaultUserState(),
+      [],
+      [],
+      null,
+      "candidate_first_contact",
+      validPolicySectionsForTest(),
+      [{ section_id: "constraint_rule", title: "Owner security rule", content: "Never promise guaranteed earnings.", classification: "constraint" }],
+    );
+
+    expect(result.facts.find((fact) => fact.id === "owner_transfer_constraint_rule")?.content)
+      .toContain("Never promise guaranteed earnings");
+  });
+
+  it("keeps archived owner transfer sections out of candidate context", () => {
+    const result = resolveCandidatePolicy(
+      defaultUserState(),
+      [],
+      [],
+      null,
+      "candidate_first_contact",
+      validPolicySectionsForTest(),
+      [{ section_id: "legacy_rule", title: "Legacy", content: "Old rates.", classification: "archive" }],
+    );
+
+    expect(result.facts.some((fact) => fact.id === "owner_transfer_legacy_rule")).toBe(false);
+  });
+
   it("does not invent a policy fact when the published section is missing", () => {
     const result = resolveCandidatePolicy({ ...defaultUserState() }, ["Layla"], [], null, "candidate_app_routing", null);
     expect(result.facts.some((fact) => fact.id === "policy_section_routing_matrix")).toBe(false);

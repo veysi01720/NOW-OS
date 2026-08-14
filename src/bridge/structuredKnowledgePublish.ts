@@ -2,6 +2,7 @@ import { createHash } from "node:crypto";
 import { existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import type { StructuredPolicySections } from "../contracts/backendContextPayload.js";
+import type { OwnerKnowledgeClassification } from "./zipIngestion/types.js";
 import type { StructuredAppFact, StructuredGeneralWorkModel } from "./structuredAppFacts.js";
 
 export interface StructuredKnowledgePublishResult {
@@ -125,7 +126,7 @@ function buildStructuredJson(
   facts: StructuredAppFact[],
   generalWorkModel: StructuredGeneralWorkModel,
   policySections: StructuredPolicySections,
-  ownerTransferSections: Array<{ section_id: string; title: string; content: string }>,
+  ownerTransferSections: Array<{ section_id: string; title: string; content: string; classification: OwnerKnowledgeClassification }>,
 ): string {
   return `${JSON.stringify({
     version: "1.0",
@@ -343,12 +344,13 @@ export function parsePolicySectionsFromMarkdown(markdown: string): StructuredPol
   return result;
 }
 
-export function parseOwnerTransferSectionsFromMarkdown(markdown: string): Array<{ section_id: string; title: string; content: string }> {
-  const sections: Array<{ section_id: string; title: string; content: string }> = [];
+export function parseOwnerTransferSectionsFromMarkdown(markdown: string): Array<{ section_id: string; title: string; content: string; classification: OwnerKnowledgeClassification }> {
+  const sections: Array<{ section_id: string; title: string; content: string; classification: OwnerKnowledgeClassification }> = [];
   const seenContentHashes = new Set<string>();
-  const matches = [...markdown.matchAll(/^##\s+Owner Transfer:\s*(.+?)\s*$/gmu)];
+  const matches = [...markdown.matchAll(/^##\s+Owner Transfer(?:\s+\[(information|constraint|critical|archive)\])?:\s*(.+?)\s*$/gmu)];
   for (const [index, match] of matches.entries()) {
-    const title = match[1].trim();
+    const classification = (match[1] as OwnerKnowledgeClassification | undefined) ?? "information";
+    const title = match[2].trim();
     const start = (match.index ?? 0) + match[0].length;
     const end = matches[index + 1]?.index ?? markdown.length;
     const content = markdown.slice(start, end).trim();
@@ -357,7 +359,7 @@ export function parseOwnerTransferSectionsFromMarkdown(markdown: string): Array<
     if (seenContentHashes.has(contentHash)) continue;
     seenContentHashes.add(contentHash);
     const sectionId = `owner_transfer_${normalizeHeading(title).replace(/[^a-z0-9]+/g, "_").replace(/^_|_$/g, "") || "untitled"}`;
-    sections.push({ section_id: sectionId, title, content });
+    sections.push({ section_id: sectionId, title, content, classification });
   }
   return sections;
 }

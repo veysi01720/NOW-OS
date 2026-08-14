@@ -99,6 +99,7 @@ export interface OwnerTransferPolicySection {
   section_id: string;
   title: string;
   content: string;
+  classification?: "information" | "constraint" | "critical" | "archive";
 }
 
 function structuredPolicySectionFact(key: keyof StructuredPolicySections, content: string): ConversationPolicyFact {
@@ -113,6 +114,8 @@ function structuredPolicySectionFact(key: keyof StructuredPolicySections, conten
 }
 
 function ownerTransferMatchesIntent(section: OwnerTransferPolicySection, intent: string | null): boolean {
+  if (section.classification === "archive") return false;
+  if (section.classification === "constraint" || section.classification === "critical") return true;
   const text = normalize(`${section.title} ${section.content}`);
   if (["account_profile_question", "ask_profile", "ask_account_profile", "ask_camera_requirement", "work_model_disclosure"].includes(intent ?? "")) {
     return /(erkek|hesap|profil|bio|foto|fotograf|kamera)/u.test(text);

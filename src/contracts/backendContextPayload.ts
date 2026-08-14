@@ -135,6 +135,7 @@ export interface StructuredFactsContext {
     section_id: string;
     title: string;
     content: string;
+    classification?: "information" | "constraint" | "critical" | "archive";
   }>;
   errors: string[];
 }
