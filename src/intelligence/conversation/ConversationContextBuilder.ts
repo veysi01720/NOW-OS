@@ -27,6 +27,7 @@ export function inferConversationIntent(text: string): string | null {
     return "clarify_previous_explanation";
   }
   if (/(nasil yapacagim|nasil yapacağim|bu isi nasil|bu işi nasil|kamera acacak miyim|mesajlasma nasil|erkek hesabi|erkek hesabı)/u.test(normalized)) {
+    if (normalized.includes("erkek hes") || normalized.includes("erkek prof")) return "account_profile_question";
     return "ask_how_work_is_done";
   }
   const asksGeneralQuestion = /(^|\s|\?)(kim|ne|nerede|neden|nasil|nasÄ±l|hangi|bugun|hava)(\s|\?|$)/u.test(normalized) || normalized.includes("?");
@@ -100,6 +101,7 @@ export function buildConversationDecisionContext(input: {
       app_facts: [],
       general_work_model: null,
       policy_sections: null,
+      owner_transfer_sections: [],
       errors: ["app_facts_structured.json missing from backend context"],
     },
     allowed_actions: allowedActions.allowed,

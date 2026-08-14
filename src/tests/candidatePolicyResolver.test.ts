@@ -59,8 +59,35 @@ describe("candidate app routing", () => {
     expect(result.facts.some((fact) => fact.id === "policy_section_profile_bio_photo_rules")).toBe(false);
   });
 
+  it("uses profile rules for account_profile_question", () => {
+    const result = resolveCandidatePolicy(
+      { ...defaultUserState(), gender: "erkek" },
+      ["Layla"],
+      [],
+      null,
+      "account_profile_question",
+      { ...validPolicySectionsForTest(), profile_bio_photo_rules: "Approved male account profile rule." },
+    );
+    expect(result.facts.find((fact) => fact.id === "policy_section_profile_bio_photo_rules")?.content)
+      .toBe("Approved male account profile rule.");
+    expect(result.facts.some((fact) => fact.id === "male_account_policy_boundary")).toBe(false);
+  });
+
   it("does not invent a policy fact when the published section is missing", () => {
     const result = resolveCandidatePolicy({ ...defaultUserState() }, ["Layla"], [], null, "candidate_app_routing", null);
     expect(result.facts.some((fact) => fact.id === "policy_section_routing_matrix")).toBe(false);
   });
 });
+
+function validPolicySectionsForTest() {
+  return {
+    routing_matrix: "Routing.",
+    application_independence: "Independence.",
+    profile_bio_photo_rules: "Profile.",
+    memory_rules: "Memory.",
+    eligibility_rejection: "Eligibility.",
+    installation_permission: "Installation.",
+    privacy_payment_support: "Privacy.",
+    followup_closure_group_rules: "Follow-up.",
+  };
+}

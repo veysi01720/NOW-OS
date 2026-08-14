@@ -90,6 +90,7 @@ export function buildBackendContext(
         app_facts: source.app_facts,
         general_work_model: source.general_work_model,
         policy_sections: source.policy_sections,
+        owner_transfer_sections: source.owner_transfer_sections,
         errors: source.errors,
       };
     })(),

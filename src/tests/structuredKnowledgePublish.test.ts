@@ -4,6 +4,7 @@ import { join, resolve } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import {
   parsePolicySectionsFromMarkdown,
+  parseOwnerTransferSectionsFromMarkdown,
   parseStructuredAppFactsFromMarkdown,
   publishStructuredKnowledgeSources,
 } from "../bridge/structuredKnowledgePublish.js";
@@ -72,6 +73,23 @@ describe("structured knowledge publish", () => {
       source_section: "Genel İş Modeli",
     }));
     expect(structured.general_work_model.earnings_policy).not.toMatch(/\d+\s*(tl|lira|usd|dolar)/iu);
+  });
+
+  it("publishes headingless owner transfer material into structured facts", () => {
+    const dir = makeKnowledgeBank();
+    const sourcePath = resolve(dir, "app_facts.md");
+    const ownerRule = "Erkek adaylar sadece owner onayli kadin profil kuraliyla ilerler; bu bilgi adaya acikca sorulur.";
+    writeFileSync(sourcePath, `${readFileSync(sourcePath, "utf8").trimEnd()}\n\n## Owner Transfer: Owner direct bilgi\n\n${ownerRule}\n`, "utf8");
+
+    expect(parseOwnerTransferSectionsFromMarkdown(readFileSync(sourcePath, "utf8"))).toEqual([
+      expect.objectContaining({ title: "Owner direct bilgi", content: ownerRule }),
+    ]);
+    const result = publishStructuredKnowledgeSources({ knowledgeBankDir: dir, mode: "activate", ownerApproval: true });
+    expect(result.status).toBe("published");
+    const structured = JSON.parse(readFileSync(resolve(dir, "app_facts_structured.json"), "utf8"));
+    expect(structured.owner_transfer_sections).toEqual([
+      expect.objectContaining({ title: "Owner direct bilgi", content: ownerRule }),
+    ]);
   });
 
   it("writes structured facts and routing rules from app_facts.md", () => {

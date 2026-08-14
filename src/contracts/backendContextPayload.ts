@@ -131,6 +131,11 @@ export interface StructuredFactsContext {
     setup_boundary: string;
   } | null;
   policy_sections: StructuredPolicySections | null;
+  owner_transfer_sections?: Array<{
+    section_id: string;
+    title: string;
+    content: string;
+  }>;
   errors: string[];
 }
 

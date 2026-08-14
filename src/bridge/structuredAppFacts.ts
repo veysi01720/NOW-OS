@@ -26,6 +26,11 @@ export interface StructuredAppFactsContext {
   app_facts: StructuredAppFact[];
   general_work_model: StructuredGeneralWorkModel | null;
   policy_sections: StructuredPolicySections | null;
+  owner_transfer_sections: Array<{
+    section_id: string;
+    title: string;
+    content: string;
+  }>;
   errors: string[];
 }
 
@@ -131,6 +136,18 @@ function toPolicySections(value: unknown): { sections: StructuredPolicySections 
   };
 }
 
+function toOwnerTransferSections(value: unknown): StructuredAppFactsContext["owner_transfer_sections"] {
+  if (!Array.isArray(value)) return [];
+  return value.flatMap((item) => {
+    if (item === null || typeof item !== "object" || Array.isArray(item)) return [];
+    const record = item as Record<string, unknown>;
+    const sectionId = normalizeString(record.section_id);
+    const title = normalizeString(record.title);
+    const content = normalizeString(record.content);
+    return sectionId && title && content ? [{ section_id: sectionId, title, content }] : [];
+  });
+}
+
 function sha256(content: string): string {
   return createHash("sha256").update(content).digest("hex");
 }
@@ -150,6 +167,7 @@ export function loadStructuredAppFacts(knowledgeBankDir?: string): StructuredApp
       app_facts: [],
       general_work_model: null,
       policy_sections: null,
+      owner_transfer_sections: [],
       errors: ["app_facts_structured.json missing"],
     };
   }
@@ -162,6 +180,7 @@ export function loadStructuredAppFacts(knowledgeBankDir?: string): StructuredApp
     const appFacts = rawFacts.map(toFact).filter((fact): fact is StructuredAppFact => fact !== null);
     const generalWorkModel = toGeneralWorkModel(record.general_work_model);
     const policyResult = toPolicySections(record.policy_sections);
+    const ownerTransferSections = toOwnerTransferSections(record.owner_transfer_sections);
     const errors: string[] = [];
     if (appFacts.length !== rawFacts.length) errors.push("invalid app fact records found");
     if (appFacts.length === 0) errors.push("app_facts array empty");
@@ -174,6 +193,7 @@ export function loadStructuredAppFacts(knowledgeBankDir?: string): StructuredApp
       app_facts: appFacts,
       general_work_model: generalWorkModel,
       policy_sections: policyResult.sections,
+      owner_transfer_sections: ownerTransferSections,
       errors,
     };
   } catch {
@@ -184,6 +204,7 @@ export function loadStructuredAppFacts(knowledgeBankDir?: string): StructuredApp
       app_facts: [],
       general_work_model: null,
       policy_sections: null,
+      owner_transfer_sections: [],
       errors: ["app_facts_structured.json parse failed"],
     };
   }

@@ -125,6 +125,7 @@ function buildStructuredJson(
   facts: StructuredAppFact[],
   generalWorkModel: StructuredGeneralWorkModel,
   policySections: StructuredPolicySections,
+  ownerTransferSections: Array<{ section_id: string; title: string; content: string }>,
 ): string {
   return `${JSON.stringify({
     version: "1.0",
@@ -133,6 +134,7 @@ function buildStructuredJson(
     app_facts: facts,
     general_work_model: generalWorkModel,
     policy_sections: policySections,
+    owner_transfer_sections: ownerTransferSections,
   }, null, 2)}\n`;
 }
 
@@ -236,7 +238,8 @@ export function publishStructuredKnowledgeSources(options: {
     };
   }
 
-  const structuredJson = buildStructuredJson(facts, generalWorkModel, policySections);
+  const ownerTransferSections = parseOwnerTransferSectionsFromMarkdown(markdown);
+  const structuredJson = buildStructuredJson(facts, generalWorkModel, policySections, ownerTransferSections);
   const routingRules = buildRoutingRules(facts);
   const targetDir = mode === "dry_run" ? resolve(dir, "structured_publish_dry_runs", dryRunId) : dir;
   const targetStructuredPath = resolve(targetDir, "app_facts_structured.json");
@@ -338,6 +341,21 @@ export function parsePolicySectionsFromMarkdown(markdown: string): StructuredPol
     result[key] = body;
   }
   return result;
+}
+
+export function parseOwnerTransferSectionsFromMarkdown(markdown: string): Array<{ section_id: string; title: string; content: string }> {
+  const sections: Array<{ section_id: string; title: string; content: string }> = [];
+  const matches = [...markdown.matchAll(/^##\s+Owner Transfer:\s*(.+?)\s*$/gmu)];
+  for (const [index, match] of matches.entries()) {
+    const title = match[1].trim();
+    const start = (match.index ?? 0) + match[0].length;
+    const end = matches[index + 1]?.index ?? markdown.length;
+    const content = markdown.slice(start, end).trim();
+    if (!content) continue;
+    const sectionId = `owner_transfer_${normalizeHeading(title).replace(/[^a-z0-9]+/g, "_").replace(/^_|_$/g, "") || "untitled"}`;
+    sections.push({ section_id: sectionId, title, content });
+  }
+  return sections;
 }
 
 function parseGeneralWorkModel(markdown: string): StructuredGeneralWorkModel | null {

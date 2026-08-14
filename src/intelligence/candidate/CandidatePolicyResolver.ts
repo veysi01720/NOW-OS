@@ -69,6 +69,7 @@ function policySectionForIntent(intent: string | null): keyof StructuredPolicySe
       return "routing_matrix";
     case "ask_profile":
     case "ask_account_profile":
+    case "account_profile_question":
     case "ask_camera_requirement":
       return "profile_bio_photo_rules";
     case "ask_eligibility":
@@ -154,16 +155,6 @@ export function resolveCandidatePolicy(
         "The safe high-level explanation is: the candidate proceeds in the approved app, follows team guidance, and communicates through chats/messages; avoid unsupported claims about earnings, identity, account ownership, or hidden platform behavior.",
       content:
         "The safe high-level explanation is: the candidate proceeds in the approved app, follows team guidance, and communicates through chats/messages; avoid unsupported claims about earnings, identity, account ownership, or hidden platform behavior.",
-      source: "canonical_policy",
-      version: "conversation_v2"
-    });
-    facts.push({
-      id: "male_account_policy_boundary",
-      topic: "account_profile_boundary",
-      fact:
-        "There is no approved canonical rule saying the candidate must open or use a male account/profile; answer account/profile questions directly by saying this is not confirmed and the team will not invent that detail.",
-      content:
-        "There is no approved canonical rule saying the candidate must open or use a male account/profile; answer account/profile questions directly by saying this is not confirmed and the team will not invent that detail.",
       source: "canonical_policy",
       version: "conversation_v2"
     });
