@@ -1,4 +1,6 @@
 import { handleIncomingMessage } from "../bridge/handleIncomingMessage.js";
+import { mkdtempSync, readFileSync, rmSync } from "node:fs";
+import { join, resolve } from "node:path";
 import { SAFE_APPROVED_APP_GATE_REPLY } from "../bridge/approvedAppGuard.js";
 import { ASSISTANT_SAFE_FALLBACK_REPLY } from "../contracts/assistantResponseContract.js";
 import { UserRunLock } from "../queue/userRunLock.js";
@@ -16,6 +18,8 @@ import {
   InMemoryIngestionStore,
   InMemoryReportDataSource
 } from "./testDoubles.js";
+import { ZipIngestionStore } from "../bridge/zipIngestion/store.js";
+import { writeValidKnowledgeBankFixture } from "./fixtures/knowledgeBankFixture.js";
 
 function message(overrides: Partial<NormalizedIncomingMessage> = {}): NormalizedIncomingMessage {
   return {
@@ -78,6 +82,63 @@ class MutableUserStateStore implements UserStateStore {
 }
 
 describe("handleIncomingMessage", () => {
+  it("auto-approves and publishes a single #bilgi section after owner says evet", async () => {
+    const root = mkdtempSync(join(process.cwd(), "tmp-owner-short-review-"));
+    try {
+      const bank = resolve(root, "knowledge_bank");
+      writeValidKnowledgeBankFixture(bank, { includeTimo: true });
+      const store = new ZipIngestionStore(resolve(root, "zip-store.json"));
+      const testDeps = {
+        ...deps("{}"),
+        env: createTestEnv(),
+        zipIngestionStore: store,
+        knowledgeBankDir: bank,
+      };
+      await handleIncomingMessage(message({ phone_number: "905111111111", sender_id: "905111111111", text: "#bilgi Kurulumda takilan aday once uygulamayi kapatip acar.", message_id: "owner-info" }), testDeps);
+      expect(testDeps.sender.sends[0]?.text).toContain("onay");
+      await handleIncomingMessage(message({ phone_number: "905111111111", sender_id: "905111111111", text: "evet", message_id: "owner-yes" }), testDeps);
+      expect(testDeps.sender.sends[2]?.text).toContain("source_present=true");
+      expect(readFileSync(resolve(bank, "app_facts.md"), "utf8")).toContain("Kurulumda takilan aday");
+      expect(store.listLearningCandidates()[0]?.status).toBe("approved_for_bundle");
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
+  });
+
+  it("rejects a single #bilgi section after owner says hayir without changing active facts", async () => {
+    const root = mkdtempSync(join(process.cwd(), "tmp-owner-short-reject-"));
+    try {
+      const bank = resolve(root, "knowledge_bank");
+      writeValidKnowledgeBankFixture(bank, { includeTimo: true });
+      const store = new ZipIngestionStore(resolve(root, "zip-store.json"));
+      const before = readFileSync(resolve(bank, "app_facts.md"), "utf8");
+      const testDeps = { ...deps("{}"), env: createTestEnv(), zipIngestionStore: store, knowledgeBankDir: bank };
+      await handleIncomingMessage(message({ phone_number: "905111111111", sender_id: "905111111111", text: "#bilgi Gecici destek notu", message_id: "owner-info-no" }), testDeps);
+      await handleIncomingMessage(message({ phone_number: "905111111111", sender_id: "905111111111", text: "hayir", message_id: "owner-no" }), testDeps);
+      expect(testDeps.sender.sends[2]?.text).toContain("reddedildi");
+      expect(readFileSync(resolve(bank, "app_facts.md"), "utf8")).toBe(before);
+      expect(store.listLearningCandidates()[0]?.status).toBe("rejected");
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
+  });
+
+  it("keeps multi-section #bilgi on the selectable review flow", async () => {
+    const root = mkdtempSync(join(process.cwd(), "tmp-owner-multi-review-"));
+    try {
+      const bank = resolve(root, "knowledge_bank");
+      writeValidKnowledgeBankFixture(bank, { includeTimo: true });
+      const store = new ZipIngestionStore(resolve(root, "zip-store.json"));
+      const before = readFileSync(resolve(bank, "app_facts.md"), "utf8");
+      const testDeps = { ...deps("{}"), env: createTestEnv(), zipIngestionStore: store, knowledgeBankDir: bank };
+      await handleIncomingMessage(message({ phone_number: "905111111111", sender_id: "905111111111", text: "#bilgi\n## Birinci\n\nBilgi bir.\n\n## Ikinci\n\nBilgi iki.", message_id: "owner-multi" }), testDeps);
+      await handleIncomingMessage(message({ phone_number: "905111111111", sender_id: "905111111111", text: "evet", message_id: "owner-multi-yes" }), testDeps);
+      expect(store.listLearningCandidates().filter((candidate) => candidate.status === "pending_owner_review")).toHaveLength(2);
+      expect(readFileSync(resolve(bank, "app_facts.md"), "utf8")).toBe(before);
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
+  });
   it("ignores fromMe messages", async () => {
     const testDeps = deps("{}");
     const result = await handleIncomingMessage(message({ is_from_me: true }), testDeps);

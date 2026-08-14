@@ -82,7 +82,7 @@ import {
   verifyInstallationMedia,
   type InstallationVerificationClassifier,
 } from "./installationVerification.js";
-import { buildOwnerKnowledgeReviewSummary, persistOwnerKnowledgeReviewSummary } from "./ownerKnowledgeTransfer.js";
+import { buildOwnerKnowledgeReviewSummary, materializeApprovedOwnerKnowledge, persistOwnerKnowledgeReviewSummary } from "./ownerKnowledgeTransfer.js";
 import { buildZipIngestionOutcomeReply, createDirectOwnerKnowledgeReview } from "./ownerKnowledgeIntake.js";
 export interface HandleIncomingMessageDeps {
   env: EnvConfig;
@@ -648,9 +648,48 @@ export async function handleIncomingMessage(
       "Aktif bilgi degistirilmedi; owner onayi bekleniyor.",
     ].join("\n");
     await notifyTrainingOwner(deps, summaryText, message.correlation_id);
-    await sendReply(message, `${directProcess.candidates.length} bölüm tespit edildi, owner onayını bekliyor. Aktif bilgi değiştirilmedi.`, deps, latencyTracker);
+    const reviewReply = directProcess.candidates.length === 1
+      ? "1 bolum tespit edildi. Aktif bilgi degistirilmedi. Onayliyor musun? (evet/hayir)"
+      : `${directProcess.candidates.length} bolum tespit edildi, owner onayini bekliyor. Aktif bilgi degistirilmedi.`;
+    await sendReply(message, reviewReply, deps, latencyTracker);
     logger.info({ event_type: "OWNER_KNOWLEDGE_REVIEW_SUMMARY_CREATED", correlation_id: message.correlation_id, job_id: reviewSummary.job_id, section_count: reviewSummary.detected_sections.length, active_claim: false });
     return latencyTracker.finish({ status: "zip_ingestion_started", correlation_id: message.correlation_id });
+  }
+  if ((senderRole === "owner" || senderRole === "manager") && message.chat_type === "private" && deps.zipIngestionStore) {
+    const decision = message.text.trim().normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
+    const isYes = decision === "evet" || decision === "onayliyorum" || decision === "tamam";
+    const isNo = decision === "hayir" || decision === "iptal";
+    if (isYes || isNo) {
+      const pending = deps.zipIngestionStore.listLearningCandidates().filter((candidate) => candidate.source === "owner_direct_text" && candidate.status === "pending_owner_review");
+      const jobIds = [...new Set(pending.map((candidate) => candidate.source_job_id))];
+      if (jobIds.length === 1 && pending.length === 1) {
+        const candidate = pending[0];
+        if (isNo) {
+          const rejected = deps.zipIngestionStore.reviewLearningCandidate(candidate.id, "reject", senderRole === "manager" ? "manager" : "owner");
+          await sendReply(message, rejected?.status === "rejected" ? "Bilgi reddedildi; aktif bilgi degismedi." : "Bilgi reddedilemedi; aktif bilgi degismedi.", deps, latencyTracker);
+          return latencyTracker.finish({ status: "sent", correlation_id: message.correlation_id });
+        }
+        const approved = deps.zipIngestionStore.reviewLearningCandidate(candidate.id, "approve", senderRole === "manager" ? "manager" : "owner");
+        if (!approved || approved.status !== "approved_for_bundle") {
+          await sendReply(message, "Bilgi onaylanamadi; aktif bilgi degismedi.", deps, latencyTracker);
+          return latencyTracker.finish({ status: "sent", correlation_id: message.correlation_id });
+        }
+        const result = materializeApprovedOwnerKnowledge({
+          jobId: candidate.source_job_id,
+          zipStore: deps.zipIngestionStore,
+          knowledgeBankDir: deps.knowledgeBankDir,
+          actionAuditStore: deps.actionAuditStore,
+          actorRole: senderRole === "manager" ? "manager" : "owner",
+        });
+        if (result.status !== "published" || !result.verification) {
+          await sendReply(message, `Bilgi onaylandi ancak uygulanamadi; aktif bilgi degismedi. Hata: ${result.error_code ?? result.status}.`, deps, latencyTracker);
+          return latencyTracker.finish({ status: "sent", correlation_id: message.correlation_id });
+        }
+        const verification = result.verification;
+        await sendReply(message, `Bilgi uygulandi: 1 bolum; aktif hash=${result.active_version_hash_masked}; fact_count=${result.fact_count}; activation_status=${result.activation_status}; rollback_pointer=${result.rollback_pointer}; source_present=${verification.source_present}; structured_fields=${verification.structured_fields.join(",")}; context_paths=${verification.context_paths.join(",")}.`, deps, latencyTracker);
+        return latencyTracker.finish({ status: "sent", correlation_id: message.correlation_id });
+      }
+    }
   }
   const ownerCommandRes = handleOwnerCommand(
     message,
