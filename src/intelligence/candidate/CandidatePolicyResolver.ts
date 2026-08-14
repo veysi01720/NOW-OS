@@ -1,5 +1,6 @@
 import type { UserState } from "../../storage/types.js";
 import type { StructuredAppFact, StructuredGeneralWorkModel } from "../../bridge/structuredAppFacts.js";
+import type { StructuredPolicySections } from "../../contracts/backendContextPayload.js";
 import type { ConversationPolicyFact } from "../conversation/ConversationDecisionSchema.js";
 
 export interface CandidatePolicyResolution {
@@ -60,14 +61,63 @@ function structuredJobDefinitionFact(fact: StructuredAppFact): ConversationPolic
   };
 }
 
+function policySectionForIntent(intent: string | null): keyof StructuredPolicySections | null {
+  switch (intent) {
+    case "candidate_app_routing":
+    case "ask_selected_app":
+    case "ask_how_work_is_done":
+      return "routing_matrix";
+    case "ask_profile":
+    case "ask_account_profile":
+    case "ask_camera_requirement":
+      return "profile_bio_photo_rules";
+    case "ask_eligibility":
+    case "ask_missing_age":
+    case "ask_missing_gender":
+      return "eligibility_rejection";
+    case "ask_installation_permission":
+    case "begin_setup":
+    case "installation_permission":
+      return "installation_permission";
+    case "payment_withdrawal":
+    case "technical_issue":
+    case "privacy_question":
+      return "privacy_payment_support";
+    case "follow_up":
+    case "closure":
+    case "group_operation":
+      return "followup_closure_group_rules";
+    case "clarify_previous_explanation":
+      return "memory_rules";
+    default:
+      return null;
+  }
+}
+
+function structuredPolicySectionFact(key: keyof StructuredPolicySections, content: string): ConversationPolicyFact {
+  return {
+    id: `policy_section_${key}`,
+    topic: key,
+    fact: content,
+    content,
+    source: "knowledge_bank",
+    version: "app_facts_structured.json",
+  };
+}
+
 export function resolveCandidatePolicy(
   state: UserState,
   allowedApps: string[],
   structuredFacts: StructuredAppFact[] = [],
   generalWorkModel: StructuredGeneralWorkModel | null = null,
   intent: string | null = null,
+  policySections: StructuredPolicySections | null = null,
 ): CandidatePolicyResolution {
   const facts: ConversationPolicyFact[] = [];
+  const policySection = policySectionForIntent(intent);
+  if (policySection && policySections?.[policySection]) {
+    facts.push(structuredPolicySectionFact(policySection, policySections[policySection]));
+  }
   const useGeneralWorkModel = intent === "ask_job_definition" && generalWorkModel !== null;
   if (useGeneralWorkModel) facts.push(structuredGeneralWorkModelFact(generalWorkModel));
   const structuredFact = useGeneralWorkModel ? null : selectStructuredFact(state, allowedApps, structuredFacts);

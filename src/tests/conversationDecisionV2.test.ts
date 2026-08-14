@@ -119,6 +119,7 @@ describe("Conversation Decision V2 candidate route", () => {
         app_facts_source_hash: "fixture",
         app_facts: [],
         general_work_model: null,
+        policy_sections: null,
         errors: [],
       },
       allowed_actions: ["answer_user_question", "ask_missing_gender", "ask_missing_daily_hours"],

@@ -206,6 +206,7 @@ export function buildBehaviorOrchestratedContext(
       source_hash: context.structured_facts.app_facts_source_hash,
       app_facts: context.structured_facts.app_facts,
       general_work_model: context.structured_facts.general_work_model,
+      policy_sections: context.structured_facts.policy_sections,
       errors: context.structured_facts.errors,
     } : undefined,
     retrieved_knowledge_summary: context.answer_plan

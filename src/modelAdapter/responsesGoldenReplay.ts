@@ -576,6 +576,16 @@ function buildContext(scenario: ResponsesGoldenScenario): BackendContextPayloadV
         payment_policy: "Çekim ve ödeme süresi yalnızca doğrulanmış uygulama ekranından kontrol edilir.",
         setup_boundary: "Uygulama ve kurulum ayrıntıları çalışma modeli kabulünden sonra verilir.",
       },
+      policy_sections: {
+        routing_matrix: "Golden routing matrix.",
+        application_independence: "Golden application independence.",
+        profile_bio_photo_rules: "Golden profile rules.",
+        memory_rules: "Golden memory rules.",
+        eligibility_rejection: "Golden eligibility rules.",
+        installation_permission: "Golden installation permission.",
+        privacy_payment_support: "Golden privacy and payment rules.",
+        followup_closure_group_rules: "Golden follow-up rules.",
+      },
       errors: [],
     },
   };

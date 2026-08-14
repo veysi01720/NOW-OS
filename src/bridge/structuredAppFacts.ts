@@ -1,6 +1,7 @@
 import { createHash } from "node:crypto";
 import { existsSync, readFileSync } from "node:fs";
 import { resolve } from "node:path";
+import type { StructuredPolicySections } from "../contracts/backendContextPayload.js";
 
 export interface StructuredAppFact {
   app: string;
@@ -24,6 +25,7 @@ export interface StructuredAppFactsContext {
   source_hash: string | null;
   app_facts: StructuredAppFact[];
   general_work_model: StructuredGeneralWorkModel | null;
+  policy_sections: StructuredPolicySections | null;
   errors: string[];
 }
 
@@ -103,6 +105,32 @@ function toGeneralWorkModel(value: unknown): StructuredGeneralWorkModel | null {
   };
 }
 
+const POLICY_SECTION_KEYS: Array<keyof StructuredPolicySections> = [
+  "routing_matrix",
+  "application_independence",
+  "profile_bio_photo_rules",
+  "memory_rules",
+  "eligibility_rejection",
+  "installation_permission",
+  "privacy_payment_support",
+  "followup_closure_group_rules",
+];
+
+function toPolicySections(value: unknown): { sections: StructuredPolicySections | null; errors: string[] } {
+  if (value === null || typeof value !== "object" || Array.isArray(value)) {
+    return { sections: null, errors: ["policy_sections missing or invalid"] };
+  }
+  const record = value as Record<string, unknown>;
+  const missing = POLICY_SECTION_KEYS.filter((key) => typeof record[key] !== "string" || String(record[key]).trim() === "");
+  if (missing.length > 0) {
+    return { sections: null, errors: [`policy_sections missing: ${missing.join(",")}`] };
+  }
+  return {
+    sections: Object.fromEntries(POLICY_SECTION_KEYS.map((key) => [key, String(record[key]).trim()])) as unknown as StructuredPolicySections,
+    errors: [],
+  };
+}
+
 function sha256(content: string): string {
   return createHash("sha256").update(content).digest("hex");
 }
@@ -121,6 +149,7 @@ export function loadStructuredAppFacts(knowledgeBankDir?: string): StructuredApp
       source_hash: null,
       app_facts: [],
       general_work_model: null,
+      policy_sections: null,
       errors: ["app_facts_structured.json missing"],
     };
   }
@@ -132,16 +161,19 @@ export function loadStructuredAppFacts(knowledgeBankDir?: string): StructuredApp
     const rawFacts = Array.isArray(record.app_facts) ? record.app_facts : [];
     const appFacts = rawFacts.map(toFact).filter((fact): fact is StructuredAppFact => fact !== null);
     const generalWorkModel = toGeneralWorkModel(record.general_work_model);
+    const policyResult = toPolicySections(record.policy_sections);
     const errors: string[] = [];
     if (appFacts.length !== rawFacts.length) errors.push("invalid app fact records found");
     if (appFacts.length === 0) errors.push("app_facts array empty");
     if (generalWorkModel === null) errors.push("general_work_model missing or invalid");
+    errors.push(...policyResult.errors);
     return {
       source_file: "app_facts_structured.json",
       source_status: errors.length === 0 ? "loaded" : "invalid",
       source_hash: sha256(content),
       app_facts: appFacts,
       general_work_model: generalWorkModel,
+      policy_sections: policyResult.sections,
       errors,
     };
   } catch {
@@ -151,6 +183,7 @@ export function loadStructuredAppFacts(knowledgeBankDir?: string): StructuredApp
       source_hash: sha256(content),
       app_facts: [],
       general_work_model: null,
+      policy_sections: null,
       errors: ["app_facts_structured.json parse failed"],
     };
   }

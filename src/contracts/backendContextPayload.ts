@@ -130,7 +130,19 @@ export interface StructuredFactsContext {
     payment_policy: string;
     setup_boundary: string;
   } | null;
+  policy_sections: StructuredPolicySections | null;
   errors: string[];
+}
+
+export interface StructuredPolicySections {
+  routing_matrix: string;
+  application_independence: string;
+  profile_bio_photo_rules: string;
+  memory_rules: string;
+  eligibility_rejection: string;
+  installation_permission: string;
+  privacy_payment_support: string;
+  followup_closure_group_rules: string;
 }
 
 export interface OwnerReportSummary {

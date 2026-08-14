@@ -1,6 +1,7 @@
 import { createHash } from "node:crypto";
 import { existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
+import type { StructuredPolicySections } from "../contracts/backendContextPayload.js";
 import type { StructuredAppFact, StructuredGeneralWorkModel } from "./structuredAppFacts.js";
 
 export interface StructuredKnowledgePublishResult {
@@ -120,13 +121,18 @@ export function parseStructuredAppFactsFromMarkdown(markdown: string): Structure
     .filter((fact): fact is StructuredAppFact => fact !== null);
 }
 
-function buildStructuredJson(facts: StructuredAppFact[], generalWorkModel: StructuredGeneralWorkModel): string {
+function buildStructuredJson(
+  facts: StructuredAppFact[],
+  generalWorkModel: StructuredGeneralWorkModel,
+  policySections: StructuredPolicySections,
+): string {
   return `${JSON.stringify({
     version: "1.0",
     source: "generated_from_app_facts_md",
     generated_at: new Date().toISOString(),
     app_facts: facts,
     general_work_model: generalWorkModel,
+    policy_sections: policySections,
   }, null, 2)}\n`;
 }
 
@@ -191,7 +197,8 @@ export function publishStructuredKnowledgeSources(options: {
   const markdown = readFileSync(appFactsSourcePath, "utf8");
   const facts = parseStructuredAppFactsFromMarkdown(markdown);
   const generalWorkModel = parseGeneralWorkModel(markdown);
-  if (facts.length === 0 || generalWorkModel === null) {
+  const policySections = parsePolicySectionsFromMarkdown(markdown);
+  if (facts.length === 0 || generalWorkModel === null || policySections === null) {
     return {
       status: "skipped_no_valid_rows",
       mode,
@@ -229,7 +236,7 @@ export function publishStructuredKnowledgeSources(options: {
     };
   }
 
-  const structuredJson = buildStructuredJson(facts, generalWorkModel);
+  const structuredJson = buildStructuredJson(facts, generalWorkModel, policySections);
   const routingRules = buildRoutingRules(facts);
   const targetDir = mode === "dry_run" ? resolve(dir, "structured_publish_dry_runs", dryRunId) : dir;
   const targetStructuredPath = resolve(targetDir, "app_facts_structured.json");
@@ -267,6 +274,70 @@ export function publishStructuredKnowledgeSources(options: {
     rollback_pointer_ready: previousManifest.length > 0 || mode === "dry_run",
     dry_run_id: mode === "dry_run" ? dryRunId : null,
   };
+}
+
+const POLICY_SECTION_ALIASES: Record<keyof StructuredPolicySections, string[]> = {
+  routing_matrix: ["uygulama yonlendirme matrisi"],
+  application_independence: ["uygulama bagimsizligi"],
+  profile_bio_photo_rules: ["profil bio ve fotograf kurallari", "profil bio fotograf kurallari"],
+  memory_rules: ["bellek ve tekrar sormama", "bellek tekrar sormama"],
+  eligibility_rejection: ["uygunluk ve red"],
+  installation_permission: ["kurulum izni"],
+  privacy_payment_support: ["gizlilik odeme ve teknik destek"],
+  followup_closure_group_rules: ["takip kapanis ve grup operasyonlari", "takip kapanis grup operasyonlari"],
+};
+
+export function normalizeHeading(value: string): string {
+  return value
+    .toLocaleLowerCase("tr-TR")
+    .replaceAll("Ã¶", "o")
+    .replaceAll("Ã¼", "u")
+    .replaceAll("Ã§", "c")
+    .replaceAll("Ä±", "i")
+    .replaceAll("ÄŸ", "g")
+    .replaceAll("ÅŸ", "s")
+    .replaceAll("Ä°", "i")
+    .replaceAll("Åž", "s")
+    .replaceAll("ı", "i")
+    .replaceAll("ş", "s")
+    .replaceAll("ğ", "g")
+    .replaceAll("ç", "c")
+    .replaceAll("ö", "o")
+    .replaceAll("ü", "u")
+    .normalize("NFKD")
+    .replace(/\p{M}/gu, "")
+    .replace(/[^\p{L}\p{N}]+/gu, " ")
+    .trim();
+}
+
+export function parsePolicySectionsFromMarkdown(markdown: string): StructuredPolicySections | null {
+  const sections = new Map<string, string>();
+  const lines = markdown.split(/\r?\n/);
+  let currentHeading: string | null = null;
+  let currentBody: string[] = [];
+  const flush = () => {
+    if (currentHeading !== null) sections.set(currentHeading, currentBody.join("\n").trim());
+  };
+  for (const line of lines) {
+    const heading = line.match(/^##\s+(.+?)\s*$/u);
+    if (heading) {
+      flush();
+      currentHeading = normalizeHeading(heading[1]);
+      currentBody = [];
+    } else if (currentHeading !== null) {
+      currentBody.push(line);
+    }
+  }
+  flush();
+
+  const result = {} as StructuredPolicySections;
+  for (const [key, aliases] of Object.entries(POLICY_SECTION_ALIASES) as Array<[keyof StructuredPolicySections, string[]]>) {
+    const heading = aliases.find((alias) => sections.has(alias));
+    const body = heading ? sections.get(heading)?.trim() : "";
+    if (!body) return null;
+    result[key] = body;
+  }
+  return result;
 }
 
 function parseGeneralWorkModel(markdown: string): StructuredGeneralWorkModel | null {

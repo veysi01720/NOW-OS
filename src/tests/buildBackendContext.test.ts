@@ -199,6 +199,7 @@ describe("buildBackendContext", () => {
       expect(context.structured_facts?.app_facts_source_status).toBe("loaded");
       expect(context.structured_facts?.app_facts.some((fact) => fact.app === "Layla" && fact.ios_name === "NIVI")).toBe(true);
       expect(context.structured_facts?.app_facts.some((fact) => fact.app === "Layla" && fact.capabilities.text_only === true)).toBe(true);
+      expect(Object.keys(context.structured_facts?.policy_sections ?? {})).toHaveLength(8);
     } finally {
       if (previousKnowledgeDir === undefined) delete process.env.KNOWLEDGE_BANK_DIR;
       else process.env.KNOWLEDGE_BANK_DIR = previousKnowledgeDir;

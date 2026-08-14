@@ -89,6 +89,7 @@ export function buildBackendContext(
         app_facts_source_hash: source.source_hash,
         app_facts: source.app_facts,
         general_work_model: source.general_work_model,
+        policy_sections: source.policy_sections,
         errors: source.errors,
       };
     })(),

@@ -3,6 +3,7 @@ import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import {
+  parsePolicySectionsFromMarkdown,
   parseStructuredAppFactsFromMarkdown,
   publishStructuredKnowledgeSources,
 } from "../bridge/structuredKnowledgePublish.js";
@@ -37,11 +38,35 @@ describe("structured knowledge publish", () => {
     expect(facts.map((fact) => fact.app)).toContain("Timo");
   });
 
+  it("parses all approved policy sections into the structured schema", () => {
+    const sections = parsePolicySectionsFromMarkdown(validAppFactsMarkdown(true));
+    expect(sections).toEqual(expect.objectContaining({
+      routing_matrix: expect.stringContaining("Routing matrix fixture"),
+      application_independence: expect.stringContaining("Application independence fixture"),
+      profile_bio_photo_rules: expect.stringContaining("Profile fixture"),
+      memory_rules: expect.stringContaining("Memory fixture"),
+      eligibility_rejection: expect.stringContaining("Eligibility fixture"),
+      installation_permission: expect.stringContaining("Installation fixture"),
+      privacy_payment_support: expect.stringContaining("Privacy fixture"),
+      followup_closure_group_rules: expect.stringContaining("Follow-up fixture"),
+    }));
+  });
+
   it("publishes the app-independent general work model separately from app facts", () => {
     const dir = makeKnowledgeBank();
     const result = publishStructuredKnowledgeSources({ knowledgeBankDir: dir, mode: "activate", ownerApproval: true });
     expect(result.status).toBe("published");
     const structured = JSON.parse(readFileSync(resolve(dir, "app_facts_structured.json"), "utf8"));
+    expect(Object.keys(structured.policy_sections)).toEqual(expect.arrayContaining([
+      "routing_matrix",
+      "application_independence",
+      "profile_bio_photo_rules",
+      "memory_rules",
+      "eligibility_rejection",
+      "installation_permission",
+      "privacy_payment_support",
+      "followup_closure_group_rules",
+    ]));
     expect(structured.general_work_model).toEqual(expect.objectContaining({
       app_independent: true,
       source_section: "Genel İş Modeli",

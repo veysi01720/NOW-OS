@@ -42,4 +42,25 @@ describe("candidate app routing", () => {
     expect(result.facts.some((fact) => fact.id === "structured_app_job_definition_layla")).toBe(false);
     expect(result.facts.some((fact) => fact.id === "candidate_default_work_model")).toBe(false);
   });
+
+  it("uses the matching published policy section for the relevant intent", () => {
+    const policySections = {
+      routing_matrix: "Routing matrix content.",
+      application_independence: "Application independence content.",
+      profile_bio_photo_rules: "Profile content.",
+      memory_rules: "Memory content.",
+      eligibility_rejection: "Eligibility content.",
+      installation_permission: "Installation content.",
+      privacy_payment_support: "Privacy content.",
+      followup_closure_group_rules: "Follow-up content.",
+    };
+    const result = resolveCandidatePolicy({ ...defaultUserState() }, ["Layla"], [], null, "candidate_app_routing", policySections);
+    expect(result.facts.find((fact) => fact.id === "policy_section_routing_matrix")?.content).toBe("Routing matrix content.");
+    expect(result.facts.some((fact) => fact.id === "policy_section_profile_bio_photo_rules")).toBe(false);
+  });
+
+  it("does not invent a policy fact when the published section is missing", () => {
+    const result = resolveCandidatePolicy({ ...defaultUserState() }, ["Layla"], [], null, "candidate_app_routing", null);
+    expect(result.facts.some((fact) => fact.id === "policy_section_routing_matrix")).toBe(false);
+  });
 });

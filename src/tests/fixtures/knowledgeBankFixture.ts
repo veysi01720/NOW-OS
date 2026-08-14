@@ -2,6 +2,19 @@ import { mkdirSync, writeFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { REQUIRED_KNOWLEDGE_SOURCE_FILES } from "../../bridge/sourceIntegrity.js";
 
+export function validPolicySections(): Record<string, string> {
+  return {
+    routing_matrix: "Routing matrix fixture: recommend only owner-approved apps.",
+    application_independence: "Application independence fixture: do not transfer one app's rules to another.",
+    profile_bio_photo_rules: "Profile fixture: follow approved profile and photo rules.",
+    memory_rules: "Memory fixture: do not ask for known information again.",
+    eligibility_rejection: "Eligibility fixture: apply approved age and eligibility limits.",
+    installation_permission: "Installation fixture: require explicit installation permission.",
+    privacy_payment_support: "Privacy fixture: do not request sensitive data; use approved payment support rules.",
+    followup_closure_group_rules: "Follow-up fixture: respect closure and group-operation rules.",
+  };
+}
+
 export function validStructuredAppFactsJson(): string {
   return `${JSON.stringify({
     version: "1.0",
@@ -15,6 +28,7 @@ export function validStructuredAppFactsJson(): string {
       payment_policy: "Çekim süresi doğrulanmış uygulama ekranından kontrol edilir.",
       setup_boundary: "Kurulum ayrıntıları çalışma modeli kabulünden sonra verilir.",
     },
+    policy_sections: validPolicySections(),
     app_facts: [
       {
         app: "Layla",
@@ -103,6 +117,38 @@ export function validAppFactsMarkdown(includeTimo = false): string {
     "- earnings_policy: Sabit maaş veya garanti kazanç yoktur; sonuçlar performansa göre değişir.",
     "- payment_policy: Çekim süresi doğrulanmış uygulama ekranından kontrol edilir.",
     "- setup_boundary: Kurulum ayrıntıları çalışma modeli kabulünden sonra verilir.",
+    "",
+    "## Uygulama Yönlendirme Matrisi",
+    "",
+    "- Routing matrix fixture: recommend only owner-approved apps.",
+    "",
+    "## Uygulama Bağımsızlığı",
+    "",
+    "- Application independence fixture: do not transfer one app's rules to another.",
+    "",
+    "## Profil, Bio ve Fotoğraf Kuralları",
+    "",
+    "- Profile fixture: follow approved profile and photo rules.",
+    "",
+    "## Bellek ve Tekrar Sormama",
+    "",
+    "- Memory fixture: do not ask for known information again.",
+    "",
+    "## Uygunluk ve Red",
+    "",
+    "- Eligibility fixture: apply approved age and eligibility limits.",
+    "",
+    "## Kurulum İzni",
+    "",
+    "- Installation fixture: require explicit installation permission.",
+    "",
+    "## Gizlilik, Ödeme ve Teknik Destek",
+    "",
+    "- Privacy fixture: do not request sensitive data; use approved payment support rules.",
+    "",
+    "## Takip, Kapanış ve Grup Operasyonları",
+    "",
+    "- Follow-up fixture: respect closure and group-operation rules.",
     "",
     "| app | android_name | ios_name | invite_code | agency_bind_code | agency_code | official_url | status | notes |",
     "|---|---|---|---|---|---|---|---|---|",

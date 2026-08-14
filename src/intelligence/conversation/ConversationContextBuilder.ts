@@ -48,6 +48,7 @@ export function buildConversationDecisionContext(input: {
     input.backendContext.structured_facts?.app_facts ?? [],
     input.backendContext.structured_facts?.general_work_model ?? null,
     inferredIntent,
+    input.backendContext.structured_facts?.policy_sections ?? null,
   );
   const recent: Array<{ role: "user" | "assistant"; text: string }> = [];
   const max = Math.max(
@@ -95,6 +96,7 @@ export function buildConversationDecisionContext(input: {
       app_facts_source_hash: null,
       app_facts: [],
       general_work_model: null,
+      policy_sections: null,
       errors: ["app_facts_structured.json missing from backend context"],
     },
     allowed_actions: allowedActions.allowed,
