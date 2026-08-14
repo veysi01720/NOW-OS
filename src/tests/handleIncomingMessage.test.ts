@@ -99,7 +99,7 @@ describe("handleIncomingMessage", () => {
       await handleIncomingMessage(message({ phone_number: "905111111111", sender_id: "905111111111", text: "evet", message_id: "owner-yes" }), testDeps);
       expect(testDeps.sender.sends[2]?.text).toContain("source_present=true");
       expect(readFileSync(resolve(bank, "app_facts.md"), "utf8")).toContain("Kurulumda takilan aday");
-      expect(store.listLearningCandidates()[0]?.status).toBe("approved_for_bundle");
+      expect(store.listLearningCandidates()[0]?.status).toBe("published");
     } finally {
       rmSync(root, { recursive: true, force: true });
     }

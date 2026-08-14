@@ -53,7 +53,7 @@ describe("owner knowledge transfer chain", () => {
       const bank = join(dir, "knowledge_bank");
       knowledgeBank(bank);
       const store = new ZipIngestionStore(join(dir, "zip-store.json"));
-      const contents = Array.from({ length: 8 }, (_, index) => `## Incoming ${index + 1}\nApproved section ${index + 1}.`);
+      const contents = ["## Incoming 1\nKurulumda takilan aday: Approved section 1.", ...Array.from({ length: 7 }, (_, index) => `## Incoming ${index + 2}\nApproved section ${index + 2}.`)];
       seed(store, contents);
       expect(store.listLearningCandidates("zip_transfer_test")).toHaveLength(8);
       const summary = buildOwnerKnowledgeReviewSummary(store.getJob("zip_transfer_test")!, store.listLearningCandidates("zip_transfer_test"));
@@ -72,6 +72,8 @@ describe("owner knowledge transfer chain", () => {
       expect(result.verification?.source_present).toBe(true);
       expect(result.verification?.structured_fields).toContain("owner_transfer_sections");
       expect(result.verification?.context_paths).toContain("structured_facts.owner_transfer_sections");
+      expect(result.verification?.context_paths).toContain("decision_context.canonical_policy_facts:technical_issue");
+      expect(store.getLearningCandidate("section_1")?.status).toBe("published");
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }

@@ -345,6 +345,7 @@ export function parsePolicySectionsFromMarkdown(markdown: string): StructuredPol
 
 export function parseOwnerTransferSectionsFromMarkdown(markdown: string): Array<{ section_id: string; title: string; content: string }> {
   const sections: Array<{ section_id: string; title: string; content: string }> = [];
+  const seenContentHashes = new Set<string>();
   const matches = [...markdown.matchAll(/^##\s+Owner Transfer:\s*(.+?)\s*$/gmu)];
   for (const [index, match] of matches.entries()) {
     const title = match[1].trim();
@@ -352,6 +353,9 @@ export function parseOwnerTransferSectionsFromMarkdown(markdown: string): Array<
     const end = matches[index + 1]?.index ?? markdown.length;
     const content = markdown.slice(start, end).trim();
     if (!content) continue;
+    const contentHash = sha256(content);
+    if (seenContentHashes.has(contentHash)) continue;
+    seenContentHashes.add(contentHash);
     const sectionId = `owner_transfer_${normalizeHeading(title).replace(/[^a-z0-9]+/g, "_").replace(/^_|_$/g, "") || "untitled"}`;
     sections.push({ section_id: sectionId, title, content });
   }

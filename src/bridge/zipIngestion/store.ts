@@ -72,6 +72,16 @@ export class ZipIngestionStore {
     return updated;
   }
 
+  markLearningCandidatesPublished(candidateIds: string[]): void {
+    const now = new Date().toISOString();
+    for (const candidateId of candidateIds) {
+      const current = this.data.learning_candidates[candidateId];
+      if (!current || current.status !== "approved_for_bundle") continue;
+      this.data.learning_candidates[candidateId] = { ...current, status: "published", published_at: now };
+    }
+    this.persist();
+  }
+
   findJobBySha256(sha256: string): ZipIngestionJobRecord | undefined {
     return Object.values(this.data.jobs).find((job) => job.zip_sha256 === sha256);
   }

@@ -72,11 +72,12 @@ export interface ZipLearningCandidateRecord {
   source_entry_id: string;
   candidate_type: ZipLearningCandidateType;
   extracted_text: string;
-  status: "pending_owner_review" | "approved_for_bundle" | "rejected" | "needs_edit";
+  status: "pending_owner_review" | "approved_for_bundle" | "published" | "rejected" | "needs_edit";
   confidence: number;
   created_at: string;
   approved_by: string | null;
   approved_at: string | null;
+  published_at?: string | null;
   reviewed_by?: "owner" | "manager" | null;
   reviewed_at?: string | null;
   review_decision?: "approve" | "reject" | "needs_edit" | null;

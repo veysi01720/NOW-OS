@@ -73,6 +73,19 @@ describe("candidate app routing", () => {
     expect(result.facts.some((fact) => fact.id === "male_account_policy_boundary")).toBe(false);
   });
 
+  it("injects owner transfer content into the relevant decision context", () => {
+    const result = resolveCandidatePolicy(
+      { ...defaultUserState(), gender: "erkek" },
+      ["Layla"],
+      [],
+      null,
+      "account_profile_question",
+      validPolicySectionsForTest(),
+      [{ section_id: "owner_rule", title: "Owner direct bilgi", content: "Erkek adaylar sadece kadin profil kuraliyla ilerler." }],
+    );
+    expect(result.facts.find((fact) => fact.id === "owner_transfer_owner_rule")?.content).toContain("kadin profil");
+  });
+
   it("does not invent a policy fact when the published section is missing", () => {
     const result = resolveCandidatePolicy({ ...defaultUserState() }, ["Layla"], [], null, "candidate_app_routing", null);
     expect(result.facts.some((fact) => fact.id === "policy_section_routing_matrix")).toBe(false);

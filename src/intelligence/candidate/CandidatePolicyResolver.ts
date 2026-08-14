@@ -95,6 +95,12 @@ function policySectionForIntent(intent: string | null): keyof StructuredPolicySe
   }
 }
 
+export interface OwnerTransferPolicySection {
+  section_id: string;
+  title: string;
+  content: string;
+}
+
 function structuredPolicySectionFact(key: keyof StructuredPolicySections, content: string): ConversationPolicyFact {
   return {
     id: `policy_section_${key}`,
@@ -106,6 +112,20 @@ function structuredPolicySectionFact(key: keyof StructuredPolicySections, conten
   };
 }
 
+function ownerTransferMatchesIntent(section: OwnerTransferPolicySection, intent: string | null): boolean {
+  const text = normalize(`${section.title} ${section.content}`);
+  if (["account_profile_question", "ask_profile", "ask_account_profile", "ask_camera_requirement"].includes(intent ?? "")) {
+    return /(erkek|hesap|profil|bio|foto|fotograf|kamera)/u.test(text);
+  }
+  if (["begin_setup", "installation_permission", "ask_installation_permission", "technical_issue"].includes(intent ?? "")) {
+    return /(kurulum|uygulama|destek|sorun|ekran|yonetim)/u.test(text);
+  }
+  if (["payment_withdrawal", "privacy_question"].includes(intent ?? "")) return /(odeme|cekim|kazanc|iban|gizlilik)/u.test(text);
+  if (["ask_eligibility", "ask_missing_age", "ask_missing_gender"].includes(intent ?? "")) return /(yas|cinsiyet|uygun|red)/u.test(text);
+  if (["candidate_app_routing", "ask_selected_app"].includes(intent ?? "")) return /(uygulama|alternatif|yonlendirme)/u.test(text);
+  return false;
+}
+
 export function resolveCandidatePolicy(
   state: UserState,
   allowedApps: string[],
@@ -113,11 +133,22 @@ export function resolveCandidatePolicy(
   generalWorkModel: StructuredGeneralWorkModel | null = null,
   intent: string | null = null,
   policySections: StructuredPolicySections | null = null,
+  ownerTransferSections: OwnerTransferPolicySection[] = [],
 ): CandidatePolicyResolution {
   const facts: ConversationPolicyFact[] = [];
   const policySection = policySectionForIntent(intent);
   if (policySection && policySections?.[policySection]) {
     facts.push(structuredPolicySectionFact(policySection, policySections[policySection]));
+  }
+  for (const section of ownerTransferSections.filter((item) => ownerTransferMatchesIntent(item, intent))) {
+    facts.push({
+      id: `owner_transfer_${section.section_id}`,
+      topic: "owner_transfer_knowledge",
+      fact: section.content,
+      content: section.content,
+      source: "knowledge_bank",
+      version: "app_facts_structured.json",
+    });
   }
   const useGeneralWorkModel = intent === "ask_job_definition" && generalWorkModel !== null;
   if (useGeneralWorkModel) facts.push(structuredGeneralWorkModelFact(generalWorkModel));

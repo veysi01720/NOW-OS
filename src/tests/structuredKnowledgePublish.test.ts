@@ -92,6 +92,17 @@ describe("structured knowledge publish", () => {
     ]);
   });
 
+  it("deduplicates identical owner transfer content by hash", () => {
+    const dir = makeKnowledgeBank();
+    const sourcePath = resolve(dir, "app_facts.md");
+    const ownerRule = "Ayni owner bilgisi tekrar geldiginde tek kayit tutulur.";
+    writeFileSync(sourcePath, `${readFileSync(sourcePath, "utf8").trimEnd()}\n\n## Owner Transfer: Owner direct bilgi\n\n${ownerRule}\n\n## Owner Transfer: Owner direct bilgi\n\n${ownerRule}\n`, "utf8");
+    const result = publishStructuredKnowledgeSources({ knowledgeBankDir: dir, mode: "activate", ownerApproval: true });
+    expect(result.status).toBe("published");
+    const structured = JSON.parse(readFileSync(resolve(dir, "app_facts_structured.json"), "utf8"));
+    expect(structured.owner_transfer_sections).toHaveLength(1);
+  });
+
   it("writes structured facts and routing rules from app_facts.md", () => {
     const dir = makeKnowledgeBank();
 
