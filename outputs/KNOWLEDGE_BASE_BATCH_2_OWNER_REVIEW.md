@@ -217,6 +217,6 @@ The ZIP contains per-application legacy rate/withdrawal tables under its legacy-
 
 These tables conflict with the current no-guarantee policy if exposed as live facts. They are **not active bot knowledge** and must remain archived, excluded from structured active facts and candidate prompts.
 
-## Owner Decision Required
+## Owner Decision Applied
 
-No item above has been added. Owner approval is required section by section. Restrictive sections are 1, 2, 3, 4, 6, and 7; legacy rates are archive-only.
+Owner decision applied: Sections 1, 2, 3, 4, 6 and 7 were added to the active knowledge bank; Section 5 was limited to training-format guidance only; the message/bio bank remains owner-review-only; Section 8 remains archive-only. Section 1 uses a concise-response recommendation, not a line-count rule. Section 4 codes match the current structured app fixture; retry timing is documented operational guidance because the structured schema does not currently carry retry fields.
