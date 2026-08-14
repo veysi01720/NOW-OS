@@ -86,6 +86,7 @@ export function materializeApprovedOwnerKnowledge(input: {
   zipStore: ZipIngestionStore;
   knowledgeBankDir?: string;
   actionAuditStore?: ActionAuditStore;
+  actorRole?: "owner" | "manager";
   forceHashFailure?: boolean;
 }): OwnerKnowledgeMaterializationResult {
   const job = input.zipStore.getJob(input.jobId);
@@ -126,7 +127,8 @@ export function materializeApprovedOwnerKnowledge(input: {
     atomicWrite(rollbackPath, `${JSON.stringify(rollback, null, 2)}\n`);
     const result: OwnerKnowledgeMaterializationResult = { status: "published", job_id: job.id, approved_section_ids: sourceHashes.map((item) => item.section_id), rejected_section_ids: rejected, active_version_hash_masked: maskHash(publish.structured_hash), fact_count: publish.app_fact_count, activation_status: "published_active", rollback_pointer: backupPath };
     atomicWrite(resolve(dir, "owner_knowledge_transfer_audit.json"), `${JSON.stringify({ ...result, active_version_hash_masked: result.active_version_hash_masked, source_archive_hash_masked: maskedArchiveHash(job), source_hash: maskHash(publish.source_hash), manifest_hash: maskHash(publish.manifest_hash), durable: true, created_at: new Date().toISOString() }, null, 2)}\n`);
-    input.actionAuditStore?.logAction({ action_type: "owner_knowledge_transfer_published", actor_role: "owner", actor_masked_ref: "authenticated-owner", role_resolution_source: "owner_token", target_type: "learning", target_safe_ref: job.id, risk_level: "HIGH", confirm_required: true, confirmed: true, result_status: "success", new_status: "published_active", sanitized_reason: JSON.stringify({ approved_section_ids: result.approved_section_ids, rejected_section_ids: result.rejected_section_ids, active_version_hash_masked: result.active_version_hash_masked, fact_count: result.fact_count, rollback_pointer: backupPath }) });
+    const actorRole = input.actorRole ?? "owner";
+    input.actionAuditStore?.logAction({ action_type: "owner_knowledge_transfer_published", actor_role: actorRole, actor_masked_ref: "authenticated-owner", role_resolution_source: actorRole === "manager" ? "manager_token" : "owner_token", target_type: "learning", target_safe_ref: job.id, risk_level: "HIGH", confirm_required: true, confirmed: true, result_status: "success", new_status: "published_active", sanitized_reason: JSON.stringify({ approved_section_ids: result.approved_section_ids, rejected_section_ids: result.rejected_section_ids, active_version_hash_masked: result.active_version_hash_masked, fact_count: result.fact_count, rollback_pointer: backupPath }) });
     return result;
   } catch (error) {
     atomicWrite(appFactsPath, previous);
@@ -138,7 +140,8 @@ export function materializeApprovedOwnerKnowledge(input: {
       }
     }
     const code = error instanceof Error ? error.message : "OWNER_TRANSFER_FAILED";
-    input.actionAuditStore?.logAction({ action_type: "owner_knowledge_transfer_failed", actor_role: "owner", actor_masked_ref: "authenticated-owner", role_resolution_source: "owner_token", target_type: "learning", target_safe_ref: job.id, risk_level: "HIGH", confirm_required: true, confirmed: true, result_status: "failure", error_safe_message: code, new_status: "failed_previous_version_preserved" });
+    const actorRole = input.actorRole ?? "owner";
+    input.actionAuditStore?.logAction({ action_type: "owner_knowledge_transfer_failed", actor_role: actorRole, actor_masked_ref: "authenticated-owner", role_resolution_source: actorRole === "manager" ? "manager_token" : "owner_token", target_type: "learning", target_safe_ref: job.id, risk_level: "HIGH", confirm_required: true, confirmed: true, result_status: "failure", error_safe_message: code, new_status: "failed_previous_version_preserved" });
     return { status: "failed", job_id: job.id, approved_section_ids: [], rejected_section_ids: rejected, active_version_hash_masked: null, fact_count: 0, activation_status: "failed_previous_version_preserved", rollback_pointer: backupPath, error_code: code };
   }
 }

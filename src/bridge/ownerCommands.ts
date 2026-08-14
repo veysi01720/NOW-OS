@@ -120,11 +120,10 @@ function executeOwnerKnowledgeCommand(
       ? `${command.ref} ${command.kind === "approve" ? "onaylandi" : "reddedildi"}. Aktif bilgi henuz degismedi.`
       : `${command.ref} islenemedi. Aktif bilgi degismedi.`, `owner_knowledge_${command.kind}`, succeeded);
   }
-  if (senderRole !== "owner") return commandResult("#uygula sadece owner onayiyla calisir. Aktif bilgi degismedi.", "owner_knowledge_apply_owner_only");
   const approved = ownerKnowledgeCandidates(deps.zipIngestionStore).filter((candidate) => candidate.status === "approved_for_bundle");
   if (approved.length === 0) return commandResult("Uygulanacak onayli bolum yok. Aktif bilgi degismedi.", "owner_knowledge_apply_empty");
   const jobIds = [...new Set(approved.map((candidate) => candidate.source_job_id))];
-  const results = jobIds.map((jobId) => materializeApprovedOwnerKnowledge({ jobId, zipStore: deps.zipIngestionStore!, knowledgeBankDir: deps.knowledgeBankDir, actionAuditStore: deps.actionAuditStore }));
+  const results = jobIds.map((jobId) => materializeApprovedOwnerKnowledge({ jobId, zipStore: deps.zipIngestionStore!, knowledgeBankDir: deps.knowledgeBankDir, actionAuditStore: deps.actionAuditStore, actorRole: senderRole === "manager" ? "manager" : "owner" }));
   const failed = results.filter((result) => result.status !== "published");
   if (failed.length > 0) {
     auditOwnerKnowledgeCommand(deps.actionAuditStore, "whatsapp_knowledge_apply", senderRole, jobIds.join(","), "failure");
