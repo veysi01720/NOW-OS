@@ -1,4 +1,4 @@
-import { mkdtempSync, readFileSync, rmSync } from "node:fs";
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { buildBackendContext } from "../bridge/buildBackendContext.js";
@@ -79,6 +79,27 @@ describe("PersistentJsonStore", () => {
       await expect(second.threadStore.getOrCreate("905333333333", async () => "thread_new")).resolves.toBe(
         "thread_persisted"
       );
+    } finally {
+      cleanup(dir);
+    }
+  });
+
+  it("clears stale memory and thread history when a deleted state is recreated", async () => {
+    const { dir, file } = tempStorePath();
+    try {
+      const first = createPersistentJsonStore(file);
+      first.userStateStore.getOrCreateState("905333333333", defaultUserState());
+      first.memoryStore.appendBotReply("905333333333", "eski fallback");
+      await first.threadStore.getOrCreate("905333333333", async () => "old_thread");
+
+      const persisted = JSON.parse(readFileSync(file, "utf8")) as { states: Record<string, unknown> };
+      delete persisted.states["905333333333"];
+      writeFileSync(file, JSON.stringify(persisted), "utf8");
+
+      const second = createPersistentJsonStore(file);
+      second.userStateStore.getOrCreateState("905333333333", defaultUserState());
+      expect(second.memoryStore.get("905333333333").last_5_bot_replies).toEqual([]);
+      expect(second.threadStore.get("905333333333")).toBeUndefined();
     } finally {
       cleanup(dir);
     }

@@ -275,6 +275,12 @@ class PersistentJsonRepository {
     this.persist();
   }
 
+  clearMemory(key: string): void {
+    if (this.data.memories[key] === undefined) return;
+    delete this.data.memories[key];
+    this.persist();
+  }
+
   getThread(key: string): string | undefined {
     this.touchUser(key);
     return this.data.threads[key]?.openai_thread_id;
@@ -300,6 +306,10 @@ class PersistentJsonRepository {
       return cloneState(existing);
     }
 
+    // A deleted state is an explicit conversation reset. Do not resurrect
+    // stale assistant replies or an old provider thread for the same key.
+    delete this.data.memories[userId];
+    delete this.data.threads[userId];
     const state = cloneState(defaults);
     this.data.states[userId] = {
       user_id: userId,
@@ -698,6 +708,10 @@ class PersistentMemoryStore implements MemoryStore {
 
   appendBotReply(key: string, reply: string): void {
     this.repository.appendBotReply(key, reply);
+  }
+
+  clear(key: string): void {
+    this.repository.clearMemory(key);
   }
 }
 

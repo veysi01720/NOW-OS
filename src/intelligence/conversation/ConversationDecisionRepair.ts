@@ -241,6 +241,24 @@ function buildCameraAccountBoundarySafetyDecision(context: ConversationDecisionC
   };
 }
 
+export function buildOffTopicSafetyDecision(context: ConversationDecisionContext): ConversationDecision {
+  const reply = "Bu konuda bilgim yok; isle veya kurulumla ilgili sorularda yardimci olabilirim.";
+  return {
+    ...baseDecision(reply, context, "deterministic_safety_response"),
+    intent: { primary: "off_topic", secondary: [], confidence: 1 },
+    direct_question: {
+      present: true,
+      question_summary: "Kapsam disi bir soru",
+      answered_in_reply: true,
+    },
+    chosen_actions: ["respond_to_off_topic_question"],
+    policy_facts_used: [],
+    next_action: "none",
+    requires_escalation: false,
+    escalation_reason: null,
+  };
+}
+
 export function buildPartialIntakeSafetyDecision(context: ConversationDecisionContext): ConversationDecision | null {
   if (context.role !== "candidate" || context.channel !== "private") return null;
   if (context.facts_extracted_from_current_message.length === 0) return null;
@@ -307,6 +325,10 @@ export function buildDeterministicSafetyDecision(
 
   if (reason === "invalid_model_decision" && asksCameraAccountOrProfile(context.latest_message.text)) {
     return buildCameraAccountBoundarySafetyDecision(context);
+  }
+
+  if (reason === "invalid_model_decision" && context.latest_message.inferred_intent === "off_topic") {
+    return buildOffTopicSafetyDecision(context);
   }
 
   if (reason === "invalid_model_decision") {

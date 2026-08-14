@@ -11,6 +11,7 @@ export interface MemoryStore {
   get(key: string): ConversationMemory;
   appendUserMessage(key: string, message: string): void;
   appendBotReply(key: string, reply: string): void;
+  clear(key: string): void;
 }
 
 function emptyMemory(): ConversationMemory {
@@ -55,5 +56,9 @@ export class InMemoryStore implements MemoryStore {
     current.last_5_bot_replies = [...current.last_5_bot_replies, reply].slice(-5);
     current.last_10_messages = [...current.last_10_messages, `assistant: ${reply}`].slice(-10);
     this.memories.set(key, current);
+  }
+
+  clear(key: string): void {
+    this.memories.delete(key);
   }
 }

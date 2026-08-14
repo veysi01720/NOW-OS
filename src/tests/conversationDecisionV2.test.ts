@@ -16,6 +16,7 @@ import {
 } from "./testDoubles.js";
 import { writeValidKnowledgeBankFixture } from "./fixtures/knowledgeBankFixture.js";
 import { buildDeterministicSafetyDecision } from "../intelligence/conversation/ConversationDecisionRepair.js";
+import { inferConversationIntent } from "../intelligence/conversation/ConversationContextBuilder.js";
 
 const PREVIOUS_WORK_MODEL_REPLY =
   "Bilgilerini aldım. Erkek adaylar için onaylı yönlendirme şu: Layla, mesajlaşma ağırlıklı ve kamera açmadan ilerlemek isteyen adaylar için uygundur. Kuruluma geçmeden önce bu çalışma modelinin sana uygun olduğunu netleştirelim. Uygun mu?";
@@ -83,6 +84,53 @@ function deps(responses: string[]) {
 }
 
 describe("Conversation Decision V2 candidate route", () => {
+  it("routes an unrelated question to a light non-escalating reply, even with stale memory", () => {
+    expect(inferConversationIntent("Arda kim?")).toBe("off_topic");
+    const result = buildDeterministicSafetyDecision({
+      request_id: "corr_off_topic",
+      decision_version: "conversation_v2",
+      tenant_id: "now_os",
+      instance_id: "antigravity",
+      channel: "private",
+      role: "candidate",
+      latest_message: {
+        id: "msg_off_topic",
+        text: "Arda kim?",
+        timestamp: "2026-08-14T10:00:00.000Z",
+        language: "tr",
+        inferred_intent: "off_topic",
+      },
+      recent_messages: [
+        { role: "assistant", text: "Bu cevabi guvenli sekilde netlestiremedim. Yanlis yonlendirmemek icin ekip kontrol etsin." },
+      ],
+      candidate_state: {
+        age: null,
+        gender: null,
+        daily_hours: null,
+        work_model_acceptance: null,
+        selected_app: null,
+        phone_type: null,
+      },
+      derived_state: {
+        intake_complete: false,
+        eligibility_status: "unresolved",
+        dialogue_phase: "NEW_LEAD",
+      },
+      facts_extracted_from_current_message: [],
+      canonical_policy_facts: [],
+      structured_facts: { app_facts_source_status: "loaded", app_facts_source_hash: "fixture", app_facts: [], general_work_model: null, policy_sections: null, errors: [] },
+      allowed_actions: ["answer_user_question", "respond_to_off_topic_question"],
+      forbidden_actions: [],
+      runtime_constraints: { max_reply_length: 800, max_questions: 1, must_answer_direct_question_first: true, facts_must_be_grounded: true, behavior_prompt_version: "conversation_behavior_v2.1" },
+    }, "invalid_model_decision");
+
+    expect(result.reply.text).toBe("Bu konuda bilgim yok; isle veya kurulumla ilgili sorularda yardimci olabilirim.");
+    expect(result.reply.text).not.toMatch(/ekip|yonetici|kontrol/iu);
+    expect(result.requires_escalation).toBe(false);
+    expect(result.escalation_reason).toBeNull();
+    expect(result.chosen_actions).toEqual(["respond_to_off_topic_question"]);
+  });
+
   it("turns a single captured age into the next intake question instead of an escalation fallback", () => {
     const result = buildDeterministicSafetyDecision({
       request_id: "corr_partial_age",

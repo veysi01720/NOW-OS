@@ -29,6 +29,9 @@ export function inferConversationIntent(text: string): string | null {
   if (/(nasil yapacagim|nasil yapacağim|bu isi nasil|bu işi nasil|kamera acacak miyim|mesajlasma nasil|erkek hesabi|erkek hesabı)/u.test(normalized)) {
     return "ask_how_work_is_done";
   }
+  const asksGeneralQuestion = /(^|\s|\?)(kim|ne|nerede|neden|nasil|nasÄ±l|hangi|bugun|hava)(\s|\?|$)/u.test(normalized) || normalized.includes("?");
+  const hasWorkContext = /(is|iÅŸ|calisma|çalisma|baÅŸvuru|basvuru|uygulama|kurulum|kazanc|kazan|odeme|ödeme|puan|profil|hesap|kamera|mesaj|egitim|eğitim|ilerle|yardim|yardım|destek|surec|süreç|adim|adım|bilgi|uygun|onay)/u.test(normalized);
+  if (asksGeneralQuestion && !hasWorkContext) return "off_topic";
   return null;
 }
 

@@ -16,7 +16,7 @@ import {
 } from "./ConversationDecisionV3SemanticValidator.js";
 import type { ConversationDecision, ConversationDecisionContext } from "./ConversationDecisionSchema.js";
 import { buildConversationDecisionContext } from "./ConversationContextBuilder.js";
-import { buildCandidateToneBoundaryDecision, buildDeterministicSafetyDecision } from "./ConversationDecisionRepair.js";
+import { buildCandidateToneBoundaryDecision, buildDeterministicSafetyDecision, buildOffTopicSafetyDecision } from "./ConversationDecisionRepair.js";
 import { parseConversationDecision, validateConversationDecision } from "./ConversationDecisionValidator.js";
 import { validateSemanticQuality } from "../quality/SemanticQualityGuard.js";
 import { validateAndApplyStatePatch } from "../candidate/StatePatchValidator.js";
@@ -456,6 +456,16 @@ export async function executeConversationDecisionV2(input: {
         event_type: "CONVERSATION_DECISION_V2_FAST_PATH_SELECTED",
         correlation_id: context.request_id,
         fast_path: "candidate_boundary_tone",
+        model_call_count: 0,
+      });
+    }
+    if (!decision && context.latest_message.inferred_intent === "off_topic" && context.role === "candidate" && context.channel === "private") {
+      decision = buildOffTopicSafetyDecision(context);
+      mutationSource = "deterministic_off_topic_response";
+      input.logger.info({
+        event_type: "CONVERSATION_DECISION_V2_FAST_PATH_SELECTED",
+        correlation_id: context.request_id,
+        fast_path: "off_topic_response",
         model_call_count: 0,
       });
     }
