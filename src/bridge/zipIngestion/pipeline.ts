@@ -47,6 +47,22 @@ function safePreview(text: string, maxLength = 500): string {
   return redactSecrets(text).replace(/<[^>]*>?/gm, "").replace(/\s+/g, " ").trim().slice(0, maxLength);
 }
 
+function sectionMetadata(text: string, originalPath: string, candidateType: ZipLearningCandidateType, sectionHash: string) {
+  const heading = text.match(/^#{1,3}\s+([^\r\n]+)/m)?.[1]?.trim();
+  const sectionTitle = heading || basename(originalPath, extname(originalPath)).replace(/[._-]+/g, " ").trim();
+  const sectionId = `section_${sectionTitle.toLocaleLowerCase("tr-TR").normalize("NFKD").replace(/\p{M}/gu, "").replace(/[^a-z0-9]+/gi, "_").replace(/^_|_$/g, "").slice(0, 80) || "untitled"}`;
+  const lower = text.toLocaleLowerCase("tr-TR");
+  const classification = /legacy|arsiv|arşiv|oran tablosu|eski fiyat/i.test(lower)
+    ? "archive"
+    : /garanti|şifre|sifre|kart|iban|kimlik|18 yaş|yaş sınırı|uygunluk|yasak/i.test(lower)
+      ? "critical"
+      : /kural|zorunlu|asla|sadece|reddet|eskalasyon|gizlilik|ödeme|ödeme|grup/i.test(lower)
+        ? "constraint"
+        : "information";
+  const targetFile = classification === "archive" ? "outputs/archive/owner_review_only" : "app_facts.md";
+  return { section_id: sectionId, section_title: sectionTitle, classification, target_file: targetFile, source_hash: sectionHash, section_hash: sectionHash, recommended_action: classification === "archive" ? "archive_only" : "owner_review_required" };
+}
+
 function classifyText(text: string): { candidateType: ZipLearningCandidateType; suggestionClass: IngestionClass; proposedType: string; confidence: number } {
   const lower = text.toLowerCase();
   if (/https?:\/\/|link|url/.test(lower)) {
@@ -317,6 +333,7 @@ export async function runZipIngestionJob(input: {
 
       if (status === "accepted" && text.length > 0) {
         const classification = classifyText(text);
+        const metadata = sectionMetadata(text, originalPath, classification.candidateType, sha256(Buffer.from(text, "utf8")));
         const candidate: ZipLearningCandidateRecord = {
           id: `zlc_${randomUUID()}`,
           source: "zip_ingestion",
@@ -328,7 +345,8 @@ export async function runZipIngestionJob(input: {
           confidence: classification.confidence,
           created_at: new Date().toISOString(),
           approved_by: null,
-          approved_at: null
+          approved_at: null,
+          ...metadata
         };
         candidates.push(candidate);
         input.zipStore.saveLearningCandidate(candidate);

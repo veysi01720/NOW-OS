@@ -114,7 +114,8 @@ describe("Phase 3 ZIP ingestion pipeline", () => {
       expect(testDeps.assistantClient.runCalls).toHaveLength(0);
       expect(testDeps.sender.sends.map((send) => send.text)).toEqual([
         "Tamam patron, ZIP'i aldim. Guvenli sekilde cozip inceleme kuyruguna aliyorum.",
-        "Patron ZIP cozuldu. 1 dosya okundu, 1 kayit inceleme kuyruguna alindi. Knowledge'a otomatik yazmadim."
+        "Patron ZIP cozuldu. 1 dosya okundu, 1 kayit inceleme kuyruguna alindi. Knowledge'a otomatik yazmadim.",
+        expect.stringContaining("ZIP inceleme ozeti:")
       ]);
       expect(testDeps.zipIngestionStore.listJobs()[0]).toEqual(
         expect.objectContaining({

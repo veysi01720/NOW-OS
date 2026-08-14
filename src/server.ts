@@ -32,6 +32,8 @@ import { PersistentHumanHandoffStore } from "./store/humanHandoffStore.js";
 import { PersistentTrainingHandoffStore } from "./store/trainingHandoffStore.js";
 import { createOpenAIInstallationVisionClassifier } from "./bridge/openaiInstallationVisionClassifier.js";
 import { createEvolutionSessionIntegrityCheck } from "./observability/evolutionSessionIntegrity.js";
+import { ZipIngestionStore } from "./bridge/zipIngestion/store.js";
+import { registerReviewRoutes } from "./bridge/reviewRoutes.js";
 
 const DEFAULT_RESPONSES_SHADOW_SNAPSHOT: ResponsesShadowSnapshot = {
   enabled: false,
@@ -226,6 +228,7 @@ export async function buildServer() {
 
   const persistentStore = createPersistentJsonStore();
   const ingestionStore = new PersistentIngestionStore(DATA_DIR);
+  const zipIngestionStore = new ZipIngestionStore(resolve(DATA_DIR, "zip_ingestion", "store.json"));
   const maintenanceStore = new PersistentMaintenanceStore(resolve(DATA_DIR, "maintenance.json"));
   const actionAuditStore = new PersistentActionAuditStore(resolve(DATA_DIR, "audit_log.json"));
   const socialLeadStore = new PersistentSocialLeadStore(resolve(DATA_DIR, "social_leads.json"));
@@ -419,6 +422,7 @@ export async function buildServer() {
       listLearningSuggestions: () => ingestionStore.listLearningSuggestions()
     },
     ingestionStore,
+    zipIngestionStore,
     publisherStore: persistentStore.publisherStore,
     dailyReportStore: persistentStore.dailyReportStore,
     maintenanceStore,
@@ -442,6 +446,13 @@ export async function buildServer() {
     modelAdapterCanaryApprovalController,
     humanHandoffStore,
     trainingHandoffStore,
+  });
+
+  registerReviewRoutes(app, {
+    env,
+    zipIngestionStore,
+    actionAuditStore,
+    knowledgeBankDir: resolve(DATA_DIR, "knowledge_bank"),
   });
 
   return { app, env };

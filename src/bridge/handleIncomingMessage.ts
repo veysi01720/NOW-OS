@@ -81,6 +81,7 @@ import {
   verifyInstallationMedia,
   type InstallationVerificationClassifier,
 } from "./installationVerification.js";
+import { buildOwnerKnowledgeReviewSummary, persistOwnerKnowledgeReviewSummary } from "./ownerKnowledgeTransfer.js";
 export interface HandleIncomingMessageDeps {
   env: EnvConfig;
   assistantClient?: {
@@ -545,6 +546,21 @@ export async function handleIncomingMessage(
         deps,
         latencyTracker,
       );
+      const reviewSummary = persistOwnerKnowledgeReviewSummary(zipResult.job, zipResult.candidates);
+      const summaryText = [
+        `ZIP inceleme ozeti: ${reviewSummary.job_id}`,
+        `Bolumler: ${reviewSummary.detected_sections.length}`,
+        ...reviewSummary.detected_sections.map((section) => `${section.section_id}=${section.classification}; hedef=${section.target_file}; durum=${section.status}`),
+        "Aktif bilgi degistirilmedi; owner onayi bekleniyor.",
+      ].join("\n");
+      await notifyTrainingOwner(deps, summaryText, message.correlation_id);
+      logger.info({
+        event_type: "OWNER_KNOWLEDGE_REVIEW_SUMMARY_CREATED",
+        correlation_id: message.correlation_id,
+        job_id: reviewSummary.job_id,
+        section_count: reviewSummary.detected_sections.length,
+        active_claim: false,
+      });
       return latencyTracker.finish({
         status: "zip_ingestion_started",
         correlation_id: message.correlation_id,

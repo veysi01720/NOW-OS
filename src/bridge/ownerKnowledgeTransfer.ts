@@ -1,0 +1,144 @@
+import { createHash, randomUUID } from "node:crypto";
+import { existsSync, mkdirSync, readFileSync, renameSync, unlinkSync, writeFileSync } from "node:fs";
+import { dirname, resolve } from "node:path";
+import type { ActionAuditStore } from "../store/actionAuditStore.js";
+import type { ZipIngestionJobRecord, ZipLearningCandidateRecord, OwnerKnowledgeClassification } from "./zipIngestion/types.js";
+import type { ZipIngestionStore } from "./zipIngestion/store.js";
+import { publishStructuredKnowledgeSources } from "./structuredKnowledgePublish.js";
+
+export interface OwnerKnowledgeReviewSummary {
+  job_id: string;
+  source_archive_hash_masked: string;
+  detected_sections: Array<{
+    candidate_id: string;
+    section_id: string;
+    title: string;
+    classification: OwnerKnowledgeClassification;
+    target_file: string;
+    source_hash: string;
+    conflict_warnings: string[];
+    status: string;
+  }>;
+  active_claim: false;
+}
+
+export interface OwnerKnowledgeMaterializationResult {
+  status: "published" | "failed" | "no_approved_sections";
+  job_id: string;
+  approved_section_ids: string[];
+  rejected_section_ids: string[];
+  active_version_hash_masked: string | null;
+  fact_count: number;
+  activation_status: "published_active" | "failed_previous_version_preserved" | "not_started";
+  rollback_pointer: string | null;
+  error_code?: string;
+}
+
+const sha256 = (value: string | Buffer) => createHash("sha256").update(value).digest("hex");
+const maskHash = (value: string | null) => value ? `${value.slice(0, 12)}…` : null;
+
+function atomicWrite(path: string, content: string): void {
+  mkdirSync(dirname(path), { recursive: true });
+  const tmp = `${path}.tmp-${process.pid}-${randomUUID()}`;
+  writeFileSync(tmp, content, { encoding: "utf8", mode: 0o600 });
+  renameSync(tmp, path);
+}
+
+function maskedArchiveHash(job: ZipIngestionJobRecord): string { return maskHash(job.zip_sha256) ?? "unknown"; }
+
+function conflictWarnings(candidate: ZipLearningCandidateRecord): string[] {
+  const warnings: string[] = [];
+  if ((candidate.risk_flags ?? []).length > 0) warnings.push(...(candidate.risk_flags ?? []));
+  if ((candidate.conflict_flags ?? []).length > 0) warnings.push(...(candidate.conflict_flags ?? []));
+  if (candidate.classification === "archive") warnings.push("archive_only");
+  if (/garanti\s+kazan|kesin\s+kazan|mutlaka\s+kazan/i.test(candidate.extracted_text)) warnings.push("risky_earnings_language");
+  if (/https?:\/\//i.test(candidate.extracted_text) && candidate.candidate_type === "link_candidate") warnings.push("unverified_link");
+  return warnings;
+}
+
+export function buildOwnerKnowledgeReviewSummary(job: ZipIngestionJobRecord, candidates: ZipLearningCandidateRecord[]): OwnerKnowledgeReviewSummary {
+  return {
+    job_id: job.id,
+    source_archive_hash_masked: maskedArchiveHash(job),
+    detected_sections: candidates.map((candidate) => ({
+      candidate_id: candidate.id,
+      section_id: candidate.section_id ?? candidate.id,
+      title: candidate.section_title ?? candidate.id,
+      classification: candidate.classification ?? "information",
+      target_file: candidate.target_file ?? "app_facts.md",
+      source_hash: maskHash(candidate.section_hash ?? sha256(candidate.extracted_text)) ?? "unknown",
+      conflict_warnings: conflictWarnings(candidate),
+      status: candidate.status,
+    })),
+    active_claim: false,
+  };
+}
+
+export function persistOwnerKnowledgeReviewSummary(job: ZipIngestionJobRecord, candidates: ZipLearningCandidateRecord[], dataDir?: string): OwnerKnowledgeReviewSummary {
+  const summary = buildOwnerKnowledgeReviewSummary(job, candidates);
+  const path = resolve(dataDir ?? resolve("data"), "zip_ingestion", job.id, "owner_review_summary.json");
+  atomicWrite(path, `${JSON.stringify(summary, null, 2)}\n`);
+  return summary;
+}
+
+export function materializeApprovedOwnerKnowledge(input: {
+  jobId: string;
+  zipStore: ZipIngestionStore;
+  knowledgeBankDir?: string;
+  actionAuditStore?: ActionAuditStore;
+  forceHashFailure?: boolean;
+}): OwnerKnowledgeMaterializationResult {
+  const job = input.zipStore.getJob(input.jobId);
+  if (!job) return { status: "failed", job_id: input.jobId, approved_section_ids: [], rejected_section_ids: [], active_version_hash_masked: null, fact_count: 0, activation_status: "failed_previous_version_preserved", rollback_pointer: null, error_code: "JOB_NOT_FOUND" };
+  const candidates = input.zipStore.listLearningCandidates(input.jobId);
+  const approved = candidates.filter((candidate) => candidate.status === "approved_for_bundle" && candidate.classification !== "archive");
+  const rejected = candidates.filter((candidate) => candidate.status === "rejected" || candidate.classification === "archive").map((candidate) => candidate.section_id ?? candidate.id);
+  if (approved.length === 0) return { status: "no_approved_sections", job_id: input.jobId, approved_section_ids: [], rejected_section_ids: rejected, active_version_hash_masked: null, fact_count: 0, activation_status: "not_started", rollback_pointer: null };
+
+  const dir = resolve(input.knowledgeBankDir ?? process.env.KNOWLEDGE_BANK_DIR ?? resolve("data", "knowledge_bank"));
+  const appFactsPath = resolve(dir, "app_facts.md");
+  const previous = existsSync(appFactsPath) ? readFileSync(appFactsPath, "utf8") : "";
+  const structuredPath = resolve(dir, "app_facts_structured.json");
+  const manifestPath = resolve(dir, "structured_knowledge_manifest.json");
+  const routingPath = resolve(dir, "app_routing_rules.md");
+  const previousStructured = existsSync(structuredPath) ? readFileSync(structuredPath, "utf8") : null;
+  const previousManifest = existsSync(manifestPath) ? readFileSync(manifestPath, "utf8") : null;
+  const previousRouting = existsSync(routingPath) ? readFileSync(routingPath, "utf8") : null;
+  const previousHash = sha256(previous);
+  const timestamp = Date.now();
+  const backupPath = `${appFactsPath}.backup-owner-transfer-${timestamp}`;
+  const rollbackPath = resolve(dir, "owner_knowledge_transfer_rollback.json");
+  let sourceHashes: Array<{ section_id: string; section_hash: string }> = [];
+  try {
+    sourceHashes = approved.map((candidate) => {
+      const actual = sha256(candidate.extracted_text);
+      const expected = candidate.section_hash ?? actual;
+      if (input.forceHashFailure || actual !== expected) throw new Error("OWNER_TRANSFER_SECTION_HASH_MISMATCH");
+      return { section_id: candidate.section_id ?? candidate.id, section_hash: actual };
+    });
+    mkdirSync(dirname(backupPath), { recursive: true });
+    writeFileSync(backupPath, previous, { encoding: "utf8", mode: 0o600 });
+    const additions = approved.map((candidate) => `\n\n## Owner Transfer: ${candidate.section_title ?? candidate.section_id ?? candidate.id}\n\n${candidate.extracted_text.trim()}\n`).join("");
+    atomicWrite(appFactsPath, `${previous.trimEnd()}${additions}\n`);
+    const publish = publishStructuredKnowledgeSources({ knowledgeBankDir: dir, mode: "activate", ownerApproval: true });
+    if (publish.status !== "published") throw new Error(`OWNER_TRANSFER_PUBLISH_${publish.status.toUpperCase()}`);
+    const rollback = { previous_source_hash: previousHash, backup_path: backupPath, created_at: new Date().toISOString(), source_archive_hash: job.zip_sha256, section_hashes: sourceHashes };
+    atomicWrite(rollbackPath, `${JSON.stringify(rollback, null, 2)}\n`);
+    const result: OwnerKnowledgeMaterializationResult = { status: "published", job_id: job.id, approved_section_ids: sourceHashes.map((item) => item.section_id), rejected_section_ids: rejected, active_version_hash_masked: maskHash(publish.structured_hash), fact_count: publish.app_fact_count, activation_status: "published_active", rollback_pointer: backupPath };
+    atomicWrite(resolve(dir, "owner_knowledge_transfer_audit.json"), `${JSON.stringify({ ...result, active_version_hash_masked: result.active_version_hash_masked, source_archive_hash_masked: maskedArchiveHash(job), source_hash: maskHash(publish.source_hash), manifest_hash: maskHash(publish.manifest_hash), durable: true, created_at: new Date().toISOString() }, null, 2)}\n`);
+    input.actionAuditStore?.logAction({ action_type: "owner_knowledge_transfer_published", actor_role: "owner", actor_masked_ref: "authenticated-owner", role_resolution_source: "owner_token", target_type: "learning", target_safe_ref: job.id, risk_level: "HIGH", confirm_required: true, confirmed: true, result_status: "success", new_status: "published_active", sanitized_reason: JSON.stringify({ approved_section_ids: result.approved_section_ids, rejected_section_ids: result.rejected_section_ids, active_version_hash_masked: result.active_version_hash_masked, fact_count: result.fact_count, rollback_pointer: backupPath }) });
+    return result;
+  } catch (error) {
+    atomicWrite(appFactsPath, previous);
+    for (const [path, content] of [[structuredPath, previousStructured], [manifestPath, previousManifest], [routingPath, previousRouting]] as Array<[string, string | null]>) {
+      if (content === null) {
+        if (existsSync(path)) unlinkSync(path);
+      } else {
+        atomicWrite(path, content);
+      }
+    }
+    const code = error instanceof Error ? error.message : "OWNER_TRANSFER_FAILED";
+    input.actionAuditStore?.logAction({ action_type: "owner_knowledge_transfer_failed", actor_role: "owner", actor_masked_ref: "authenticated-owner", role_resolution_source: "owner_token", target_type: "learning", target_safe_ref: job.id, risk_level: "HIGH", confirm_required: true, confirmed: true, result_status: "failure", error_safe_message: code, new_status: "failed_previous_version_preserved" });
+    return { status: "failed", job_id: job.id, approved_section_ids: [], rejected_section_ids: rejected, active_version_hash_masked: null, fact_count: 0, activation_status: "failed_previous_version_preserved", rollback_pointer: backupPath, error_code: code };
+  }
+}

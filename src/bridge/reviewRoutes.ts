@@ -5,11 +5,13 @@ import type { ActionAuditStore, DashboardActionAuditV1 } from "../store/actionAu
 import type { ZipIngestionStore } from "./zipIngestion/store.js";
 import type { ZipLearningCandidateRecord } from "./zipIngestion/types.js";
 import { createApprovedReviewsDryRun, relativeOutputPath } from "./reviewPublishDryRun.js";
+import { buildOwnerKnowledgeReviewSummary, materializeApprovedOwnerKnowledge, persistOwnerKnowledgeReviewSummary } from "./ownerKnowledgeTransfer.js";
 
 export interface ReviewRoutesDeps {
   env: EnvConfig;
   zipIngestionStore: ZipIngestionStore;
   actionAuditStore: ActionAuditStore;
+  knowledgeBankDir?: string;
 }
 
 type ActorRole = "owner" | "manager";
@@ -57,6 +59,12 @@ function safeCandidate(candidate: ZipLearningCandidateRecord, detail = false) {
     conflict_flags,
     risk_flags,
     recommended_action: candidate.recommended_action ?? (risk_flags.length || conflict_flags.length ? "owner_review_required" : "approve_if_relevant"),
+    section_id: candidate.section_id ?? candidate.id,
+    section_title: sanitizeText(candidate.section_title ?? candidate.id, 200),
+    classification: candidate.classification ?? "information",
+    target_file: candidate.target_file ?? "app_facts.md",
+    source_hash: candidate.source_hash ? `${candidate.source_hash.slice(0, 12)}…` : null,
+    section_hash: candidate.section_hash ? `${candidate.section_hash.slice(0, 12)}…` : null,
     extracted_text_preview: sanitizeText(candidate.extracted_text, 500),
     ...(detail ? {
       extracted_text_sanitized: sanitizeText(candidate.extracted_text, 5000),
@@ -182,6 +190,15 @@ export function registerReviewRoutes(app: FastifyInstance, deps: ReviewRoutesDep
     });
   });
 
+  app.get("/dashboard/review/jobs/:jobId/summary", { preHandler: auth }, async (req, reply) => {
+    const jobId = (req.params as any).jobId as string;
+    const job = deps.zipIngestionStore.getJob(jobId);
+    if (!job) return reply.code(404).send({ error: "Review job not found" });
+    const summary = buildOwnerKnowledgeReviewSummary(job, deps.zipIngestionStore.listLearningCandidates(jobId));
+    persistOwnerKnowledgeReviewSummary(job, deps.zipIngestionStore.listLearningCandidates(jobId));
+    return reply.send({ status: "pending_owner_review", summary });
+  });
+
   app.get("/dashboard/review/candidates", { preHandler: auth }, async (req, reply) => {
     const status = (req.query as any).status as string | undefined;
     const candidates = deps.zipIngestionStore
@@ -245,6 +262,33 @@ export function registerReviewRoutes(app: FastifyInstance, deps: ReviewRoutesDep
       vector_modified: false,
       active_knowledge_modified: false
     });
+  });
+
+  app.post("/dashboard/review/jobs/:jobId/approve-all", { preHandler: auth }, async (req, reply) => {
+    const jobId = (req.params as any).jobId as string;
+    const body = req.body as { confirm?: boolean } | undefined;
+    if (!body?.confirm) return reply.code(400).send({ error: "Confirmation required" });
+    const candidates = deps.zipIngestionStore.listLearningCandidates(jobId);
+    if (!deps.zipIngestionStore.getJob(jobId)) return reply.code(404).send({ error: "Review job not found" });
+    const approved: string[] = [];
+    for (const candidate of candidates) {
+      if (candidate.status !== "pending_owner_review") continue;
+      const updated = deps.zipIngestionStore.reviewLearningCandidate(candidate.id, "approve", (req as any).actor_role, "approve-all convenience action");
+      if (updated) {
+        approved.push(candidate.section_id ?? candidate.id);
+        deps.actionAuditStore.logAction({ action_type: "zip_review_approve", actor_role: (req as any).actor_role, actor_masked_ref: "safe-token-hash", role_resolution_source: (req as any).role_resolution_source, target_type: "learning", target_safe_ref: candidate.id, risk_level: "HIGH", confirm_required: true, confirmed: true, result_status: "success", new_status: updated.status, sanitized_reason: "approve-all convenience; individual audit record" });
+      }
+    }
+    return reply.send({ status: "success", approved_section_ids: approved, individual_audit_records: approved.length });
+  });
+
+  app.post("/dashboard/review/jobs/:jobId/materialize", { preHandler: auth }, async (req, reply) => {
+    const jobId = (req.params as any).jobId as string;
+    const body = req.body as { confirm?: boolean; force_hash_failure?: boolean } | undefined;
+    if ((req as any).actor_role !== "owner") return reply.code(403).send({ error: "Owner approval required" });
+    if (!body?.confirm) return reply.code(400).send({ error: "Confirmation required" });
+    const result = materializeApprovedOwnerKnowledge({ jobId, zipStore: deps.zipIngestionStore, knowledgeBankDir: deps.knowledgeBankDir, actionAuditStore: deps.actionAuditStore, forceHashFailure: body.force_hash_failure === true });
+    return reply.code(result.status === "failed" ? 409 : 200).send(result);
   });
 
   app.post("/dashboard/review/dry-run-bundle", { preHandler: auth }, async (req, reply) => {
