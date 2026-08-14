@@ -617,3 +617,10 @@ hale gelirse devreye alÄ±nacak. Bu yedek plan henÃ¼z aktif deÄŸildir.
 - Kok neden: Evolution 2.3.7/Baileys pairing-notification `Invalid buffer` hatasi; upstream'de bilinen issue ile uyumlu. Bu hata 515 stream kapanmasi ve 401 logout dongusune yol acabiliyor.
 - KURAL: Logout/pairing islemi GEREKMEDIKCE tekrarlanmayacak; tekrarli denemeler ayni bug'i tetikleyebilir.
 - Kalici cozum secenekleri: (a) bug fix iceren bir Evolution surumune gecmeden once staging'de test etmek, (b) uzun vadede resmi WhatsApp Business API'ye gecisi degerlendirmek.
+
+### Knowledge bank runtime senkronizasyon kurali (2026-08-14)
+
+- TEK KAYNAK: `now_os_backend_src/data/knowledge_bank/app_facts.md` git ile izlenen kaynak dosyadir.
+- `now_os_backend/data/knowledge_bank/app_facts.md` production runtime bind-mount verisidir; deploy bunu otomatik olarak git kaynak dosyasindan kopyalamaz.
+- Knowledge bank degisikliginde deploy'dan once kaynak dosya, runtime dosyaya timestamp'li yedek alinarak acikca kopyalanir; hash ve Chatta/uygulama sayisi kontrol edilmeden publish tetiklenmez.
+- Structured publish yalnizca bu eslenmis runtime dosyadan calistirilir. `app_fact_count`, manifest hash'i ve kritik icerik kontrolleri PASS olmadan `published` sonucu kabul edilmez.
