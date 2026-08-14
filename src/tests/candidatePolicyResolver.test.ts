@@ -86,6 +86,21 @@ describe("candidate app routing", () => {
     expect(result.facts.find((fact) => fact.id === "owner_transfer_owner_rule")?.content).toContain("kadin profil");
   });
 
+  it("injects owner profile rules during work model disclosure", () => {
+    const result = resolveCandidatePolicy(
+      { ...defaultUserState(), gender: "erkek" },
+      ["Layla"],
+      [],
+      null,
+      "work_model_disclosure",
+      validPolicySectionsForTest(),
+      [{ section_id: "owner_rule", title: "Owner direct bilgi", content: "Erkek adaylar kadin profil kuraliyla ilerler." }],
+    );
+
+    expect(result.facts.find((fact) => fact.id === "owner_transfer_owner_rule")?.content)
+      .toContain("kadin profil");
+  });
+
   it("does not invent a policy fact when the published section is missing", () => {
     const result = resolveCandidatePolicy({ ...defaultUserState() }, ["Layla"], [], null, "candidate_app_routing", null);
     expect(result.facts.some((fact) => fact.id === "policy_section_routing_matrix")).toBe(false);

@@ -114,7 +114,7 @@ function structuredPolicySectionFact(key: keyof StructuredPolicySections, conten
 
 function ownerTransferMatchesIntent(section: OwnerTransferPolicySection, intent: string | null): boolean {
   const text = normalize(`${section.title} ${section.content}`);
-  if (["account_profile_question", "ask_profile", "ask_account_profile", "ask_camera_requirement"].includes(intent ?? "")) {
+  if (["account_profile_question", "ask_profile", "ask_account_profile", "ask_camera_requirement", "work_model_disclosure"].includes(intent ?? "")) {
     return /(erkek|hesap|profil|bio|foto|fotograf|kamera)/u.test(text);
   }
   if (["begin_setup", "installation_permission", "ask_installation_permission", "technical_issue"].includes(intent ?? "")) {
