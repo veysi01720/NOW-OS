@@ -82,7 +82,9 @@ function ownerKnowledgeListReply(store: ZipIngestionStore | undefined): string {
     const index = all.findIndex((item) => item.id === candidate.id);
     return `- ${ownerKnowledgeRef(candidate, index)} | ${candidate.section_title ?? candidate.section_id ?? "Basliksiz"} | ${candidate.classification ?? "information"} | ${candidate.target_file ?? "app_facts.md"}`;
   });
-  return `Bekleyen bilgi bolumleri (${pending.length}):\n${lines.join("\n")}\nOnay icin: #onayla BLG-XXXX-01`;
+  const firstPendingIndex = all.findIndex((item) => item.id === pending[0].id);
+  const firstPendingRef = ownerKnowledgeRef(pending[0], firstPendingIndex);
+  return `Bekleyen bilgi bolumleri (${pending.length}):\n${lines.join("\n")}\nOnay icin: #onayla ${firstPendingRef}`;
 }
 
 function auditOwnerKnowledgeCommand(actionAuditStore: ActionAuditStore | undefined, actionType: string, actorRole: string, targetRef: string, resultStatus: "success" | "failure"): void {

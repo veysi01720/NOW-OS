@@ -86,6 +86,8 @@ describe("owner knowledge WhatsApp commands", () => {
       expect(shortRef).toBeTruthy();
       expect(list.reply_text).toContain("Erkek hesap kurali");
       expect(list.reply_text).toContain("app_facts.md");
+      expect(list.reply_text).toContain(`Onay icin: #onayla ${shortRef}`);
+      expect(list.reply_text).not.toContain("BLG-XXXX-01");
 
       const approve = handleOwnerCommand(ownerMessage(`#onayla ${shortRef}`), "owner", createTestEnv(), undefined, undefined, undefined, deps);
       expect(approve.execution_succeeded).toBe(true);
