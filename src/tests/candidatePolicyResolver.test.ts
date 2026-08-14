@@ -130,6 +130,20 @@ describe("candidate app routing", () => {
     expect(result.facts.some((fact) => fact.id === "owner_transfer_legacy_rule")).toBe(false);
   });
 
+  it("includes memory rules in every candidate intent context", () => {
+    const result = resolveCandidatePolicy(
+      defaultUserState(),
+      [],
+      [],
+      null,
+      "work_model_disclosure",
+      validPolicySectionsForTest(),
+    );
+
+    expect(result.facts.find((fact) => fact.id === "policy_section_memory_rules")?.content)
+      .toBe("Memory.");
+  });
+
   it("does not invent a policy fact when the published section is missing", () => {
     const result = resolveCandidatePolicy({ ...defaultUserState() }, ["Layla"], [], null, "candidate_app_routing", null);
     expect(result.facts.some((fact) => fact.id === "policy_section_routing_matrix")).toBe(false);

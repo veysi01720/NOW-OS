@@ -141,6 +141,7 @@ describe("buildBackendContext", () => {
       selected_app: null,
       phone_type: null,
       installation_status: "not_started",
+      installation_verification_status: null,
       training_status: "not_started",
       missing_fields: [
         "age",

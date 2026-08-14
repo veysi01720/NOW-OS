@@ -14,6 +14,7 @@ export interface UserState {
   work_model_disclosed?: boolean;
   model_acceptance?: "pending" | "accepted" | "rejected" | null;
   installation_status: string;
+  installation_verification_status?: "clear" | "ambiguous" | null;
   training_status: string;
   missing_fields: string[];
   expected_next_step: string;
@@ -250,6 +251,7 @@ export function defaultUserState(): UserState {
     work_model_disclosed: false,
     model_acceptance: null,
     installation_status: "not_started",
+    installation_verification_status: null,
     training_status: "not_started",
     missing_fields: ["age", "gender", "daily_hours", "selected_app", "phone_type"],
     expected_next_step: "ask_intake_info"

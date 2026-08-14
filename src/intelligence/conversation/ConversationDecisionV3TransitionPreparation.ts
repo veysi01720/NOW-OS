@@ -65,6 +65,7 @@ function changedFields(previous: UserState, next: UserState): string[] {
     "work_model_disclosed",
     "model_acceptance",
     "installation_status",
+    "installation_verification_status",
     "training_status",
     "expected_next_step",
     "behavior_conversation_state",

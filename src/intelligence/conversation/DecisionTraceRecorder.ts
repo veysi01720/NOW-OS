@@ -48,7 +48,11 @@ export function recordDecisionTrace(input: {
     direct_question_answered: input.decision.direct_question.answered_in_reply,
     chosen_actions: input.decision.chosen_actions,
     next_action: input.decision.next_action,
-    policy_fact_ids: input.decision.policy_facts_used,
+    policy_fact_ids: [...new Set([
+      ...input.decision.policy_facts_used,
+      ...input.context.canonical_policy_facts.map((fact) => fact.id),
+    ])],
+    policy_facts_used: input.decision.policy_facts_used,
     model_call_count: input.modelCallCount,
     behavior_prompt_version: input.behaviorPromptVersion,
     validation_reason_codes: input.validationReasons,

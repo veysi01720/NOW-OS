@@ -65,6 +65,7 @@ function sameState(left: UserState, right: UserState): boolean {
     left.work_model_disclosed === right.work_model_disclosed &&
     left.model_acceptance === right.model_acceptance &&
     left.installation_status === right.installation_status &&
+    left.installation_verification_status === right.installation_verification_status &&
     left.training_status === right.training_status &&
     left.expected_next_step === right.expected_next_step &&
     left.missing_fields.length === right.missing_fields.length &&
@@ -85,6 +86,7 @@ function cloneState(state: UserState): UserState {
     work_model_disclosed: state.work_model_disclosed ?? false,
     model_acceptance: state.model_acceptance ?? null,
     installation_status: state.installation_status,
+    installation_verification_status: state.installation_verification_status ?? null,
     training_status: state.training_status,
     missing_fields: [...state.missing_fields],
     expected_next_step: state.expected_next_step
@@ -104,6 +106,7 @@ function changedFields(previous: UserState, next: UserState): string[] {
     "work_model_disclosed",
     "model_acceptance",
     "installation_status",
+    "installation_verification_status",
     "training_status",
     "expected_next_step"
   ];

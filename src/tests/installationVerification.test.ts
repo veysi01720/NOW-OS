@@ -102,6 +102,38 @@ describe("installation verification media boundary", () => {
     expect(deps.sender.sends).toHaveLength(1);
   });
 
+  it("locks later candidate messages after ambiguous verification and never makes a definitive claim", async () => {
+    const stateStore = new InMemoryUserStateStore();
+    stateStore.states.set("905333333333", {
+      ...defaultUserState(),
+      current_state: "INSTALLATION_IN_PROGRESS",
+      installation_status: "in_progress",
+    });
+    const handoffStore = new PersistentHumanHandoffStore(join(mkdtempSync(join(tmpdir(), "install-lock-")), "handoffs.json"));
+    const deps = {
+      ...baseDeps(),
+      env: createTestEnv({ installationVisionEnabled: true, installationVisionAllowedCandidates: ["905333333333"] }),
+      userStateStore: stateStore,
+      humanHandoffStore: handoffStore,
+      installationVerificationClassifier: () => ({ status: "ambiguous" as const, sanitized_result: "UNCLEAR_INSTALLATION_SCREEN" }),
+    };
+
+    await handleIncomingMessage(imageMessage(ambiguousInstallationScreenshot, { message_id: "msg_lock_image" }), deps);
+    const result = await handleIncomingMessage(imageMessage("", {
+      correlation_id: "corr_lock_followup",
+      message_id: "msg_lock_followup",
+      message_type: "conversation",
+      text: "Bu mu uygulama?",
+      media: undefined,
+    }), deps);
+
+    expect(result.status).toBe("fallback_sent");
+    expect(stateStore.states.get("905333333333")?.current_state).toBe("INSTALLATION_IN_PROGRESS");
+    expect(stateStore.states.get("905333333333")?.installation_verification_status).toBe("ambiguous");
+    expect(deps.sender.sends.at(-1)?.text).toContain("doğrulanmadı");
+    expect(deps.sender.sends.at(-1)?.text).not.toMatch(/Evet, bu (Layla|Amar)/i);
+  });
+
   it("records only metadata and sanitized result; raw image bytes never enter result or logs", async () => {
     const raw = "RAW_INSTALLATION_IMAGE_SENTINEL";
     const logger = createSilentLogger();

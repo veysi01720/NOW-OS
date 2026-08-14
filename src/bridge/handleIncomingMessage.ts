@@ -726,7 +726,7 @@ export async function handleIncomingMessage(
   }
   const lockedResult: HandleIncomingMessageResult = await deps.userRunLock.runExclusive(conversationKey, async () => {
     const storedState =
-      isCandidate && message.chat_type === "private" && message.media?.kind === "image"
+      isCandidate && message.chat_type === "private"
         ? deps.userStateStore?.getOrCreateState(conversationKey, defaultUserState())
         : undefined;
     if (
@@ -759,6 +759,7 @@ export async function handleIncomingMessage(
         const nextState: UserState = {
           ...storedState,
           installation_status: "done",
+          installation_verification_status: "clear",
           current_state: "TRAINING_READY",
           expected_next_step: "start_training",
         };
@@ -777,8 +778,43 @@ export async function handleIncomingMessage(
           : { status: "reply_send_failed", correlation_id: message.correlation_id, error_layer: "EvolutionSendText" };
       }
 
+      const lockedState: UserState = {
+        ...storedState,
+        current_state: "INSTALLATION_IN_PROGRESS",
+        installation_status: "in_progress",
+        installation_verification_status: "ambiguous",
+        expected_next_step: "provide_clear_installation_image",
+      };
+      applyUserStateTransition({
+        store: deps.userStateStore,
+        conversationKey,
+        currentState: storedState,
+        nextState: lockedState,
+        source: "candidate_intake",
+        authority: authorityContext,
+      });
       recordHumanHandoff(deps, message, "installation_verification_ambiguous");
       const reply = "Kurulum görselini net doğrulayamadım; kontrol için ekibe ilettim.";
+      const sent = await sendReply(message, reply, deps, latencyTracker);
+      return sent
+        ? { status: "fallback_sent", correlation_id: message.correlation_id }
+        : { status: "reply_send_failed", correlation_id: message.correlation_id, error_layer: "EvolutionSendText" };
+    }
+
+    if (
+      isCandidate &&
+      message.chat_type === "private" &&
+      storedState?.installation_verification_status === "ambiguous"
+    ) {
+      logger.info({
+        event_type: "INSTALLATION_VERIFICATION_LOCKED",
+        correlation_id: message.correlation_id,
+        current_state: storedState.current_state,
+        layer: "layer_1",
+        reason_code: "INSTALLATION_VERIFICATION_UNCONFIRMED",
+        raw_text_logged: false,
+      });
+      const reply = "Kurulum görseli henüz doğrulanmadı; uygulama veya kurulum hakkında kesin onay veremem. Lütfen daha net bir kurulum ekranı gönder.";
       const sent = await sendReply(message, reply, deps, latencyTracker);
       return sent
         ? { status: "fallback_sent", correlation_id: message.correlation_id }

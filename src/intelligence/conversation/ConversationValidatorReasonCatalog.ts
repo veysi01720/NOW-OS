@@ -34,6 +34,7 @@ export const LAYER_1_REASON_CODES = new Set([
   "STATE_PATCH_ACCEPTANCE_WITHOUT_EVIDENCE",
   "STATE_PATCH_SELECTED_APP_WITHOUT_EVIDENCE",
   "STATE_PATCH_PHONE_TYPE_WITHOUT_EVIDENCE",
+  "INSTALLATION_VERIFICATION_UNCONFIRMED",
   // Selecting an app that is not grounded in approved facts/state is a
   // safety violation, not merely an action-order variance.
   "UNGROUNDED_APP_SELECTION",

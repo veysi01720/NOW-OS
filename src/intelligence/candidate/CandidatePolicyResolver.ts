@@ -143,6 +143,9 @@ export function resolveCandidatePolicy(
   if (policySection && policySections?.[policySection]) {
     facts.push(structuredPolicySectionFact(policySection, policySections[policySection]));
   }
+  if (policySections?.memory_rules && policySection !== "memory_rules") {
+    facts.push(structuredPolicySectionFact("memory_rules", policySections.memory_rules));
+  }
   for (const section of ownerTransferSections.filter((item) => ownerTransferMatchesIntent(item, intent))) {
     facts.push({
       id: `owner_transfer_${section.section_id}`,

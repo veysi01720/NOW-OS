@@ -13,6 +13,7 @@ describe("DecisionTraceRecorder layer mapping", () => {
         role: "candidate",
         channel: "private",
         derived_state: { dialogue_phase: "WAITING_FOR_PREFERENCES" },
+        canonical_policy_facts: [{ id: "owner_transfer_male_profile_rule" }],
       } as never,
       decision: {
         chosen_actions: [],
@@ -40,6 +41,7 @@ describe("DecisionTraceRecorder layer mapping", () => {
       layer_1_reason_codes: ["UNGROUNDED_APP_SELECTION"],
       layer_2_result: "accepted_with_variance",
       layer_2_reason_codes: ["STATE_PATCH_WITHOUT_UPDATE_NEXT_ACTION"],
+      policy_fact_ids: ["owner_transfer_male_profile_rule"],
     });
   });
 });
