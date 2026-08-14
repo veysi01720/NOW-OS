@@ -4,6 +4,8 @@ import {
   SUPPORTED_ASSISTANT_RESPONSE_CONTRACT_VERSION,
   type VersionConfig
 } from "./versions.js";
+import { loadStructuredAppFacts } from "../bridge/structuredAppFacts.js";
+import { deriveApprovedApps } from "./approvedApps.js";
 
 export interface EnvConfig {
   port: number;
@@ -21,6 +23,7 @@ export interface EnvConfig {
   ownerPhoneNumbers: string[];
   managerPhoneNumbers: string[];
   approvedApps: string[];
+  approvedAppsOverride?: string[];
   dashboardAdminToken: string;
   dashboardOwnerToken: string;
   dashboardManagerToken: string;
@@ -125,6 +128,9 @@ export function loadEnv(): EnvConfig {
     throw new Error("BACKEND_CONTEXT_VERSION must be 1.0");
   }
 
+  const approvedAppsOverride = parseCsv(process.env.APPROVED_APPS_OVERRIDE);
+  const structuredFacts = loadStructuredAppFacts();
+
   return {
     port: parsePort(readEnv("PORT", "3000")),
     evolutionApiBaseUrl: readEnv("EVOLUTION_API_BASE_URL"),
@@ -140,7 +146,8 @@ export function loadEnv(): EnvConfig {
     realOpenaiPublishEnabled: process.env.REAL_OPENAI_PUBLISH_ENABLED === "true",
     ownerPhoneNumbers: parseCsv(process.env.OWNER_PHONE_NUMBERS),
     managerPhoneNumbers: parseCsv(process.env.MANAGER_PHONE_NUMBERS),
-    approvedApps: parseCsv(process.env.APPROVED_APPS),
+    approvedApps: deriveApprovedApps(structuredFacts, approvedAppsOverride),
+    approvedAppsOverride,
     dashboardAdminToken: process.env.DASHBOARD_ADMIN_TOKEN ?? "",
     dashboardOwnerToken: process.env.DASHBOARD_OWNER_TOKEN ?? "",
     dashboardManagerToken: process.env.DASHBOARD_MANAGER_TOKEN ?? "",

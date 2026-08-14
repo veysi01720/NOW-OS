@@ -31,6 +31,7 @@ export function createTestEnv(overrides: Partial<EnvConfig> = {}): EnvConfig {
     ownerPhoneNumbers: ["905111111111"],
     managerPhoneNumbers: ["905222222222"],
     approvedApps: [],
+    approvedAppsOverride: [],
     webhookQueueMode: "off",
     outboundQueueMode: "off",
     fastAckEnabled: false,
