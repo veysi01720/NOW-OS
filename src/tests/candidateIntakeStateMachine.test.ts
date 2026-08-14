@@ -210,6 +210,20 @@ describe("Candidate Intake State Machine", () => {
     expect(result.next_state.age).toBe(Number(text.match(/^\d+/)?.[0]));
   });
 
+  it("does not decide eligibility for a working-age candidate until gender is known", () => {
+    const store = new TestUserStateStore();
+    const result = applyCandidateIntakeStateMachine(
+      message({ text: "45" }),
+      createTestEnv({ approvedApps: ["Layla"] }),
+      store,
+    );
+
+    expect(result.next_state.age).toBe(45);
+    expect(result.next_state.gender).toBeNull();
+    expect(result.next_state.eligibility_status).toBe("unresolved");
+    expect(result.next_state.current_state).not.toBe("ELIGIBILITY_RESOLVED");
+  });
+
   it("asks experience only for women and leaves male intake at three fields", () => {
     const store = new TestUserStateStore();
     const female = applyCandidateIntakeStateMachine(

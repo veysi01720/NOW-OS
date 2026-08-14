@@ -34,6 +34,7 @@ import { createOpenAIInstallationVisionClassifier } from "./bridge/openaiInstall
 import { createEvolutionSessionIntegrityCheck } from "./observability/evolutionSessionIntegrity.js";
 import { ZipIngestionStore } from "./bridge/zipIngestion/store.js";
 import { registerReviewRoutes } from "./bridge/reviewRoutes.js";
+import { validateKnowledgeAtStartup } from "./bridge/knowledgeStartupGuard.js";
 
 const DEFAULT_RESPONSES_SHADOW_SNAPSHOT: ResponsesShadowSnapshot = {
   enabled: false,
@@ -206,6 +207,32 @@ export function isRuntimeLockConflict(
 export async function buildServer() {
   const env = loadEnv();
   validateProductionEnv(env);
+
+  if (process.env.NODE_ENV !== "test") {
+    const knowledgeValidation = validateKnowledgeAtStartup();
+    if (!knowledgeValidation.valid) {
+      logger.error({
+        event_type: "KNOWLEDGE_STARTUP_SYNC_FAILED",
+        structured_status: knowledgeValidation.structured_status,
+        manifest_status: knowledgeValidation.manifest_status,
+        approved_app_count: knowledgeValidation.approved_app_count,
+        routing_targets_valid: knowledgeValidation.routing_targets_valid,
+        age_policy_valid: knowledgeValidation.age_policy_valid,
+        payment_policy_valid: knowledgeValidation.payment_policy_valid,
+        error_count: knowledgeValidation.error_codes.length,
+      });
+      throw new Error("Knowledge startup validation failed");
+    }
+    logger.info({
+      event_type: "KNOWLEDGE_STARTUP_SYNC_VALID",
+      structured_status: knowledgeValidation.structured_status,
+      manifest_status: knowledgeValidation.manifest_status,
+      approved_app_count: knowledgeValidation.approved_app_count,
+      routing_targets_valid: knowledgeValidation.routing_targets_valid,
+      age_policy_valid: knowledgeValidation.age_policy_valid,
+      payment_policy_valid: knowledgeValidation.payment_policy_valid,
+    });
+  }
 
   const app = Fastify({ logger: false });
   const DATA_DIR = resolve("data");

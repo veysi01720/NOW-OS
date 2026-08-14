@@ -309,7 +309,15 @@ export function isAgeEligible(age: number, gender: string | null | undefined): b
   if (age < 18) return false;
   if (gender === "erkek" || gender === "male") return age <= 30;
   if (gender === "kadın" || gender === "female") return age <= 40;
-  return age <= 65;
+  return false;
+}
+
+function hasRecognizedGender(gender: string | null | undefined): boolean {
+  return gender === "erkek" || gender === "male" || gender === "kadın" || gender === "female";
+}
+
+function isAgeImmediatelyRejected(age: number, gender: string | null | undefined): boolean {
+  return age < 18 || (hasRecognizedGender(gender) && !isAgeEligible(age, gender));
 }
 
 export function detectPreviousPlatformExperience(text: string): UserState["previous_platform_experience"] {
@@ -329,7 +337,7 @@ export function detectAgeGenderDailyHours(text: string): IntakeDetection {
   if (ageMatch) {
     const age = Number(ageMatch[1]);
     result.age = age;
-    result.age_rejected = !isAgeEligible(age, result.gender);
+    result.age_rejected = isAgeImmediatelyRejected(age, result.gender);
   }
   const hourRangeMatch = normalizedText.match(/\b([1-9]|1[0-6])\s*[-/]\s*([1-9]|1[0-6])\s*(?:saat|sa|h)\b/u);
   if (hourRangeMatch) {
@@ -346,7 +354,7 @@ export function detectAgeGenderDailyHours(text: string): IntakeDetection {
     const age = numbers.find((item) => item >= 10 && item <= 99);
     if (age !== undefined) {
       result.age = age;
-      result.age_rejected = !isAgeEligible(age, result.gender);
+      result.age_rejected = isAgeImmediatelyRejected(age, result.gender);
     }
   }
   if (result.daily_hours === undefined && result.gender !== undefined) {
@@ -462,7 +470,7 @@ export function applyCandidateIntakeStateMachine(
     }
   }
 
-  if (intake.age_rejected || (nextState.age !== null && !isAgeEligible(nextState.age, nextState.gender))) {
+  if (intake.age_rejected || (nextState.age !== null && isAgeImmediatelyRejected(nextState.age, nextState.gender))) {
     nextState.eligibility_status = "ineligible";
     nextState.current_state = "ELIGIBILITY_RESOLVED";
     nextState.missing_fields = [];
