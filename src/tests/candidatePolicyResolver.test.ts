@@ -3,11 +3,11 @@ import { resolveCandidatePolicy } from "../intelligence/candidate/CandidatePolic
 import { defaultUserState } from "../storage/types.js";
 
 describe("candidate app routing", () => {
-  it("keeps Layla as default while exposing Chatta only as a secondary option", () => {
+  it("uses the approved routing matrix without removed applications", () => {
     const result = resolveCandidatePolicy({ ...defaultUserState(), gender: "kadın" }, ["Layla"]);
-    expect(result.secondary_apps).toEqual(["Chatta"]);
+    expect(result.secondary_apps).toEqual(["Timo", "Linky", "Soyo"]);
     expect(result.facts.find((fact) => fact.id === "candidate_default_work_model")?.content).toContain("Layla");
-    expect(result.facts.find((fact) => fact.id === "candidate_secondary_app_options")?.content).toContain("Chatta");
+    expect(result.facts.find((fact) => fact.id === "candidate_secondary_app_options")?.content).toContain("Timo");
   });
 
   it("uses general_work_model for ask_job_definition before app-specific routing facts", () => {

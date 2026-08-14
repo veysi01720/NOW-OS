@@ -122,8 +122,8 @@ export function resolveCandidatePolicy(
   facts.push({
     id: "candidate_secondary_app_options",
     topic: "candidate_app_routing",
-    fact: "Layla remains the default app recommendation. Chatta may be presented only as a secondary or alternative option when the candidate preference or experience supports it; do not replace the default automatically.",
-    content: "Layla remains the default app recommendation. Chatta may be presented only as a secondary or alternative option when the candidate preference or experience supports it; do not replace the default automatically.",
+    fact: "There is no fixed app order. Recommend based on candidate preference, experience, device, and performance. Layla/NIVI is messaging-first; TanChat/TanStar is for voice/video; Amar/Amar Lite is for experienced candidates; secondary options are Timo, Linky, and Soyo. After setup, ask which apps the candidate has used and present only one suitable alternative.",
+    content: "There is no fixed app order. Recommend based on candidate preference, experience, device, and performance. Layla/NIVI is messaging-first; TanChat/TanStar is for voice/video; Amar/Amar Lite is for experienced candidates; secondary options are Timo, Linky, and Soyo. After setup, ask which apps the candidate has used and present only one suitable alternative.",
     source: "canonical_policy",
     version: "conversation_v2"
   });
@@ -141,7 +141,7 @@ export function resolveCandidatePolicy(
     });
   }
 
-  return { facts, policyMissing: facts.length === 0, secondary_apps: ["Chatta"] };
+  return { facts, policyMissing: facts.length === 0, secondary_apps: ["Timo", "Linky", "Soyo"] };
 }
 
 function structuredGeneralWorkModelFact(model: StructuredGeneralWorkModel): ConversationPolicyFact {

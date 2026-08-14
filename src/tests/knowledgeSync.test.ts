@@ -124,17 +124,14 @@ describe.sequential("Knowledge Sync", () => {
 
   it("activates current app facts even when the learning queue has no new item", () => {
     const store = new PersistentIngestionStore(testDir);
-    writeFileSync(resolve(knowledgeBankDir, "app_facts.md"), validAppFactsMarkdown(true).replace(
-      "| Timo | Timo | Timo | VVXVUD |  |  |  | owner_approved | Escalate details |",
-      "| Timo | Timo | Timo | VVXVUD |  |  |  | owner_approved | Escalate details |\n| Chatta | Chatta | Chatta | XXVLX3QQ |  |  |  | owner_approved | Secondary option |",
-    ), "utf8");
+    writeFileSync(resolve(knowledgeBankDir, "app_facts.md"), validAppFactsMarkdown(true), "utf8");
 
     const ctx = executeKnowledgeSyncCommand("onaylÄ±larÄ± bilgi bankasÄ±na aktar", "owner", store);
 
     expect(ctx.action_result?.success).toBe(true);
     expect(ctx.synced_count).toBe(0);
     const structured = JSON.parse(readFileSync(resolve(knowledgeBankDir, "app_facts_structured.json"), "utf8"));
-    expect(structured.app_facts.map((fact: { app: string }) => fact.app)).toContain("Chatta");
+    expect(structured.app_facts.map((fact: { app: string }) => fact.app)).toContain("Timo");
     expect(existsSync(resolve(knowledgeBankDir, "structured_knowledge_manifest.json"))).toBe(true);
   });
   
