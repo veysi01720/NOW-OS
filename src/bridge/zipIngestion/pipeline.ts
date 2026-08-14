@@ -19,7 +19,8 @@ import type {
   ZipIngestionManifest,
   ZipLearningCandidateRecord,
   ZipLearningCandidateType,
-  ZipProcessResult
+  ZipProcessResult,
+  OwnerKnowledgeClassification
 } from "./types.js";
 
 export const DEFAULT_ZIP_LIMITS: ZipIngestionLimits = {
@@ -47,7 +48,7 @@ function safePreview(text: string, maxLength = 500): string {
   return redactSecrets(text).replace(/<[^>]*>?/gm, "").replace(/\s+/g, " ").trim().slice(0, maxLength);
 }
 
-function sectionMetadata(text: string, originalPath: string, candidateType: ZipLearningCandidateType, sectionHash: string) {
+export function sectionMetadata(text: string, originalPath: string, candidateType: ZipLearningCandidateType, sectionHash: string): { section_id: string; section_title: string; classification: OwnerKnowledgeClassification; target_file: string; source_hash: string; section_hash: string; recommended_action: string } {
   const heading = text.match(/^#{1,3}\s+([^\r\n]+)/m)?.[1]?.trim();
   const sectionTitle = heading || basename(originalPath, extname(originalPath)).replace(/[._-]+/g, " ").trim();
   const sectionId = `section_${sectionTitle.toLocaleLowerCase("tr-TR").normalize("NFKD").replace(/\p{M}/gu, "").replace(/[^a-z0-9]+/gi, "_").replace(/^_|_$/g, "").slice(0, 80) || "untitled"}`;
@@ -63,7 +64,7 @@ function sectionMetadata(text: string, originalPath: string, candidateType: ZipL
   return { section_id: sectionId, section_title: sectionTitle, classification, target_file: targetFile, source_hash: sectionHash, section_hash: sectionHash, recommended_action: classification === "archive" ? "archive_only" : "owner_review_required" };
 }
 
-function classifyText(text: string): { candidateType: ZipLearningCandidateType; suggestionClass: IngestionClass; proposedType: string; confidence: number } {
+export function classifyText(text: string): { candidateType: ZipLearningCandidateType; suggestionClass: IngestionClass; proposedType: string; confidence: number } {
   const lower = text.toLowerCase();
   if (/https?:\/\/|link|url/.test(lower)) {
     return { candidateType: "link_candidate", suggestionClass: "unknown", proposedType: "link_candidate", confidence: 0.55 };

@@ -6,6 +6,7 @@ import { describe, expect, it } from "vitest";
 import { buildOwnerKnowledgeReviewSummary, materializeApprovedOwnerKnowledge } from "../bridge/ownerKnowledgeTransfer.js";
 import { ZipIngestionStore } from "../bridge/zipIngestion/store.js";
 import type { ZipIngestionJobRecord, ZipLearningCandidateRecord } from "../bridge/zipIngestion/types.js";
+import { createDirectOwnerKnowledgeReview } from "../bridge/ownerKnowledgeIntake.js";
 
 const hash = (value: string) => createHash("sha256").update(value).digest("hex");
 
@@ -88,6 +89,35 @@ describe("owner knowledge transfer chain", () => {
       expect(result.status).toBe("failed");
       expect(result.error_code).toBe("OWNER_TRANSFER_SECTION_HASH_MISMATCH");
       expect(readFileSync(path, "utf8")).toBe(before);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it("materializes #bilgi content only after the review approval", () => {
+    const dir = mkdtempSync(join(tmpdir(), "owner-direct-text-"));
+    try {
+      const bank = join(dir, "knowledge_bank");
+      knowledgeBank(bank);
+      const store = new ZipIngestionStore(join(dir, "zip-store.json"));
+      const created = createDirectOwnerKnowledgeReview({
+        text: "## Owner bilgi\n\nBu bilgi onaydan sonra aktif facts'e eklenir.",
+        senderRole: "owner",
+        senderPhone: "905111111111",
+        sourceInstance: "test",
+        zipStore: store,
+      });
+      expect(created.status).toBe("created");
+      const jobId = created.result!.job.id;
+      const factsPath = resolve(bank, "app_facts.md");
+      const before = readFileSync(factsPath, "utf8");
+      expect(before).not.toContain("Bu bilgi onaydan sonra");
+
+      const candidate = store.listLearningCandidates(jobId)[0];
+      store.reviewLearningCandidate(candidate.id, "approve", "owner");
+      const result = materializeApprovedOwnerKnowledge({ jobId, zipStore: store, knowledgeBankDir: bank });
+      expect(result.status).toBe("published");
+      expect(readFileSync(factsPath, "utf8")).toContain("Bu bilgi onaydan sonra aktif facts'e eklenir.");
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }

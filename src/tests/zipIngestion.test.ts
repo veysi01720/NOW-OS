@@ -7,6 +7,7 @@ import { handleIncomingMessage } from "../bridge/handleIncomingMessage.js";
 import { normalizeEvolutionMessage, type NormalizedIncomingMessage } from "../bridge/normalizeEvolutionMessage.js";
 import { isUnsafeZipEntryPath, runZipIngestionJob } from "../bridge/zipIngestion/pipeline.js";
 import { ZipIngestionStore } from "../bridge/zipIngestion/store.js";
+import { buildZipIngestionOutcomeReply, createDirectOwnerKnowledgeReview } from "../bridge/ownerKnowledgeIntake.js";
 import { UserRunLock } from "../queue/userRunLock.js";
 import { InMemoryStore } from "../storage/memoryStore.js";
 import { InMemoryMessageDedupeStore } from "../storage/messageDedupeStore.js";
@@ -113,10 +114,10 @@ describe("Phase 3 ZIP ingestion pipeline", () => {
       expect(result.status).toBe("zip_ingestion_started");
       expect(testDeps.assistantClient.runCalls).toHaveLength(0);
       expect(testDeps.sender.sends.map((send) => send.text)).toEqual([
-        "Tamam patron, ZIP'i aldim. Guvenli sekilde cozip inceleme kuyruguna aliyorum.",
-        "Patron ZIP cozuldu. 1 dosya okundu, 1 kayit inceleme kuyruguna alindi. Knowledge'a otomatik yazmadim.",
+        "1 bolum tespit edildi, owner onayini bekliyor. Aktif bilgi degistirilmedi.",
         expect.stringContaining("ZIP inceleme ozeti:")
       ]);
+      expect(testDeps.sender.sends.map((send) => send.text).join(" ")).not.toContain("kuyruga aliyorum");
       expect(testDeps.zipIngestionStore.listJobs()[0]).toEqual(
         expect.objectContaining({
           status: "completed",
@@ -148,7 +149,7 @@ describe("Phase 3 ZIP ingestion pipeline", () => {
         testDeps
       );
 
-      expect(testDeps.sender.sends[0]?.text).toContain("dayi");
+      expect(testDeps.sender.sends[0]?.text).toContain("bolum tespit edildi");
       expect(testDeps.assistantClient.runCalls).toHaveLength(0);
     } finally {
       rmSync(dir, { recursive: true, force: true });
@@ -383,6 +384,45 @@ describe("Phase 3 ZIP ingestion pipeline", () => {
       expect(second.job.status).toBe("duplicate");
       expect(second.candidates).toHaveLength(0);
       expect(second.job.duplicate_of_job_id).toBe(first.job.id);
+      expect(buildZipIngestionOutcomeReply("owner", second)).toBe("Bu arsiv daha once islendi, yeni bolum bulunamadi. Aktif bilgi degistirilmedi.");
+      expect(buildZipIngestionOutcomeReply("owner", second)).not.toContain("kuyruga aliyorum");
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it("does not claim queueing when the owner sends a duplicate ZIP", async () => {
+    const dir = tempDir();
+    try {
+      const testDeps = deps(dir);
+      await handleIncomingMessage(message(), testDeps);
+      const second = await handleIncomingMessage(message({ message_id: "msg_zip_duplicate" }), testDeps);
+      expect(second.status).toBe("zip_ingestion_duplicate");
+      const lastReply = testDeps.sender.sends.at(-1)?.text ?? "";
+      expect(lastReply).toBe("Bu arsiv daha once islendi, yeni bolum bulunamadi. Aktif bilgi degistirilmedi.");
+      expect(lastReply).not.toContain("kuyruga aliyorum");
+      expect(testDeps.assistantClient.runCalls).toHaveLength(0);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it("#bilgi creates review candidates without activating knowledge", () => {
+    const dir = tempDir();
+    try {
+      const store = new ZipIngestionStore(join(dir, "zip-store.json"));
+      const result = createDirectOwnerKnowledgeReview({
+        text: "## Kurulum Notu\n\nAday kurulum ekranını gönderince owner incelemesi beklenir.\n\n## Destek\n\nSorun olursa destek kuyruğu kullanılır.",
+        senderRole: "owner",
+        senderPhone: "905111111111",
+        sourceInstance: "test",
+        zipStore: store,
+      });
+      expect(result.status).toBe("created");
+      expect(result.result?.candidates).toHaveLength(2);
+      expect(store.listLearningCandidates(result.result!.job.id).every((candidate) => candidate.status === "pending_owner_review")).toBe(true);
+      expect(result.result!.job.status).toBe("completed");
+      expect(result.result!.manifest.publish_triggered).toBe(false);
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }

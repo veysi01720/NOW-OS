@@ -82,6 +82,7 @@ import {
   type InstallationVerificationClassifier,
 } from "./installationVerification.js";
 import { buildOwnerKnowledgeReviewSummary, persistOwnerKnowledgeReviewSummary } from "./ownerKnowledgeTransfer.js";
+import { buildZipIngestionOutcomeReply, createDirectOwnerKnowledgeReview } from "./ownerKnowledgeIntake.js";
 export interface HandleIncomingMessageDeps {
   env: EnvConfig;
   assistantClient?: {
@@ -117,6 +118,8 @@ export interface HandleIncomingMessageResult {
     | "ignored_empty"
     | "group_ignored"
     | "zip_ingestion_started"
+    | "zip_ingestion_duplicate"
+    | "zip_ingestion_failed"
     | "sent"
     | "fallback_sent"
     | "canary_stopped"
@@ -520,32 +523,29 @@ export async function handleIncomingMessage(
       zipRouting.sender_authorized &&
       deps.zipIngestionStore
     ) {
-      await sendReply(
-        message,
-        senderRole === "owner"
-          ? "Tamam patron, ZIP'i aldim. Guvenli sekilde cozip inceleme kuyruguna aliyorum."
-          : "Tamam dayi, ZIP'i aldim. Guvenli sekilde cozip inceleme kuyruguna aliyorum.",
-        deps,
-        latencyTracker,
-      );
       const zipBuffer = message.media?.base64
         ? Buffer.from(message.media.base64, "base64")
         : undefined;
-      const zipResult = await runZipIngestionJob({
-        message,
-        senderRole: senderRole === "manager" ? "manager" : "owner",
-        env: deps.env,
-        zipStore: deps.zipIngestionStore,
-        ingestionStore: deps.ingestionStore,
-        logger,
-        zipBuffer,
-      });
-      await sendReply(
-        message,
-        `${senderRole === "owner" ? "Patron" : "Dayi"} ZIP cozuldu. ${zipResult.entries.length} dosya okundu, ${zipResult.candidates.length} kayit inceleme kuyruguna alindi. Knowledge'a otomatik yazmadim.`,
-        deps,
-        latencyTracker,
-      );
+      let zipResult: Awaited<ReturnType<typeof runZipIngestionJob>>;
+      try {
+        zipResult = await runZipIngestionJob({
+          message,
+          senderRole: senderRole === "manager" ? "manager" : "owner",
+          env: deps.env,
+          zipStore: deps.zipIngestionStore,
+          ingestionStore: deps.ingestionStore,
+          logger,
+          zipBuffer,
+        });
+      } catch (error) {
+        logger.warn({ event_type: "ZIP_INGESTION_FAILED", correlation_id: message.correlation_id, error_code: redactSecrets(error instanceof Error ? error.message : "ZIP_INGESTION_FAILED"), active_claim: false });
+        await sendReply(message, "ZIP islenemedi; aktif bilgi degistirilmedi. Inceleme kaydi olusturulmadi.", deps, latencyTracker);
+        return latencyTracker.finish({ status: "zip_ingestion_failed", correlation_id: message.correlation_id });
+      }
+      await sendReply(message, buildZipIngestionOutcomeReply(senderRole === "manager" ? "manager" : "owner", zipResult), deps, latencyTracker);
+      if (zipResult.job.status !== "completed" || zipResult.candidates.length === 0) {
+        return latencyTracker.finish({ status: zipResult.job.status === "duplicate" ? "zip_ingestion_duplicate" : "zip_ingestion_started", correlation_id: message.correlation_id });
+      }
       const reviewSummary = persistOwnerKnowledgeReviewSummary(zipResult.job, zipResult.candidates);
       const summaryText = [
         `ZIP inceleme ozeti: ${reviewSummary.job_id}`,
@@ -609,6 +609,45 @@ export async function handleIncomingMessage(
       await sendReply(message, "Adayı verdiğin numaraya yönlendirdim.", deps);
       return { status: "sent", correlation_id: message.correlation_id };
     }
+  }
+  const directKnowledgeMatch = message.text.trim().match(/^#bilgi(?:\s+([\s\S]+))?$/i);
+  if (directKnowledgeMatch) {
+    if ((senderRole !== "owner" && senderRole !== "manager") || message.chat_type !== "private") {
+      await sendReply(message, "Bu bilgi komutu yalnızca owner veya manager tarafından private kanalda kullanılabilir.", deps, latencyTracker);
+      return latencyTracker.finish({ status: "sent", correlation_id: message.correlation_id });
+    }
+    if (!deps.zipIngestionStore) {
+      await sendReply(message, "Bilgi inceleme kuyruğu hazır değil; aktif bilgi değiştirilmedi.", deps, latencyTracker);
+      return latencyTracker.finish({ status: "zip_ingestion_failed", correlation_id: message.correlation_id });
+    }
+    const directResult = createDirectOwnerKnowledgeReview({
+      text: directKnowledgeMatch[1] ?? "",
+      senderRole: senderRole === "manager" ? "manager" : "owner",
+      senderPhone: message.phone_number,
+      sourceInstance: deps.env.evolutionInstance,
+      zipStore: deps.zipIngestionStore,
+      logger,
+    });
+    if (directResult.status === "rejected") {
+      await sendReply(message, "Bilgi metni boş veya anlamlı bir bölüm içermiyor; aktif bilgi değiştirilmedi.", deps, latencyTracker);
+      return latencyTracker.finish({ status: "zip_ingestion_failed", correlation_id: message.correlation_id });
+    }
+    if (directResult.status === "duplicate") {
+      await sendReply(message, "Bu bilgi daha önce inceleme kuyruğuna alındı, yeni bölüm bulunamadı. Aktif bilgi değiştirilmedi.", deps, latencyTracker);
+      return latencyTracker.finish({ status: "zip_ingestion_duplicate", correlation_id: message.correlation_id });
+    }
+    const directProcess = directResult.result!;
+    const reviewSummary = persistOwnerKnowledgeReviewSummary(directProcess.job, directProcess.candidates);
+    const summaryText = [
+      `Bilgi inceleme ozeti: ${reviewSummary.job_id}`,
+      `Bolumler: ${reviewSummary.detected_sections.length}`,
+      ...reviewSummary.detected_sections.map((section) => `${section.section_id}=${section.classification}; hedef=${section.target_file}; durum=${section.status}`),
+      "Aktif bilgi degistirilmedi; owner onayi bekleniyor.",
+    ].join("\n");
+    await notifyTrainingOwner(deps, summaryText, message.correlation_id);
+    await sendReply(message, `${directProcess.candidates.length} bölüm tespit edildi, owner onayını bekliyor. Aktif bilgi değiştirilmedi.`, deps, latencyTracker);
+    logger.info({ event_type: "OWNER_KNOWLEDGE_REVIEW_SUMMARY_CREATED", correlation_id: message.correlation_id, job_id: reviewSummary.job_id, section_count: reviewSummary.detected_sections.length, active_claim: false });
+    return latencyTracker.finish({ status: "zip_ingestion_started", correlation_id: message.correlation_id });
   }
   const ownerCommandRes = handleOwnerCommand(
     message,

@@ -67,7 +67,7 @@ export interface ZipIngestionEntryRecord {
 
 export interface ZipLearningCandidateRecord {
   id: string;
-  source: "zip_ingestion";
+  source: "zip_ingestion" | "owner_direct_text";
   source_job_id: string;
   source_entry_id: string;
   candidate_type: ZipLearningCandidateType;
