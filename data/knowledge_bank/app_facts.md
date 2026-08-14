@@ -44,6 +44,7 @@
 
 ## Profil, Bio ve Fotoğraf Kuralları
 
+- Erkek adaylar için hesap açma kuralı: erkek kullanıcılar sadece kadın profili açıp kadın fotoğrafları yükledikleri profilden kazanç sağlar; bu durumun uygunluğu önceden adaya sorulur.
 - Kullanıcı adı sonunda 🌙 bulunmalıdır.
 - Eğitim öncesi en az 1 uygun fotoğraf gerekir; 2-3 fotoğraf yeterli olabilir.
 - Fotoğraf net, kaliteli, yüz görünür ve uygulama kurallarına uygun olmalıdır.
@@ -130,7 +131,3 @@
 | Linky | Linky | Linky | M9W5B8 |  |  |  | owner_approved | Code |
 | Soyo | Soyo | Soyo | 3997 |  | 3997 |  | owner_approved | Code |
 | Timo | Timo | Timo | VVXVUD |  |  |  | owner_approved | Secondary app option |
-
-## Owner Transfer: Owner direct bilgi
-
-Erkek adaylar için hesap açma kuralı: erkek kullanıcılar sadece kadın profili açıp kadın fotağrafları yükledikleri profilden kazaç sağlar bu durumun uygunluğu önceden adaya sorulur
