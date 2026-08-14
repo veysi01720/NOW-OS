@@ -465,6 +465,28 @@ describe("Conversation Decision V2 candidate route", () => {
     );
   });
 
+  it("guides Terra away from repeating a recent work-model acceptance closing", async () => {
+    const testDeps = deps([
+      decision({
+        reply: { text: "Calisma modelini anlattim; bu model sana uygun mu?", language: "tr", tone: "natural_concise", contains_question: true },
+      }),
+      decision({
+        intent: { primary: "candidate_next_step", secondary: [], confidence: 0.9 },
+        reply: { text: "Evet, bu noktayi aciklayayim ve sonraki adimi netlestireyim.", language: "tr", tone: "natural_concise", contains_question: false },
+        chosen_actions: ["answer_user_question", "explain_work_model"],
+        state_patch: {},
+        next_action: "reply_only",
+      }),
+    ]);
+
+    await handleIncomingMessage(message("27 erkek 4 saat", "acceptance-preference-1"), testDeps);
+    await handleIncomingMessage(message("Bu iste sonra ne olacak?", "acceptance-preference-2"), testDeps);
+
+    expect(testDeps.assistantClient.runCalls[1]?.content).toContain("A conversational preference");
+    expect(testDeps.assistantClient.runCalls[1]?.content).toContain("do not automatically ask the same closing again");
+    expect(testDeps.sender.sends[1]?.text).not.toMatch(/calisma modeli sana uygun mu/iu);
+  });
+
   it("preserves a valid unique model reply without stage template overwrite", async () => {
     const unique = "MODEL_UNIQUE_REPLY_78421 çalışma modeli net; sorunu yanıtladım.";
     const testDeps = deps([

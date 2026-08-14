@@ -120,6 +120,9 @@ function buildDecisionPrompt(context: ConversationDecisionContext, repairInput?:
       : "",
     "If latest_message.inferred_intent is clarify_previous_explanation, do not repeat the previous assistant reply; explain it in simpler, more concrete words.",
     "Do not repeat the most recent assistant reply word-for-word; if the user pushes back or sends a different message, answer that latest message with a fresh, concrete sentence.",
+    hasRecentWorkModelAcceptanceQuestion(context) && context.candidate_state.work_model_acceptance !== "accepted"
+      ? "A conversational preference: if a recent assistant message already asked whether the work model is suitable, do not automatically ask the same closing again when the candidate has not explicitly accepted or rejected it. Answer the latest message naturally and preserve the pending acceptance state; ask the acceptance question again only when it is useful for the latest message or the candidate is explicitly addressing acceptance."
+      : "",
     "If the user says they did not understand, answer the unclear point directly before asking anything.",
     "If latest_message.inferred_intent is ask_job_definition, set intent.primary to ask_job_definition and answer what the work is in concrete terms.",
     "For ask_job_definition, include the user's basic task, the interaction mode, required/optional work mode boundaries, and the next logical step from candidate_state.",
@@ -191,6 +194,12 @@ function repeatsLatestAssistantReply(reply: string, context: ConversationDecisio
     .slice()
     .reverse()
     .some((message) => message.role === "assistant" && normalizeForRepeatCheck(message.text) === normalizedReply);
+}
+
+function hasRecentWorkModelAcceptanceQuestion(context: ConversationDecisionContext): boolean {
+  return context.recent_messages
+    .slice(-4)
+    .some((message) => message.role === "assistant" && /(calisma modeli|bu model).*(uygun|kabul)/iu.test(message.text));
 }
 
 /* Retired intake fast-path implementations are intentionally kept only in
