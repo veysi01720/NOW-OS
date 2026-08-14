@@ -96,6 +96,21 @@ function expectRejected(result: ReturnType<typeof validateConversationDecisionV3
 }
 
 describe("ConversationDecisionV3 semantic validator", () => {
+  it("rejects a 45-year-old male candidate using the canonical intake age rule", () => {
+    const result = validateConversationDecisionV3Semantics(decision({
+      next_action: "update_candidate_state",
+      chosen_actions: ["acknowledge_information", "record_work_preference"],
+      patch: { age: 45, gender: "erkek" },
+      evidence: [
+        { field: "age", source: "current_message", evidence_ref: null },
+        { field: "gender", source: "current_message", evidence_ref: null },
+      ],
+    }), context({ latest_message: "45 erkek" }));
+
+    expect(result.ok).toBe(false);
+    expect(result.reason_codes).toContain("STATE_PATCH_AGE_INELIGIBLE");
+  });
+
   it("accepts a candidate intake patch only when current message evidence matches", () => {
     const result = validateConversationDecisionV3Semantics(decision({
       next_action: "update_candidate_state",

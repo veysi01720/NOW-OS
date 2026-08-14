@@ -13,6 +13,7 @@ import type { Logger } from "../observability/logger.js";
 import type { SenderRole } from "../config/roles.js";
 import type { ChatType } from "../contracts/backendContextPayload.js";
 import { createHash } from "node:crypto";
+import { ModelExecutionAdmission, type ModelExecutionAdmissionSnapshot } from "./modelExecutionAdmission.js";
 
 // --- TEMPORARY P0 DIAGNOSTIC (25 Jul 2026, updated same day) ---
 // Gated by MODEL_EXECUTION_RAW_ERROR_DIAGNOSTICS_ENABLED (default off,
@@ -102,6 +103,7 @@ export interface ModelExecutionOptions {
 }
 
 export interface ModelExecutionRuntimeSnapshot {
+  model_execution_admission: ModelExecutionAdmissionSnapshot;
   model_adapter_layer_global_enabled: boolean;
   model_adapter_canary_mode: "off" | "internal" | "tenant_allowlist";
   model_adapter_canary_mode_configured: "off" | "internal" | "tenant_allowlist";
@@ -217,6 +219,7 @@ export class ModelExecutionService {
   private readonly canaryControl?: ModelAdapterCanaryControl;
   private readonly canaryAdapter?: IModelAdapter;
   private readonly logger?: Logger;
+  private readonly admission = new ModelExecutionAdmission(64);
 
   finalizeCanaryObservation(
     traceId: string,
@@ -226,6 +229,10 @@ export class ModelExecutionService {
   }
 
   async execute(input: ModelExecutionServiceInput, options: ModelExecutionOptions = {}): Promise<ModelAdapterOutput> {
+    return this.admission.run(() => this.executeAdmitted(input, options));
+  }
+
+  private async executeAdmitted(input: ModelExecutionServiceInput, options: ModelExecutionOptions = {}): Promise<ModelAdapterOutput> {
     this.lastTimeoutEnabled = options.timeoutEnabled === true;
     this.lastTimeoutConfigured = Number.isInteger(options.timeoutMs) && Number(options.timeoutMs) > 0;
     this.lastLateResultIgnored = false;
@@ -539,6 +546,7 @@ export class ModelExecutionService {
   snapshot(): ModelExecutionRuntimeSnapshot {
     const canary = this.canaryControl?.snapshot();
     return {
+      model_execution_admission: this.admission.snapshot(),
       model_adapter_layer_global_enabled: this.lastGlobalEnabled,
       model_adapter_canary_mode: this.canaryControl?.effectiveMode(this.lastConfiguredCanaryMode) ?? this.lastCanaryMode,
       model_adapter_canary_mode_configured: this.lastConfiguredCanaryMode,

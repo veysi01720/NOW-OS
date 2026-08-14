@@ -3,6 +3,7 @@ import {
   detectApprovedApp,
   detectModelAcceptance,
   detectPhoneType,
+  isAgeEligible,
 } from "../../bridge/candidateIntakeStateMachine.js";
 import { checkApprovedAppVocabulary } from "../../bridge/approvedAppGuard.js";
 import type { ModelAdapterInput } from "../../modelAdapter/types.js";
@@ -213,8 +214,13 @@ function validatePatchValues(
   reasons: string[],
 ): void {
   const patch = decision.state_patch;
-  if (patch.age !== null && (!Number.isInteger(patch.age) || patch.age < 18 || patch.age > 65)) {
+  if (patch.age !== null && (!Number.isInteger(patch.age) || patch.age < 18)) {
     reasons.push("STATE_PATCH_AGE_INVALID");
+  }
+  const effectiveGender = patch.gender ?? context.candidate_state.gender;
+  const normalizedGender = normalize(String(effectiveGender ?? ""));
+  if (patch.age !== null && ["erkek", "male", "kadin", "female"].includes(normalizedGender) && !isAgeEligible(patch.age, effectiveGender)) {
+    reasons.push("STATE_PATCH_AGE_INELIGIBLE");
   }
   if (patch.daily_hours !== null && (!Number.isInteger(patch.daily_hours) || patch.daily_hours < 1 || patch.daily_hours > 16)) {
     reasons.push("STATE_PATCH_DAILY_HOURS_INVALID");
