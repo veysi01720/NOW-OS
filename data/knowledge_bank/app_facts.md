@@ -130,3 +130,7 @@
 | Linky | Linky | Linky | M9W5B8 |  |  |  | owner_approved | Code |
 | Soyo | Soyo | Soyo | 3997 |  | 3997 |  | owner_approved | Code |
 | Timo | Timo | Timo | VVXVUD |  |  |  | owner_approved | Secondary app option |
+
+## Owner Transfer: Owner direct bilgi
+
+Erkek adaylar için hesap açma kuralı: erkek kullanıcılar sadece kadın profili açıp kadın fotağrafları yükledikleri profilden kazaç sağlar bu durumun uygunluğu önceden adaya sorulur

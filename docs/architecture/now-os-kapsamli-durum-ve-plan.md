@@ -624,3 +624,10 @@ hale gelirse devreye alÄ±nacak. Bu yedek plan henÃ¼z aktif deÄŸildir.
 - `now_os_backend/data/knowledge_bank/app_facts.md` production runtime bind-mount verisidir; deploy bunu otomatik olarak git kaynak dosyasindan kopyalamaz.
 - Knowledge bank degisikliginde deploy'dan once kaynak dosya, runtime dosyaya timestamp'li yedek alinarak acikca kopyalanir; hash ve Chatta/uygulama sayisi kontrol edilmeden publish tetiklenmez.
 - Structured publish yalnizca bu eslenmis runtime dosyadan calistirilir. `app_fact_count`, manifest hash'i ve kritik icerik kontrolleri PASS olmadan `published` sonucu kabul edilmez.
+
+### Owner knowledge materialization ayrisma karari (2026-08-14)
+
+- Sorun: Owner onay zinciri `now_os_backend/data/knowledge_bank/app_facts.md` runtime bind-mount dosyasini guncelliyor; git kaynagi olan `now_os_backend_src/data/knowledge_bank/app_facts.md` otomatik guncellenmiyordu. Bu nedenle onayli bilgi kaybolma riski olmadan iki SHA ayrisabiliyordu.
+- Secenek A: Materialization sonrasinda runtime degisikligini git kaynagina otomatik kopyalamak. Sadece dosya kopyalamak yeterli degildir; audit edilebilirlik icin kontrollu commit/PR gerekir. Ancak production process'ine git credentials vermek, eszamanli degisiklikleri ezmek ve onaysiz commit uretmek ek riskler getirir.
+- Secenek B (onerilen): Runtime knowledge bank'i owner-onayli aktif tek gercek kaynak kabul edilir; git dosyasi baslangic/snapshot kaynagi olarak kalir. Deploy gate runtime dosyasinin git SHA'sini zorunlu esitlik olarak aramaz; bunun yerine timestamp'li backup, source/section hash, manifest, rollback pointer ve durable audit kaydini dogrular. Snapshot alinmak istenirse ayri, kontrollu bir export/PR akisi kullanilir.
+- Karar: Su an Secenek B uygulanacak. Runtime materialization mevcut atomik yazma, backup, hash/manifest ve rollback zinciri olmadan basarili sayilmayacak. Runtime ile git snapshot farki raporlanacak, fakat aktif owner bilgisini git snapshot'ina uymuyor diye ezmek veya deploy sirasinda silmek yasaktir.
