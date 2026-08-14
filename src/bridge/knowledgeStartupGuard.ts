@@ -15,10 +15,6 @@ export interface KnowledgeStartupValidation {
   error_codes: string[];
 }
 
-function sha256(content: Buffer | string): string {
-  return createHash("sha256").update(content).digest("hex");
-}
-
 function normalized(value: string): string {
   return value.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
 }
@@ -30,7 +26,7 @@ function hasAgeInvariant(facts: StructuredAppFactsContext): boolean {
 
 function hasPaymentInvariant(facts: StructuredAppFactsContext): boolean {
   const text = normalized(`${facts.general_work_model?.payment_policy ?? ""} ${facts.policy_sections?.privacy_payment_support ?? ""}`);
-  return /1\s*[-–]\s*3/.test(text) && text.includes("iban") && (text.includes("iptal edilemez") || text.includes("iptal edilemez"));
+  return /1\s*-\s*3/.test(text) && text.includes("iban") && text.includes("iptal edilemez");
 }
 
 function routingTargetsAreApproved(facts: StructuredAppFactsContext, approvedApps: string[]): boolean {
@@ -48,6 +44,7 @@ export function validateKnowledgeAtStartup(knowledgeBankDir?: string): Knowledge
   const manifestPath = resolve(dir, "structured_knowledge_manifest.json");
   let manifestStatus: KnowledgeStartupValidation["manifest_status"] = "missing";
   const errors = [...facts.errors.map(() => "STRUCTURED_FACTS_SCHEMA_INVALID")];
+
   if (existsSync(manifestPath) && facts.source_hash !== null) {
     try {
       const manifestRaw = readFileSync(manifestPath, "utf8");
