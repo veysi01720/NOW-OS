@@ -428,6 +428,8 @@ export async function buildServer() {
     maintenanceStore,
     humanHandoffStore,
     installationVerificationClassifier,
+    actionAuditStore,
+    knowledgeBankDir: resolve(DATA_DIR, "knowledge_bank"),
     userRunLock: new UserRunLock(),
     logger,
     connectionHealthMonitor

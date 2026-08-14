@@ -34,6 +34,7 @@ import type {
   DailyReportStore,
 } from "../storage/types.js";
 import type { MaintenanceStore } from "../store/maintenanceStore.js";
+import type { ActionAuditStore } from "../store/actionAuditStore.js";
 import { handleOwnerCommand } from "./ownerCommands.js";
 import { guardUnbackedOwnerSuccessClaim } from "./ownerSuccessClaimGuard.js";
 import { waitForHumanReplyDelay } from "./humanReplyDelay.js";
@@ -111,6 +112,8 @@ export interface HandleIncomingMessageDeps {
   humanHandoffStore?: HumanHandoffStore;
   trainingHandoffStore?: TrainingHandoffStore;
   installationVerificationClassifier?: InstallationVerificationClassifier;
+  actionAuditStore?: ActionAuditStore;
+  knowledgeBankDir?: string;
 }
 export interface HandleIncomingMessageResult {
   status:
@@ -656,6 +659,7 @@ export async function handleIncomingMessage(
     deps.queueStore,
     deps.ingestionStore,
     deps.maintenanceStore,
+    { zipIngestionStore: deps.zipIngestionStore, actionAuditStore: deps.actionAuditStore, knowledgeBankDir: deps.knowledgeBankDir },
   );
   if (ownerCommandRes.is_command && ownerCommandRes.reply_text) {
     logger.info({

@@ -1,9 +1,14 @@
 import type { EnvConfig } from "../config/env.js";
+import { createHash } from "node:crypto";
 import type { NormalizedIncomingMessage } from "./normalizeEvolutionMessage.js";
 import type { QueueStore } from "../storage/types.js";
 import type { PersistentIngestionStore } from "../storage/ingestionStore.js";
 import type { LearningSuggestion } from "../storage/ingestionTypes.js";
 import type { MaintenanceStore } from "../store/maintenanceStore.js";
+import type { ActionAuditStore } from "../store/actionAuditStore.js";
+import { materializeApprovedOwnerKnowledge } from "./ownerKnowledgeTransfer.js";
+import type { ZipIngestionStore } from "./zipIngestion/store.js";
+import type { ZipLearningCandidateRecord } from "./zipIngestion/types.js";
 import { detectCommandPrefix, routeCoreMode, type CoreMode } from "./modeRouter.js";
 import { buildKnowledgeSyncContext, detectKnowledgeSyncIntent, executeKnowledgeSyncCommand, isApprovedKnowledgeSyncCommand } from "./knowledgeSync.js";
 import { activateLearningFactDryRun, createLearningFactDryRun } from "./learningStructuredPublish.js";
@@ -41,6 +46,95 @@ function normalizeOwnerCommandText(text: string): string {
     .trim();
 }
 
+function ownerKnowledgeRef(candidate: ZipLearningCandidateRecord, index: number): string {
+  const jobSuffix = createHash("sha256").update(candidate.source_job_id).digest("hex").slice(0, 8).toUpperCase();
+  return `BLG-${jobSuffix}-${String(index + 1).padStart(2, "0")}`;
+}
+
+function ownerKnowledgeCandidates(store: ZipIngestionStore | undefined): ZipLearningCandidateRecord[] {
+  return (store?.listLearningCandidates() ?? []).sort((a, b) =>
+    `${a.source_job_id}:${a.created_at}:${a.id}`.localeCompare(`${b.source_job_id}:${b.created_at}:${b.id}`)
+  );
+}
+
+function ownerKnowledgeCandidateByRef(store: ZipIngestionStore | undefined, ref: string): ZipLearningCandidateRecord | undefined {
+  return ownerKnowledgeCandidates(store).find((candidate, index) => ownerKnowledgeRef(candidate, index) === ref.toUpperCase());
+}
+
+function ownerKnowledgeCommand(message: NormalizedIncomingMessage):
+  | { kind: "list" }
+  | { kind: "approve" | "reject"; ref: string }
+  | { kind: "apply" }
+  | null {
+  const text = message.text.trim();
+  if (/^#bekleyenler$/i.test(text)) return { kind: "list" };
+  const decision = text.match(/^#(onayla|reddet)\s+([a-z0-9-]+)$/i);
+  if (decision) return { kind: decision[1].toLowerCase() === "onayla" ? "approve" : "reject", ref: decision[2].toUpperCase() };
+  if (/^#uygula$/i.test(text)) return { kind: "apply" };
+  return null;
+}
+
+function ownerKnowledgeListReply(store: ZipIngestionStore | undefined): string {
+  const all = ownerKnowledgeCandidates(store);
+  const pending = all.filter((candidate) => candidate.status === "pending_owner_review");
+  if (pending.length === 0) return "Bekleyen bilgi bolumu yok. Aktif bilgi degismedi.";
+  const lines = pending.map((candidate) => {
+    const index = all.findIndex((item) => item.id === candidate.id);
+    return `- ${ownerKnowledgeRef(candidate, index)} | ${candidate.section_title ?? candidate.section_id ?? "Basliksiz"} | ${candidate.classification ?? "information"} | ${candidate.target_file ?? "app_facts.md"}`;
+  });
+  return `Bekleyen bilgi bolumleri (${pending.length}):\n${lines.join("\n")}\nOnay icin: #onayla BLG-XXXX-01`;
+}
+
+function auditOwnerKnowledgeCommand(actionAuditStore: ActionAuditStore | undefined, actionType: string, actorRole: string, targetRef: string, resultStatus: "success" | "failure"): void {
+  actionAuditStore?.logAction({
+    action_type: actionType,
+    actor_role: actorRole === "manager" ? "manager" : "owner",
+    actor_masked_ref: "authenticated-owner-command",
+    role_resolution_source: actorRole === "manager" ? "manager_token" : "owner_token",
+    target_type: "learning",
+    target_safe_ref: targetRef,
+    risk_level: "HIGH",
+    confirm_required: true,
+    confirmed: true,
+    result_status: resultStatus,
+  });
+}
+
+function executeOwnerKnowledgeCommand(
+  command: NonNullable<ReturnType<typeof ownerKnowledgeCommand>>,
+  message: NormalizedIncomingMessage,
+  senderRole: string,
+  deps: OwnerKnowledgeCommandDeps,
+): OwnerCommandResult {
+  if (message.chat_type !== "private") return commandResult("Bu komut sadece owner/manager ozel kanalinda kullanilabilir. Hicbir bilgi degismedi.", "owner_knowledge_private_only");
+  if (command.kind === "list") return commandResult(ownerKnowledgeListReply(deps.zipIngestionStore), "owner_knowledge_pending_list");
+  if (!deps.zipIngestionStore) return commandResult("Bilgi inceleme servisi aktif degil. Hicbir bilgi degismedi.", "owner_knowledge_review_unavailable");
+  if (command.kind === "approve" || command.kind === "reject") {
+    const candidate = ownerKnowledgeCandidateByRef(deps.zipIngestionStore, command.ref);
+    if (!candidate) return commandResult(`${command.ref} bulunamadi. Hicbir bilgi degismedi.`, "owner_knowledge_review_invalid_ref");
+    if (candidate.status !== "pending_owner_review") return commandResult(`${command.ref} bekleyen durumda degil (${candidate.status}). Hicbir bilgi degismedi.`, "owner_knowledge_review_not_pending");
+    const updated = deps.zipIngestionStore.reviewLearningCandidate(candidate.id, command.kind === "approve" ? "approve" : "reject", senderRole === "manager" ? "manager" : "owner");
+    const succeeded = updated?.status === (command.kind === "approve" ? "approved_for_bundle" : "rejected");
+    auditOwnerKnowledgeCommand(deps.actionAuditStore, `whatsapp_knowledge_${command.kind}`, senderRole, candidate.id, succeeded ? "success" : "failure");
+    return commandResult(succeeded
+      ? `${command.ref} ${command.kind === "approve" ? "onaylandi" : "reddedildi"}. Aktif bilgi henuz degismedi.`
+      : `${command.ref} islenemedi. Aktif bilgi degismedi.`, `owner_knowledge_${command.kind}`, succeeded);
+  }
+  if (senderRole !== "owner") return commandResult("#uygula sadece owner onayiyla calisir. Aktif bilgi degismedi.", "owner_knowledge_apply_owner_only");
+  const approved = ownerKnowledgeCandidates(deps.zipIngestionStore).filter((candidate) => candidate.status === "approved_for_bundle");
+  if (approved.length === 0) return commandResult("Uygulanacak onayli bolum yok. Aktif bilgi degismedi.", "owner_knowledge_apply_empty");
+  const jobIds = [...new Set(approved.map((candidate) => candidate.source_job_id))];
+  const results = jobIds.map((jobId) => materializeApprovedOwnerKnowledge({ jobId, zipStore: deps.zipIngestionStore!, knowledgeBankDir: deps.knowledgeBankDir, actionAuditStore: deps.actionAuditStore }));
+  const failed = results.filter((result) => result.status !== "published");
+  if (failed.length > 0) {
+    auditOwnerKnowledgeCommand(deps.actionAuditStore, "whatsapp_knowledge_apply", senderRole, jobIds.join(","), "failure");
+    return commandResult(`Bilgi uygulanamadi; aktif bilgi degistirilmedi. Hata: ${failed.map((result) => result.error_code ?? result.status).join(", ")}.`, "owner_knowledge_apply_failed");
+  }
+  const first = results[0];
+  auditOwnerKnowledgeCommand(deps.actionAuditStore, "whatsapp_knowledge_apply", senderRole, jobIds.join(","), "success");
+  return commandResult(`Bilgi uygulandi: ${approved.length} bolum; aktif hash=${first.active_version_hash_masked}; fact_count=${first.fact_count}; activation_status=${first.activation_status}; rollback_pointer=${first.rollback_pointer}.`, "owner_knowledge_apply", true);
+}
+
 function isPendingLearningListRequest(text: string, includeCommandAliases = false): boolean {
   const directRequests = [
     "beklemedeki onerileri goster",
@@ -61,6 +155,12 @@ function learningQueueActionFromText(text: string): { ref: string; action: "appr
     ref: `LRN-${match[1]}`,
     action: match[2] === "onayla" ? "approve" : "reject"
   };
+}
+
+export interface OwnerKnowledgeCommandDeps {
+  zipIngestionStore?: ZipIngestionStore;
+  actionAuditStore?: ActionAuditStore;
+  knowledgeBankDir?: string;
 }
 
 function learningActivationFromText(text: string): { ref: string; token: string } | null {
@@ -297,13 +397,16 @@ export function handleOwnerCommand(
   env: EnvConfig,
   queueStore: QueueStore | undefined,
   ingestionStore: PersistentIngestionStore | undefined,
-  maintenanceStore?: MaintenanceStore
+  maintenanceStore?: MaintenanceStore,
+  knowledgeDeps: OwnerKnowledgeCommandDeps = {}
 ): OwnerCommandResult {
   if (senderRole !== "owner" && senderRole !== "manager") {
     return { is_command: false };
   }
 
   const prefix = detectCommandPrefix(message.text);
+  const knowledgeCommand = ownerKnowledgeCommand(message);
+  if (knowledgeCommand) return executeOwnerKnowledgeCommand(knowledgeCommand, message, senderRole, knowledgeDeps);
   const text = normalizeOwnerCommandText(message.text);
   const learningQueueAction = learningQueueActionFromText(text);
   const learningActivation = learningActivationFromText(text);

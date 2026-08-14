@@ -37,7 +37,7 @@ export interface ModeRoute {
 
 export function detectCommandPrefix(text: string): string | null {
   const normalized = normalize(text);
-  const match = normalized.match(/^(#komut|#kural|#egitim|#zip|#test|#bilgi)(\s|$)/);
+  const match = normalized.match(/^(#komut|#kural|#egitim|#zip|#test|#bilgi|#bekleyenler|#onayla|#reddet|#uygula)(\s|$)/);
   return match?.[1] ?? null;
 }
 
