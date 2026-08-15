@@ -5,9 +5,31 @@ import { defaultUserState } from "../storage/types.js";
 describe("candidate app routing", () => {
   it("uses the approved routing matrix without removed applications", () => {
     const result = resolveCandidatePolicy({ ...defaultUserState(), gender: "kadın" }, ["Layla"]);
-    expect(result.secondary_apps).toEqual(["Timo", "Linky", "Soyo"]);
+    expect(result.secondary_apps).toEqual(["Layla"]);
     expect(result.facts.find((fact) => fact.id === "candidate_default_work_model")?.content).toContain("Layla");
     expect(result.facts.find((fact) => fact.id === "candidate_secondary_app_options")?.content).toContain("Timo");
+  });
+
+  it("does not invent an app when structured facts are unavailable", () => {
+    const result = resolveCandidatePolicy({ ...defaultUserState() }, []);
+    expect(result.facts.some((fact) => fact.id === "candidate_default_work_model")).toBe(false);
+  });
+
+  it("derives the candidate app list from owner-approved structured facts", () => {
+    const facts = ["Layla", "TanChat", "Linky"].map((app) => ({
+      app,
+      android_name: app,
+      ios_name: app,
+      invite_code: null,
+      agency_bind_code: null,
+      agency_code: null,
+      official_url: null,
+      status: "owner_approved",
+      aliases: [],
+      capabilities: { text_only: false, video_required: false },
+    }));
+    const result = resolveCandidatePolicy({ ...defaultUserState() }, [], facts);
+    expect(result.secondary_apps).toEqual(["Layla", "TanChat", "Linky"]);
   });
 
   it("uses general_work_model for ask_job_definition before app-specific routing facts", () => {

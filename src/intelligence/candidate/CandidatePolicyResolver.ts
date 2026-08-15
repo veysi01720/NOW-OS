@@ -160,9 +160,11 @@ export function resolveCandidatePolicy(
   if (useGeneralWorkModel) facts.push(structuredGeneralWorkModelFact(generalWorkModel));
   const structuredFact = useGeneralWorkModel ? null : selectStructuredFact(state, allowedApps, structuredFacts);
   if (structuredFact) facts.push(structuredJobDefinitionFact(structuredFact));
-  const app = useGeneralWorkModel
-    ? null
-    : structuredFact?.app ?? allowedApps.find((item) => item.toLocaleLowerCase("tr-TR") === "layla") ?? allowedApps[0] ?? null;
+  // allowedApps is already derived from owner-approved structured facts in
+  // production; retaining its first entry keeps test/legacy callers that
+  // provide the approved list directly compatible without reintroducing a
+  // hardcoded app name.
+  const app = useGeneralWorkModel ? null : structuredFact?.app ?? allowedApps[0] ?? null;
 
   if ((state.gender === "erkek" || state.gender === "male") && app) {
     facts.push({
@@ -197,6 +199,12 @@ export function resolveCandidatePolicy(
     });
   }
 
+  const approvedApps = structuredFacts
+    .filter((fact) => normalize(fact.status).includes("owner_approved"))
+    .map((fact) => fact.app);
+  const routingApps = approvedApps.length > 0 ? approvedApps : allowedApps;
+  const secondaryApps = routingApps.filter((candidate) => normalize(candidate) !== normalize(state.selected_app ?? ""));
+
   facts.push({
     id: "candidate_secondary_app_options",
     topic: "candidate_app_routing",
@@ -219,7 +227,7 @@ export function resolveCandidatePolicy(
     });
   }
 
-  return { facts, policyMissing: facts.length === 0, secondary_apps: ["Timo", "Linky", "Soyo"] };
+  return { facts, policyMissing: facts.length === 0, secondary_apps: secondaryApps };
 }
 
 function structuredGeneralWorkModelFact(model: StructuredGeneralWorkModel): ConversationPolicyFact {

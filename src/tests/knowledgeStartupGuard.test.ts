@@ -44,4 +44,16 @@ describe("knowledge startup guard", () => {
     expect(result.valid).toBe(false);
     expect(result.error_codes).toContain("STRUCTURED_FACTS_HASH_MISMATCH");
   });
+
+  it("warns about fallback policy conflicts without failing startup", () => {
+    const dir = mkdtempSync(join(tmpdir(), "now-os-knowledge-"));
+    const value = fixture();
+    value.policy_sections.profile_bio_photo_rules = "Kamera zorunlu ve görüntülü çalışma şarttır.";
+    const raw = `${JSON.stringify(value)}\n`;
+    writeFileSync(join(dir, "app_facts_structured.json"), raw);
+    writeFileSync(join(dir, "structured_knowledge_manifest.json"), JSON.stringify({ structured_hash: createHash("sha256").update(raw).digest("hex") }));
+    const result = validateKnowledgeAtStartup(dir);
+    expect(result.valid).toBe(true);
+    expect(result.fallback_policy_warning_codes).toContain("FALLBACK_CAMERA_POLICY_CONFLICT");
+  });
 });

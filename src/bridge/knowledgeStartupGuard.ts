@@ -13,6 +13,7 @@ export interface KnowledgeStartupValidation {
   age_policy_valid: boolean;
   payment_policy_valid: boolean;
   error_codes: string[];
+  fallback_policy_warning_codes: string[];
 }
 
 function normalized(value: string): string {
@@ -36,6 +37,23 @@ function routingTargetsAreApproved(facts: StructuredAppFactsContext, approvedApp
     const names = [app, ...(fact?.aliases ?? [])].map(normalized);
     return names.some((name) => routing.includes(name));
   });
+}
+
+function fallbackPolicyWarnings(facts: StructuredAppFactsContext): string[] {
+  const warnings: string[] = [];
+  const profile = normalized(facts.policy_sections?.profile_bio_photo_rules ?? "");
+  const payment = normalized(`${facts.general_work_model?.payment_policy ?? ""} ${facts.policy_sections?.privacy_payment_support ?? ""}`);
+
+  // These warnings compare only policy claims with the hardcoded safety
+  // boundaries. They never make startup fail; the published source remains
+  // authoritative for candidate-facing content.
+  if (/(kamera|goruntulu).*(zorunlu|sart|gerek)/.test(profile)) {
+    warnings.push("FALLBACK_CAMERA_POLICY_CONFLICT");
+  }
+  if (/(garanti.*(var|verilir|edilir)|kesin.*kazanc|sabit (maas|ucret))/.test(payment)) {
+    warnings.push("FALLBACK_GUARANTEE_POLICY_CONFLICT");
+  }
+  return warnings;
 }
 
 export function validateKnowledgeAtStartup(knowledgeBankDir?: string): KnowledgeStartupValidation {
@@ -63,6 +81,7 @@ export function validateKnowledgeAtStartup(knowledgeBankDir?: string): Knowledge
   const routingValid = facts.source_status === "loaded" && approvedApps.length > 0 && routingTargetsAreApproved(facts, approvedApps);
   const ageValid = facts.source_status === "loaded" && hasAgeInvariant(facts);
   const paymentValid = facts.source_status === "loaded" && hasPaymentInvariant(facts);
+  const fallbackWarnings = fallbackPolicyWarnings(facts);
   if (!routingValid) errors.push("ROUTING_TARGET_NOT_APPROVED");
   if (!ageValid) errors.push("AGE_POLICY_INVARIANT_MISMATCH");
   if (!paymentValid) errors.push("PAYMENT_POLICY_INVARIANT_MISMATCH");
@@ -76,5 +95,6 @@ export function validateKnowledgeAtStartup(knowledgeBankDir?: string): Knowledge
     age_policy_valid: ageValid,
     payment_policy_valid: paymentValid,
     error_codes: [...new Set(errors)],
+    fallback_policy_warning_codes: fallbackWarnings,
   };
 }

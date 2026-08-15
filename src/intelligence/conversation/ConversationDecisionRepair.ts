@@ -36,6 +36,12 @@ function fallbackTopic(context: ConversationDecisionContext): string {
   return "bu konu";
 }
 
+function publishedPolicySection(context: ConversationDecisionContext, key: string): string | null {
+  const sections = context.structured_facts.policy_sections as Record<string, unknown> | null;
+  const value = sections?.[key];
+  return typeof value === "string" && value.trim().length > 0 ? value.trim() : null;
+}
+
 function repeatsRecentAssistantReply(reply: string, context: ConversationDecisionContext): boolean {
   return context.recent_messages
     .filter((message) => message.role === "assistant")
@@ -108,13 +114,20 @@ function baseDecision(reply: string, context: ConversationDecisionContext, origi
 }
 
 function approvedAppFromFacts(context: ConversationDecisionContext): string | null {
+  const approved = context.structured_facts.app_facts
+    .filter((fact) => normalize(fact.status).includes("owner_approved"));
   const structured = context.canonical_policy_facts.find((fact) => fact.id.startsWith("structured_app_job_definition_"));
   if (structured) {
     const match = structured.content.match(/Approved app:\s*([^.]+)\./i);
-    if (match?.[1]) return match[1].trim();
+    if (match?.[1] && approved.some((fact) => normalize(fact.app) === normalize(match[1].trim()))) return match[1].trim();
   }
-  const policyText = normalize(context.canonical_policy_facts.map((fact) => `${fact.fact} ${fact.content}`).join("\n"));
-  return ["Layla", "Soyo", "Amar", "Timo", "Linky"].find((app) => policyText.includes(normalize(app))) ?? null;
+  const canonicalApp = context.canonical_policy_facts
+    .map((fact) => fact.content)
+    .map((content) => content.match(/Approved app:\s*([^.]+)\./i)?.[1]?.trim()
+      ?? content.match(/\b([A-Z][A-Za-z0-9_-]+)\s*\/\s*[A-Z]/)?.[1])
+    .find((value): value is string => Boolean(value));
+  if (canonicalApp) return canonicalApp;
+  return approved[0]?.app ?? null;
 }
 
 function missingFieldActions(context: ConversationDecisionContext): ConversationDecisionAction[] {
@@ -204,8 +217,11 @@ function asksCameraAccountOrProfile(text: string): boolean {
 }
 
 function buildPaymentBoundarySafetyDecision(context: ConversationDecisionContext): ConversationDecision {
-  const reply =
-    "Dogrulanmis kazanc veya odeme detayi yok; yalnizca onayli uygulama icindeki mesajlasma surecini anlatabilirim.";
+  const policy = publishedPolicySection(context, "privacy_payment_support")
+    ?? context.structured_facts.general_work_model?.payment_policy?.trim()
+    ?? null;
+  const reply = policy
+    ?? "Bu konuda dogrulanmis odeme bilgisi bulunmuyor; kesin kazanc veya garanti iddia edemem.";
   return {
     ...baseDecision(reply, context, "deterministic_safety_response"),
     intent: { primary: "payment_question", secondary: [], confidence: 1 },
@@ -223,8 +239,8 @@ function buildPaymentBoundarySafetyDecision(context: ConversationDecisionContext
 }
 
 function buildCameraAccountBoundarySafetyDecision(context: ConversationDecisionContext): ConversationDecision {
-  const reply =
-    "Kamera veya goruntulu calisma zorunlu diye onayli kural soylemiyoruz. Erkek hesap/profil acma zorunlulugu da dogrulanmis degil; bu konuda kesin bir kural iddia edemem.";
+  const reply = publishedPolicySection(context, "profile_bio_photo_rules")
+    ?? "Bu konuda dogrulanmis profil veya hesap bilgisi bulunmuyor; kesin bir kural iddia edemem.";
   return {
     ...baseDecision(reply, context, "deterministic_safety_response"),
     intent: { primary: "account_profile_question", secondary: [], confidence: 1 },

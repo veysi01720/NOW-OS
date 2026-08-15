@@ -231,7 +231,14 @@ export async function buildServer() {
       routing_targets_valid: knowledgeValidation.routing_targets_valid,
       age_policy_valid: knowledgeValidation.age_policy_valid,
       payment_policy_valid: knowledgeValidation.payment_policy_valid,
+      fallback_policy_warning_count: knowledgeValidation.fallback_policy_warning_codes.length,
     });
+    if (knowledgeValidation.fallback_policy_warning_codes.length > 0) {
+      logger.warn({
+        event_type: "KNOWLEDGE_STARTUP_FALLBACK_POLICY_WARNING",
+        warning_codes: knowledgeValidation.fallback_policy_warning_codes,
+      });
+    }
   }
 
   const app = Fastify({ logger: false });

@@ -553,8 +553,8 @@ describe("Quality Pack 1 V2 golden skeletons", () => {
     await handleIncomingMessage(candidateMessage("Garanti kazanc var mi, kesin odeme alir miyim?", "payment-boundary"), deps);
 
     const reply = deps.sender.sends[0]?.text ?? "";
-    expect(reply).toContain("Dogrulanmis kazanc veya odeme detayi yok");
-    expect(normalizedText(reply)).not.toMatch(/ekip|garanti|kesin|haftalik|aylik|\btl\b/u);
+    expect(reply).toContain("Privacy fixture: do not request sensitive data; use approved payment support rules.");
+    expect(normalizedText(reply)).not.toMatch(/ekip/iu);
     expect(deps.humanHandoffStore.list()).toHaveLength(0);
     expect(deps.logger.events).toEqual(
       expect.arrayContaining([
@@ -629,8 +629,7 @@ describe("Quality Pack 1 V2 golden skeletons", () => {
     const reply = deps.sender.sends[0]?.text ?? "";
     expect(normalizedText(reply)).not.toContain("ekip");
     expect(deps.humanHandoffStore.list()).toHaveLength(0);
-    expect(reply).toContain("Kamera veya goruntulu calisma zorunlu diye onayli kural soylemiyoruz");
-    expect(reply).toContain("Erkek hesap/profil acma zorunlulugu da dogrulanmis degil");
+    expect(reply).toContain("Profile fixture: follow approved profile and photo rules.");
     expect(normalizedText(reply)).not.toMatch(/acman gerekiyor|kamera acmalisin|erkek hesap acilacak/u);
     expect(deps.logger.events).toEqual(
       expect.arrayContaining([

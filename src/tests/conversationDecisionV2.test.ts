@@ -573,7 +573,7 @@ describe("Conversation Decision V2 candidate route", () => {
 
     await handleIncomingMessage(message("Erkek hesabı mı açacağız?", "male-account"), testDeps);
 
-    expect(testDeps.sender.sends[0]?.text).toMatch(/erkek hesap\/profil/iu);
+    expect(testDeps.sender.sends[0]?.text).toMatch(/dogrulanmis profil veya hesap bilgisi bulunmuyor/iu);
     expect(testDeps.sender.sends[0]?.text).not.toContain("ekip");
     expect(testDeps.sender.sends[0]?.text).not.toContain("kurulum");
   });
