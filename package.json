@@ -9,6 +9,7 @@
     "start": "node dist/server.js",
     "prebuild": "tsx src/workspace_preflight.ts",
     "build": "tsc -p tsconfig.json",
+    "knowledge:export-runtime": "node scripts/export-runtime-knowledge.mjs",
     "provenance:generate": "node scripts/generate-build-provenance.mjs",
     "provenance:verify": "node scripts/verify-build-provenance.mjs",
     "report:code-hygiene": "node scripts/code-hygiene-report.mjs",

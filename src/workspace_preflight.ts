@@ -56,7 +56,8 @@ function runPreflight() {
   console.log('REAL_PRODUCTION_TARGET=VPS now_os_backend');
   console.log('COMPOSE_PROJECT=deploy_package');
   console.log('TARGET_SERVICE=now_os_backend');
-  console.log('SOURCE_RUNTIME_MATCH=YES');
+  console.log('RUNTIME_DATA_AUTHORITY=RUNTIME_BIND_MOUNT');
+  console.log('GIT_KNOWLEDGE_COPY_ROLE=STARTUP_TEMPLATE_ONLY');
   console.log('RUNTIME_LOCK_STATUS=PRESERVED');
   console.log('WORKSPACE_PREFLIGHT=PASS');
 }

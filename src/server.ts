@@ -219,6 +219,10 @@ export async function buildServer() {
         routing_targets_valid: knowledgeValidation.routing_targets_valid,
         age_policy_valid: knowledgeValidation.age_policy_valid,
         payment_policy_valid: knowledgeValidation.payment_policy_valid,
+        runtime_source_present: knowledgeValidation.runtime_source_present,
+        runtime_source_readable: knowledgeValidation.runtime_source_readable,
+        runtime_backup_present: knowledgeValidation.runtime_backup_present,
+        runtime_manifest_hash_valid: knowledgeValidation.runtime_manifest_hash_valid,
         error_count: knowledgeValidation.error_codes.length,
       });
       throw new Error("Knowledge startup validation failed");
@@ -231,6 +235,11 @@ export async function buildServer() {
       routing_targets_valid: knowledgeValidation.routing_targets_valid,
       age_policy_valid: knowledgeValidation.age_policy_valid,
       payment_policy_valid: knowledgeValidation.payment_policy_valid,
+      runtime_source_present: knowledgeValidation.runtime_source_present,
+      runtime_source_readable: knowledgeValidation.runtime_source_readable,
+      runtime_backup_present: knowledgeValidation.runtime_backup_present,
+      runtime_backup_age_seconds: knowledgeValidation.runtime_backup_age_seconds,
+      runtime_manifest_hash_valid: knowledgeValidation.runtime_manifest_hash_valid,
       fallback_policy_warning_count: knowledgeValidation.fallback_policy_warning_codes.length,
     });
     if (knowledgeValidation.fallback_policy_warning_codes.length > 0) {

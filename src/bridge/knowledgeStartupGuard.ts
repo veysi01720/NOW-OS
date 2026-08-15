@@ -1,8 +1,7 @@
-import { createHash } from "node:crypto";
-import { existsSync, readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { loadStructuredAppFacts, type StructuredAppFactsContext } from "./structuredAppFacts.js";
 import { deriveApprovedApps } from "../config/approvedApps.js";
+import { inspectRuntimeKnowledgeState } from "./runtimeKnowledgeState.js";
 
 export interface KnowledgeStartupValidation {
   valid: boolean;
@@ -12,6 +11,11 @@ export interface KnowledgeStartupValidation {
   routing_targets_valid: boolean;
   age_policy_valid: boolean;
   payment_policy_valid: boolean;
+  runtime_source_present: boolean;
+  runtime_source_readable: boolean;
+  runtime_backup_present: boolean;
+  runtime_backup_age_seconds: number | null;
+  runtime_manifest_hash_valid: boolean;
   error_codes: string[];
   fallback_policy_warning_codes: string[];
 }
@@ -57,25 +61,18 @@ function fallbackPolicyWarnings(facts: StructuredAppFactsContext): string[] {
 }
 
 export function validateKnowledgeAtStartup(knowledgeBankDir?: string): KnowledgeStartupValidation {
-  const facts = loadStructuredAppFacts(knowledgeBankDir);
   const dir = knowledgeBankDir ?? process.env.KNOWLEDGE_BANK_DIR ?? resolve(process.cwd(), "data", "knowledge_bank");
-  const manifestPath = resolve(dir, "structured_knowledge_manifest.json");
-  let manifestStatus: KnowledgeStartupValidation["manifest_status"] = "missing";
+  const runtime = inspectRuntimeKnowledgeState(dir);
+  const facts = loadStructuredAppFacts(dir);
+  const manifestStatus = runtime.manifest_status;
   const errors = [...facts.errors.map(() => "STRUCTURED_FACTS_SCHEMA_INVALID")];
-
-  if (existsSync(manifestPath) && facts.source_hash !== null) {
-    try {
-      const manifestRaw = readFileSync(manifestPath, "utf8");
-      const manifest = JSON.parse(manifestRaw) as Record<string, unknown>;
-      manifestStatus = manifest.structured_hash === facts.source_hash ? "valid" : "invalid";
-      if (manifestStatus !== "valid") errors.push("STRUCTURED_FACTS_HASH_MISMATCH");
-    } catch {
-      manifestStatus = "invalid";
-      errors.push("STRUCTURED_MANIFEST_INVALID");
-    }
-  } else {
-    errors.push("STRUCTURED_MANIFEST_MISSING");
-  }
+  if (runtime.manifest_status === "missing") errors.push("STRUCTURED_MANIFEST_MISSING");
+  if (runtime.manifest_status === "invalid") errors.push("STRUCTURED_FACTS_HASH_MISMATCH");
+  errors.push(...runtime.errors.filter((code) =>
+    code !== "RUNTIME_STRUCTURED_MANIFEST_MISSING" &&
+    code !== "RUNTIME_STRUCTURED_MANIFEST_INVALID" &&
+    code !== "RUNTIME_STRUCTURED_FACTS_INVALID"
+  ));
 
   const approvedApps = deriveApprovedApps(facts, []);
   const routingValid = facts.source_status === "loaded" && approvedApps.length > 0 && routingTargetsAreApproved(facts, approvedApps);
@@ -94,6 +91,11 @@ export function validateKnowledgeAtStartup(knowledgeBankDir?: string): Knowledge
     routing_targets_valid: routingValid,
     age_policy_valid: ageValid,
     payment_policy_valid: paymentValid,
+    runtime_source_present: runtime.runtime_source_present,
+    runtime_source_readable: runtime.runtime_source_readable,
+    runtime_backup_present: runtime.latest_backup_present,
+    runtime_backup_age_seconds: runtime.latest_backup_age_seconds,
+    runtime_manifest_hash_valid: runtime.manifest_hash_valid,
     error_codes: [...new Set(errors)],
     fallback_policy_warning_codes: fallbackWarnings,
   };

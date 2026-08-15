@@ -32,6 +32,8 @@ describe("knowledge startup guard", () => {
     mkdirSync(dir, { recursive: true });
     writeFileSync(join(dir, "app_facts_structured.json"), raw);
     writeFileSync(join(dir, "structured_knowledge_manifest.json"), JSON.stringify({ structured_hash: createHash("sha256").update(raw).digest("hex") }));
+    writeFileSync(join(dir, "app_facts.md"), "# Runtime app facts\n");
+    writeFileSync(join(dir, "app_facts.md.backup-owner-transfer-1"), "# Previous runtime app facts\n");
     expect(validateKnowledgeAtStartup(dir)).toMatchObject({ valid: true, approved_app_count: 6, manifest_status: "valid" });
   });
 
@@ -40,6 +42,8 @@ describe("knowledge startup guard", () => {
     const raw = `${JSON.stringify(fixture())}\n`;
     writeFileSync(join(dir, "app_facts_structured.json"), raw);
     writeFileSync(join(dir, "structured_knowledge_manifest.json"), JSON.stringify({ structured_hash: "wrong" }));
+    writeFileSync(join(dir, "app_facts.md"), "# Runtime app facts\n");
+    writeFileSync(join(dir, "app_facts.md.backup-owner-transfer-1"), "# Previous runtime app facts\n");
     const result = validateKnowledgeAtStartup(dir);
     expect(result.valid).toBe(false);
     expect(result.error_codes).toContain("STRUCTURED_FACTS_HASH_MISMATCH");
@@ -52,6 +56,8 @@ describe("knowledge startup guard", () => {
     const raw = `${JSON.stringify(value)}\n`;
     writeFileSync(join(dir, "app_facts_structured.json"), raw);
     writeFileSync(join(dir, "structured_knowledge_manifest.json"), JSON.stringify({ structured_hash: createHash("sha256").update(raw).digest("hex") }));
+    writeFileSync(join(dir, "app_facts.md"), "# Runtime app facts\n");
+    writeFileSync(join(dir, "app_facts.md.backup-owner-transfer-1"), "# Previous runtime app facts\n");
     const result = validateKnowledgeAtStartup(dir);
     expect(result.valid).toBe(true);
     expect(result.fallback_policy_warning_codes).toContain("FALLBACK_CAMERA_POLICY_CONFLICT");

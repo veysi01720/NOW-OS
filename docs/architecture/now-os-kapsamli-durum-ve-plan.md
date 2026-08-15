@@ -618,12 +618,14 @@ hale gelirse devreye alÄ±nacak. Bu yedek plan henÃ¼z aktif deÄŸildir.
 - KURAL: Logout/pairing islemi GEREKMEDIKCE tekrarlanmayacak; tekrarli denemeler ayni bug'i tetikleyebilir.
 - Kalici cozum secenekleri: (a) bug fix iceren bir Evolution surumune gecmeden once staging'de test etmek, (b) uzun vadede resmi WhatsApp Business API'ye gecisi degerlendirmek.
 
-### Knowledge bank runtime senkronizasyon kurali (2026-08-14)
+### Knowledge bank runtime senkronizasyon kurali (2026-08-15, Secenek B kesinlestirildi)
 
-- TEK KAYNAK: `now_os_backend_src/data/knowledge_bank/app_facts.md` git ile izlenen kaynak dosyadir.
-- `now_os_backend/data/knowledge_bank/app_facts.md` production runtime bind-mount verisidir; deploy bunu otomatik olarak git kaynak dosyasindan kopyalamaz.
-- Knowledge bank degisikliginde deploy'dan once kaynak dosya, runtime dosyaya timestamp'li yedek alinarak acikca kopyalanir; hash ve Chatta/uygulama sayisi kontrol edilmeden publish tetiklenmez.
-- Structured publish yalnizca bu eslenmis runtime dosyadan calistirilir. `app_fact_count`, manifest hash'i ve kritik icerik kontrolleri PASS olmadan `published` sonucu kabul edilmez.
+- **RUNTIME DATA KLASORU (BIND-MOUNT) TEK GERCEK KAYNAKTIR.** `now_os_backend/data/knowledge_bank/` production'daki owner-onayli aktif bilgi bankasidir.
+- Git'teki `now_os_backend_src/data/knowledge_bank/` kopyasi yalnizca baslangic sablonu/referanstir. Deploy runtime data'yi ASLA ezmez ve git kopyasiyla SHA esitligi aramaz.
+- Deploy/startup kontrolu runtime `app_facts.md` varligini/okunabilirligini, en son timestamp'li yedegin varligini, structured facts + manifest hash gecerliligini ve startup guard sonucunu dogrular.
+- Owner knowledge materialization runtime'a atomik yazar; production'a git credential'i vermez ve otomatik commit/push yapmaz.
+- Runtime ile git snapshot'i farkli olabilir; bu tek basina alarm veya deploy blokaji degildir. Gerekirse `scripts/export-runtime-knowledge.mjs --source <runtime> --target <git> --confirm` ile runtime'dan git'e elle snapshot alinir. Script otomatik commit/push yapmaz; snapshot manifesti ve yedegi uretir, commit/push owner/operasyon tarafindan ayrica yapilir.
+- **TEK GERCEK PRODUCTION ENV/KNOWLEDGE KURALI:** Runtime data klasoru (bind-mount) tek gercek kaynaktir. Git'teki `data/` kopyasi referans/baslangic sablonudur. Deploy runtime data'yi ASLA ezmez; senkron gerekiyorsa runtime'dan git'e elle snapshot alinir, tersi degil.
 
 ### Owner knowledge materialization ayrisma karari (2026-08-14)
 
