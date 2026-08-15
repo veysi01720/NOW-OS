@@ -202,17 +202,20 @@ export function resolveCandidatePolicy(
   const approvedApps = structuredFacts
     .filter((fact) => normalize(fact.status).includes("owner_approved"))
     .map((fact) => fact.app);
-  const routingApps = approvedApps.length > 0 ? approvedApps : allowedApps;
-  const secondaryApps = routingApps.filter((candidate) => normalize(candidate) !== normalize(state.selected_app ?? ""));
+  const secondaryApps = approvedApps
+    .filter((candidate) => normalize(candidate) !== normalize(state.selected_app ?? ""));
 
-  facts.push({
-    id: "candidate_secondary_app_options",
-    topic: "candidate_app_routing",
-    fact: "There is no fixed app order. Recommend based on candidate preference, experience, device, and performance. Layla/NIVI is messaging-first; TanChat/TanStar is for voice/video; Amar/Amar Lite is for experienced candidates; secondary options are Timo, Linky, and Soyo. After setup, ask which apps the candidate has used and present only one suitable alternative.",
-    content: "There is no fixed app order. Recommend based on candidate preference, experience, device, and performance. Layla/NIVI is messaging-first; TanChat/TanStar is for voice/video; Amar/Amar Lite is for experienced candidates; secondary options are Timo, Linky, and Soyo. After setup, ask which apps the candidate has used and present only one suitable alternative.",
-    source: "canonical_policy",
-    version: "conversation_v2"
-  });
+  const routingMatrix = policySections?.routing_matrix?.trim();
+  if (routingMatrix && approvedApps.length > 0) {
+    facts.push({
+      id: "candidate_secondary_app_options",
+      topic: "candidate_app_routing",
+      fact: routingMatrix,
+      content: routingMatrix,
+      source: "knowledge_bank",
+      version: "app_facts_structured.json"
+    });
+  }
 
   if (!facts.some((fact) => fact.id === "candidate_default_work_model") && app && !useGeneralWorkModel) {
     facts.push({

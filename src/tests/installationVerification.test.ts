@@ -132,6 +132,23 @@ describe("installation verification media boundary", () => {
     expect(stateStore.states.get("905333333333")?.installation_verification_status).toBe("ambiguous");
     expect(deps.sender.sends.at(-1)?.text).toContain("doğrulanmadı");
     expect(deps.sender.sends.at(-1)?.text).not.toMatch(/Evet, bu (Layla|Amar)/i);
+
+    const paymentDeps = {
+      ...deps,
+      assistantClient: {
+        createThread: async () => "thread_payment",
+        runAssistant: async () => JSON.stringify({ contract_version: "1.0", reply: "Ödeme süresi doğrulanmış kurallara bağlıdır.", internal_boss_note: "" }),
+      },
+    };
+    const paymentResult = await handleIncomingMessage(imageMessage("", {
+      correlation_id: "corr_lock_payment",
+      message_id: "msg_lock_payment",
+      message_type: "conversation",
+      text: "Ödeme ne zaman gelir?",
+      media: undefined,
+    }), paymentDeps);
+    expect(paymentResult.status).not.toBe("reply_send_failed");
+    expect(deps.sender.sends.at(-1)?.text).not.toContain("Kurulum görseli henüz doğrulanmadı");
   });
 
   it("records only metadata and sanitized result; raw image bytes never enter result or logs", async () => {

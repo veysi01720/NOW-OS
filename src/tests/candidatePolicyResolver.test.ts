@@ -5,9 +5,9 @@ import { defaultUserState } from "../storage/types.js";
 describe("candidate app routing", () => {
   it("uses the approved routing matrix without removed applications", () => {
     const result = resolveCandidatePolicy({ ...defaultUserState(), gender: "kadın" }, ["Layla"]);
-    expect(result.secondary_apps).toEqual(["Layla"]);
+    expect(result.secondary_apps).toEqual([]);
     expect(result.facts.find((fact) => fact.id === "candidate_default_work_model")?.content).toContain("Layla");
-    expect(result.facts.find((fact) => fact.id === "candidate_secondary_app_options")?.content).toContain("Timo");
+    expect(result.facts.find((fact) => fact.id === "candidate_secondary_app_options")).toBeUndefined();
   });
 
   it("does not invent an app when structured facts are unavailable", () => {

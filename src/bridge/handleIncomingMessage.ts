@@ -84,6 +84,14 @@ import {
 } from "./installationVerification.js";
 import { buildOwnerKnowledgeReviewSummary, materializeApprovedOwnerKnowledge, persistOwnerKnowledgeReviewSummary } from "./ownerKnowledgeTransfer.js";
 import { buildZipIngestionOutcomeReply, createDirectOwnerKnowledgeReview } from "./ownerKnowledgeIntake.js";
+
+function requiresInstallationVerification(text: string): boolean {
+  const normalized = text.toLocaleLowerCase("tr-TR").normalize("NFKD").replace(/\p{M}/gu, "").replace(/Ä±/gu, "i");
+  return /(?:uygulama|app).*(?:dogru mu|bu mu|bu uygulama mi)/u.test(normalized)
+    || /bu mu (?:uygulama|app)/u.test(normalized)
+    || /kurulum.*(?:tamam|bitti|dogru|onay)/u.test(normalized)
+    || /(?:devam edebilir miyim|kuruluma devam|kuruluma gecebilir miyim)/u.test(normalized);
+}
 export interface HandleIncomingMessageDeps {
   env: EnvConfig;
   assistantClient?: {
@@ -805,6 +813,7 @@ export async function handleIncomingMessage(
       isCandidate &&
       message.chat_type === "private" &&
       storedState?.installation_verification_status === "ambiguous"
+      && requiresInstallationVerification(message.text)
     ) {
       logger.info({
         event_type: "INSTALLATION_VERIFICATION_LOCKED",
