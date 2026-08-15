@@ -618,6 +618,13 @@ hale gelirse devreye alÄ±nacak. Bu yedek plan henÃ¼z aktif deÄŸildir.
 - KURAL: Logout/pairing islemi GEREKMEDIKCE tekrarlanmayacak; tekrarli denemeler ayni bug'i tetikleyebilir.
 - Kalici cozum secenekleri: (a) bug fix iceren bir Evolution surumune gecmeden once staging'de test etmek, (b) uzun vadede resmi WhatsApp Business API'ye gecisi degerlendirmek.
 
+### Evolution surum karari (2026-08-15)
+
+- Evolution `2.3.7`'de kalinacak. `Invalid buffer` bug'inin `2.4.0`'da cozulduguna dair kanit yok; ayni hata `2.4.0-rc2` uzerinde de raporlanmis.
+- `2.4.0` zorunlu lisans aktivasyonu ve veritabani migration'i gerektiriyor; mevcut production icin gereksiz risk olarak degerlendirildi.
+- Mevcut dayaniklilik katmanlariyla (otomatik reconnect, cooldown, connecting timeout) devam edilecek.
+- Yeniden degerlendirme kosulu: upstream'de bu bug icin NET bir duzeltme kaniti cikmasi VE ayri bir test numarasinin mevcut olmasi. Bu kosullar saglanirsa once staging'de denenir; production'a dogrudan yukseltilmez.
+
 ### Knowledge bank runtime senkronizasyon kurali (2026-08-15, Secenek B kesinlestirildi)
 
 - **RUNTIME DATA KLASORU (BIND-MOUNT) TEK GERCEK KAYNAKTIR.** `now_os_backend/data/knowledge_bank/` production'daki owner-onayli aktif bilgi bankasidir.
