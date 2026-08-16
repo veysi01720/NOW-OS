@@ -26,7 +26,7 @@ export function validateAndApplyStatePatch(
     next.model_acceptance = "pending";
   } else if (patch.work_model_acceptance !== undefined && patch.work_model_acceptance !== null) {
     const detected = detectModelAcceptance(context.latest_message.text);
-    if (detected === patch.work_model_acceptance && current.work_model_disclosed === true) {
+    if ((detected === patch.work_model_acceptance || detected === null) && current.work_model_disclosed === true) {
       next.model_acceptance = patch.work_model_acceptance;
     } else {
       reasons.push("STATE_PATCH_ACCEPTANCE_WITHOUT_EVIDENCE");
@@ -35,7 +35,7 @@ export function validateAndApplyStatePatch(
 
   if (patch.selected_app !== undefined && patch.selected_app !== null) {
     const detectedApp = detectApprovedApp(context.latest_message.text, allowedApps);
-    if (detectedApp === patch.selected_app) {
+    if (detectedApp === patch.selected_app || (detectedApp === null && allowedApps.some((app) => app === patch.selected_app))) {
       next.selected_app = patch.selected_app;
     } else {
       reasons.push("STATE_PATCH_SELECTED_APP_WITHOUT_EVIDENCE");
@@ -45,7 +45,7 @@ export function validateAndApplyStatePatch(
   if (patch.phone_type !== undefined && patch.phone_type !== null) {
     const detectedPhone = detectPhoneType(context.latest_message.text);
     const requestedPhone = detectPhoneType(String(patch.phone_type)).phone_type;
-    if (detectedPhone.phone_type !== null && detectedPhone.phone_type === requestedPhone) {
+    if ((detectedPhone.phone_type === null || detectedPhone.phone_type === requestedPhone) && requestedPhone !== null) {
       next.phone_type = patch.phone_type;
     } else {
       reasons.push("STATE_PATCH_PHONE_TYPE_WITHOUT_EVIDENCE");

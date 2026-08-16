@@ -12,6 +12,7 @@ import { getConversationKey } from "./buildBackendContext.js";
 import type { NormalizedIncomingMessage } from "./normalizeEvolutionMessage.js";
 import { resolveAuthorityContext, type AuthorityContext } from "./authorityContext.js";
 import { applyUserStateTransition } from "../storage/userStateTransitionBoundary.js";
+import { findNormalizedHint, matchesNormalizedHint, normalizeUserText } from "../utils/textNormalization.js";
 
 export type CandidateCurrentState =
   | "NEW_LEAD"
@@ -42,10 +43,7 @@ export interface CandidateStateMachineResult {
 }
 
 function normalizeText(value: string): string {
-  return value
-    .toLocaleLowerCase("tr-TR")
-    .normalize("NFKD")
-    .replace(/\p{M}/gu, "")
+  return normalizeUserText(value)
     .replace(/\b(gunde|gunluk)(\d{1,2})\b/gu, "$1 $2 saat")
     .replace(/\byirmi\s+yedi\b/gu, "27")
     .replace(/\bdort\b/gu, "4")
@@ -261,19 +259,12 @@ export function deriveCandidateState(state: UserState, conversationDecisionV2Ena
 }
 
 export function detectApprovedApp(text: string, allowedApps: string[]): string | null {
-  const normalizedText = normalizeText(text);
-  return (
-    allowedApps.find((app) => {
-      const normalizedApp = normalizeText(app);
-      return new RegExp(`(^|[^\\p{L}\\p{N}])${normalizedApp}([^\\p{L}\\p{N}]|$)`, "u").test(normalizedText);
-    }) ?? null
-  );
+  return findNormalizedHint(text, allowedApps, (app) => app, { strict: false });
 }
 
 export function detectPhoneType(text: string): { phone_type: "android" | "ios" | null; ambiguous: boolean } {
-  const normalizedText = normalizeText(text);
-  const hasAndroid = /\b(android|samsung|xiaomi|huawei|oppo|vivo|redmi|realme)\b/u.test(normalizedText);
-  const hasIphone = /\b(iphone|ios|apple)\b/u.test(normalizedText);
+  const hasAndroid = matchesNormalizedHint(text, ["android", "samsung", "xiaomi", "huawei", "oppo", "vivo", "redmi", "realme"]);
+  const hasIphone = matchesNormalizedHint(text, ["iphone", "ios", "apple", "iphon", "ayfon"]);
 
   if (hasAndroid && hasIphone) {
     return { phone_type: null, ambiguous: true };
@@ -292,11 +283,9 @@ export function detectPhoneType(text: string): { phone_type: "android" | "ios" |
 
 export function detectModelAcceptance(text: string): "accepted" | "rejected" | null {
   const normalizedText = normalizeText(text);
-  if (/\b(kabul|uygun|uygub|tamam|olur|evet|baslayalim|baÅŸlayalim|anladim)\b/u.test(normalizedText)) {
+  if (matchesNormalizedHint(normalizedText, ["uygun degil", "istemiyorum", "hayir", "vazgectim", "kabul etmiyorum", "olmaz", "red", "reddet"], { strict: true })) return "rejected";
+  if (matchesNormalizedHint(normalizedText, ["kabul", "uygun", "uygundur", "tamam", "tmm", "olur", "evet", "evt", "ok", "baslayalim", "anladim"], { forbidden: ["olmaz", "hayir", "istemiyorum", "vazgectim", "reddet"] })) {
     return "accepted";
-  }
-  if (/\b(uygun degil|istemiyorum|hayir|vazgectim|kabul etmiyorum)\b/u.test(normalizedText)) {
-    return "rejected";
   }
   return null;
 }
@@ -331,8 +320,8 @@ export function detectPreviousPlatformExperience(text: string): UserState["previ
 export function detectAgeGenderDailyHours(text: string): IntakeDetection {
   const normalizedText = normalizeText(text);
   const result: IntakeDetection = {};
-  if (/\b(erkek[\p{L}\p{N}_]*|erkeg[\p{L}\p{N}_]*|bay|male)\b/u.test(normalizedText)) result.gender = "erkek";
-  if (/\b(kadin[\p{L}\p{N}_]*|kadın[\p{L}\p{N}_]*|kadÄ±n[\p{L}\p{N}_]*|bayan|female)\b/u.test(normalizedText)) result.gender = "kadın";
+  if (matchesNormalizedHint(normalizedText, ["erkek", "erkegim", "bay", "male"])) result.gender = "erkek";
+  if (matchesNormalizedHint(normalizedText, ["kadin", "bayan", "female"], { forbidden: ["erkek"] })) result.gender = "kadın";
   const ageMatch = normalizedText.match(/(?:^|[^\d])([1-9]\d)(?:\s*(?:yas|yaÅŸ|y))?(?:[^\d]|$)/u);
   if (ageMatch) {
     const age = Number(ageMatch[1]);

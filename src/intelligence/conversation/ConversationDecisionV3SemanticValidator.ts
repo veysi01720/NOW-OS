@@ -154,14 +154,18 @@ function currentMessageSupports(
   if (field === "daily_hours") return intake.daily_hours === value;
   if (field === "selected_app") {
     const detected = detectApprovedApp(context.latest_message, context.allowed_apps);
-    return detected !== null && normalize(detected) === normalize(String(value));
+    return (detected !== null && normalize(detected) === normalize(String(value)))
+      || (detected === null && context.allowed_apps.some((app) => normalize(app) === normalize(String(value))));
   }
   if (field === "phone_type") {
     const detected = detectPhoneType(context.latest_message).phone_type;
     const requested = detectPhoneType(String(value)).phone_type;
-    return detected !== null && detected === requested;
+    return requested !== null && (detected === null || detected === requested);
   }
-  if (field === "work_model_acceptance") return detectModelAcceptance(context.latest_message) === value;
+  if (field === "work_model_acceptance") {
+    const detected = detectModelAcceptance(context.latest_message);
+    return detected === null || detected === value;
+  }
 
   const latest = normalize(context.latest_message);
   const textOnly = /\b(sadece\s+(mesaj|mesajlas|yazis)|goruntulu\s+(istem|olmasin)|kamerasiz)\w*/u.test(latest);

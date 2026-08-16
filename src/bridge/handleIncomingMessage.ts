@@ -1,4 +1,5 @@
 import { redactSecrets } from "../utils/redaction.js";
+import { matchesNormalizedHint, normalizeUserText } from "../utils/textNormalization.js";
 import type { EnvConfig } from "../config/env.js";
 import {
   publishLocalKnowledgeToOpenAI,
@@ -381,7 +382,7 @@ async function holdOperationalQuestionForOwner(
       }
     }
     try {
-      const candidateText = "Owner yanıtı gecikti; konun ekip kontrolüne yönlendiriliyor. Ekip kısa süre içinde seninle iletişime geçecek.";
+      const candidateText = "Owner yanıtı gecikti; sorunu ilgili destek hattına yönlendirdik. Kısa süre içinde dönüş yapılacak.";
       await deps.sender.sendText({ message: syntheticPrivateMessage(pending.owner_query.candidate_phone, "", message.correlation_id), text: candidateText });
     } catch (error) {
       deps.logger.warn({ event_type: "OWNER_ANSWER_REQUIRED_CANDIDATE_NOTICE_FAILED", correlation_id: message.correlation_id, error: redactSecrets(error instanceof Error ? error.message : String(error)) });
@@ -395,7 +396,7 @@ async function holdOperationalQuestionForOwner(
 }
 
 function normalizeOwnerDecisionText(value: string): string {
-  return value.trim().toLocaleLowerCase("tr-TR").normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/ı/g, "i").replace(/\s+/g, " ");
+  return normalizeUserText(value);
 }
 
 function parseInstallationOwnerReply(text: string): { suffix: string; decision: "approved" | "rejected"; correction?: string } | null {
@@ -403,8 +404,8 @@ function parseInstallationOwnerReply(text: string): { suffix: string; decision: 
   const match = normalized.match(/^gorsel\s+(\d{4})\s+([\s\S]+)$/u);
   if (!match) return null;
   const value = match[2].trim();
-  if (/^(onay|onayliyorum|onayla|tamam|olur|gecti)$/u.test(value)) return { suffix: match[1], decision: "approved" };
-  if (/^(red|ret|reddet|olmadi|gecmedi)$/u.test(value)) return { suffix: match[1], decision: "rejected" };
+  if (matchesNormalizedHint(value, ["onay", "onayliyorum", "onayla", "tamam", "olur", "gecti"])) return { suffix: match[1], decision: "approved" };
+  if (matchesNormalizedHint(value, ["red", "ret", "reddet", "olmadi", "gecmedi"], { strict: true })) return { suffix: match[1], decision: "rejected" };
   return { suffix: match[1], decision: "rejected", correction: value };
 }
 
