@@ -6,6 +6,7 @@ import {
   parsePolicySectionsFromMarkdown,
   parseOwnerTransferSectionsFromMarkdown,
   parseStructuredAppFactsFromMarkdown,
+  normalizeHeading,
   publishStructuredKnowledgeSources,
 } from "../bridge/structuredKnowledgePublish.js";
 import { validAppFactsMarkdown } from "./fixtures/knowledgeBankFixture.js";
@@ -50,6 +51,58 @@ describe("structured knowledge publish", () => {
       installation_permission: expect.stringContaining("Installation fixture"),
       privacy_payment_support: expect.stringContaining("Privacy fixture"),
       followup_closure_group_rules: expect.stringContaining("Follow-up fixture"),
+    }));
+  });
+
+  it.each([
+    ["Turkish", "Genel İş Modeli"],
+    ["ASCII", "Genel Is Modeli"],
+    ["mixed Turkish I", "Genel İs Modeli"],
+    ["uppercase Turkish", "GENEL İŞ MODELİ"],
+    ["mojibake", "Genel Ä°ÅŸ Modeli"],
+  ])("parses %s general work model heading", (_label, heading) => {
+    const markdown = validAppFactsMarkdown(true).replace(/^##\s+.+$/mu, `## ${heading}`);
+    const normalized = normalizeHeading(heading);
+    expect(normalized).toBe("genel is modeli");
+    const dir = mkdtempSync(join(tmpdir(), "now-os-general-heading-"));
+    dirs.push(dir);
+    writeFileSync(resolve(dir, "app_facts.md"), markdown, "utf8");
+
+    const result = publishStructuredKnowledgeSources({ knowledgeBankDir: dir, mode: "activate", ownerApproval: true });
+
+    expect(result.status).toBe("published");
+    expect(JSON.parse(readFileSync(resolve(dir, "app_facts_structured.json"), "utf8")).general_work_model).toEqual(
+      expect.objectContaining({ app_independent: true }),
+    );
+  });
+
+  it("parses policy headings across Turkish, ASCII, and mojibake variants", () => {
+    const variants = [
+      "Uygulama Yonlendirme Matrisi",
+      "Uygulama Bagimsizligi",
+      "Profil, Bio ve Fotograf Kurallari",
+      "BELLEK VE TEKRAR SORMAMA",
+      "Uygunluk ve Red",
+      "Kurulum Izni",
+      "Gizlilik, Odeme ve Teknik Destek",
+      "Takip, Kapanis ve Grup Operasyonlari",
+    ];
+    let markdown = validAppFactsMarkdown(true);
+    let headingIndex = 0;
+    let policyHeadingIndex = 0;
+    markdown = markdown.replace(/^##\s+.+$/gmu, (line) => {
+      if (headingIndex++ === 0 || policyHeadingIndex >= variants.length) return line;
+      return `## ${variants[policyHeadingIndex++]}`;
+    });
+    expect(parsePolicySectionsFromMarkdown(markdown)).toEqual(expect.objectContaining({
+      routing_matrix: expect.any(String),
+      application_independence: expect.any(String),
+      profile_bio_photo_rules: expect.any(String),
+      memory_rules: expect.any(String),
+      eligibility_rejection: expect.any(String),
+      installation_permission: expect.any(String),
+      privacy_payment_support: expect.any(String),
+      followup_closure_group_rules: expect.any(String),
     }));
   });
 

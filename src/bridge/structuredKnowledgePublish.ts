@@ -293,6 +293,14 @@ const POLICY_SECTION_ALIASES: Record<keyof StructuredPolicySections, string[]> =
 
 export function normalizeHeading(value: string): string {
   return value
+    .replaceAll("ÃƒÂ¶", "o")
+    .replaceAll("ÃƒÂ¼", "u")
+    .replaceAll("ÃƒÂ§", "c")
+    .replaceAll("Ã„Â±", "i")
+    .replaceAll("Ã„Å¸", "g")
+    .replaceAll("Ã…Å¸", "s")
+    .replaceAll("Ã„Â°", "i")
+    .replaceAll("Ã…Å¾", "s")
     .toLocaleLowerCase("tr-TR")
     .replaceAll("Ã¶", "o")
     .replaceAll("Ã¼", "u")
@@ -308,21 +316,29 @@ export function normalizeHeading(value: string): string {
     .replaceAll("ç", "c")
     .replaceAll("ö", "o")
     .replaceAll("ü", "u")
+    .replaceAll("ä±", "i")
+    .replaceAll("ä°", "i")
+    .replaceAll("åÿ", "s")
+    .replaceAll("åŸ", "s")
+    .replaceAll("åž", "s")
+    .replaceAll("äŸ", "g")
+    .replaceAll("ã§", "c")
+    .replaceAll("ã¶", "o")
+    .replaceAll("ã¼", "u")
     .normalize("NFKD")
     .replace(/\p{M}/gu, "")
     .replace(/[^\p{L}\p{N}]+/gu, " ")
     .trim();
 }
 
-export function parsePolicySectionsFromMarkdown(markdown: string): StructuredPolicySections | null {
+function parseH2Sections(markdown: string): Map<string, string> {
   const sections = new Map<string, string>();
-  const lines = markdown.split(/\r?\n/);
   let currentHeading: string | null = null;
   let currentBody: string[] = [];
   const flush = () => {
     if (currentHeading !== null) sections.set(currentHeading, currentBody.join("\n").trim());
   };
-  for (const line of lines) {
+  for (const line of markdown.split(/\r?\n/)) {
     const heading = line.match(/^##\s+(.+?)\s*$/u);
     if (heading) {
       flush();
@@ -333,6 +349,11 @@ export function parsePolicySectionsFromMarkdown(markdown: string): StructuredPol
     }
   }
   flush();
+  return sections;
+}
+
+export function parsePolicySectionsFromMarkdown(markdown: string): StructuredPolicySections | null {
+  const sections = parseH2Sections(markdown);
 
   const result = {} as StructuredPolicySections;
   for (const [key, aliases] of Object.entries(POLICY_SECTION_ALIASES) as Array<[keyof StructuredPolicySections, string[]]>) {
@@ -365,7 +386,7 @@ export function parseOwnerTransferSectionsFromMarkdown(markdown: string): Array<
 }
 
 function parseGeneralWorkModel(markdown: string): StructuredGeneralWorkModel | null {
-  const section = markdown.match(/##\s+Genel İş Modeli\s*\r?\n([\s\S]*?)(?=\r?\n##\s|$)/iu)?.[1] ?? "";
+  const section = parseH2Sections(markdown).get("genel is modeli") ?? "";
   const values = new Map<string, string>();
   for (const line of section.split(/\r?\n/)) {
     const match = line.match(/^\s*-\s*(summary|workflow|earnings_policy|payment_policy|setup_boundary):\s*(.+?)\s*$/iu);
