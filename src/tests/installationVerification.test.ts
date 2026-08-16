@@ -129,6 +129,32 @@ describe("installation verification media boundary", () => {
     expect(deps.sender.sends).toHaveLength(1);
   });
 
+  it("forwards an owner correction on a rejected review and keeps the candidate locked", async () => {
+    const stateStore = new InMemoryUserStateStore();
+    stateStore.states.set("905333333333", {
+      ...defaultUserState(),
+      current_state: "INSTALLATION_IN_PROGRESS",
+      installation_status: "in_progress",
+    });
+    const reviewStore = new InstallationVerificationReviewStore(join(mkdtempSync(join(tmpdir(), "install-review-reject-")), "reviews.json"));
+    const deps = {
+      ...baseDeps(),
+      env: createTestEnv({ installationVisionEnabled: true, installationVisionAllowedCandidates: ["905333333333"] }),
+      userStateStore: stateStore,
+      installationVerificationReviewStore: reviewStore,
+      installationVerificationClassifier: () => ({ status: "clear" as const, sanitized_result: "INSTALLATION_SCREEN_VISIBLE" }),
+    };
+
+    await handleIncomingMessage(imageMessage(clearInstallationScreenshot, { message_id: "msg_reject_image" }), deps);
+    const result = await handleIncomingMessage(ownerMessage("görsel 3333 kullanıcı adında ay işareti yok, düzeltsin"), deps);
+
+    expect(result.status).toBe("sent");
+    expect(reviewStore.list()[0]?.decision).toBe("rejected");
+    expect(stateStore.states.get("905333333333")?.current_state).toBe("INSTALLATION_IN_PROGRESS");
+    expect(deps.sender.sends.at(-2)?.text).toContain("kullanici adinda ay isareti yok");
+    expect(deps.sender.sends.at(-1)?.text).toContain("duzeltme iletildi");
+  });
+
   it("locks later candidate messages after ambiguous verification and never makes a definitive claim", async () => {
     const stateStore = new InMemoryUserStateStore();
     stateStore.states.set("905333333333", {
