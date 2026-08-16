@@ -640,3 +640,14 @@ hale gelirse devreye alÄ±nacak. Bu yedek plan henÃ¼z aktif deÄŸildir.
 - Secenek A: Materialization sonrasinda runtime degisikligini git kaynagina otomatik kopyalamak. Sadece dosya kopyalamak yeterli degildir; audit edilebilirlik icin kontrollu commit/PR gerekir. Ancak production process'ine git credentials vermek, eszamanli degisiklikleri ezmek ve onaysiz commit uretmek ek riskler getirir.
 - Secenek B (onerilen): Runtime knowledge bank'i owner-onayli aktif tek gercek kaynak kabul edilir; git dosyasi baslangic/snapshot kaynagi olarak kalir. Deploy gate runtime dosyasinin git SHA'sini zorunlu esitlik olarak aramaz; bunun yerine timestamp'li backup, source/section hash, manifest, rollback pointer ve durable audit kaydini dogrular. Snapshot alinmak istenirse ayri, kontrollu bir export/PR akisi kullanilir.
 - Karar: Su an Secenek B uygulanacak. Runtime materialization mevcut atomik yazma, backup, hash/manifest ve rollback zinciri olmadan basarili sayilmayacak. Runtime ile git snapshot farki raporlanacak, fakat aktif owner bilgisini git snapshot'ina uymuyor diye ezmek veya deploy sirasinda silmek yasaktir.
+
+### Reklam oncesi gece kontrolu ve mevcut mimari kararlari (2026-08-16)
+
+- Terra/Responses global default'tur; V2/Assistants emekli edilmis geri donus kodu olarak tutulur ve aktif trafik yolu degildir.
+- Owner bilgi zinciri `#bilgi` + tek bolum icin `evet`, cok bolum icin `#bekleyenler`, `#onayla <ID>`, `#uygula` kapilarindan gecer. Onay ve materialization kaniti olmadan aktif oldu iddiasi kullanilmaz.
+- Kurulum gorseli otomatik karar kaynagi degildir: gorsel owner/owner 2'ye iletilir, owner onayi olmadan state ilerlemez; ham gorsel kalici depolanmaz.
+- Owner ve owner 2 ayni yetki sinifindadir. Yeni bot hatti ile mevcut ekip hatti ayri operasyon rolleridir; numara degerleri bu dokumana yazilmaz.
+- Policy context aday asamasina gore yuklenir: intake, app_selection, installation. Constraint kurallar her asamada; bilgi bolumleri asamaya gore secilir, training content aday context'ine girmez.
+- Dogal dil normalizasyonu Turkce/ASCII varyantlarini ve sinirli typo toleransini destekler; detector karar kapisi degil, model kararina yardimci ipucudur.
+- Evolution `2.3.7`'de kalma karari gecerlidir. `Invalid buffer` icin kesin upstream fix kaniti yoktur; reconnect cooldown ve connecting timeout korunur. Upgrade ancak net upstream fix + ayri test numarasi ile staging'de degerlendirilir.
+- 2026-08-16 regresyon notu: app-selection model varyansi tespit edildi; secili onayli uygulama icin Responses prompt'una acik state-patch/evidence sozlesmesi eklendi. Gercek Terra 5/5 tekrar olcumu deploy sonrasi yapilacak.

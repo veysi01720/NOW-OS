@@ -125,6 +125,10 @@ describe("Responses decision context boundary", () => {
     expect(instructions).toMatch(/at most one clear question/i);
     expect(instructions).toMatch(/never call tools, send messages, write state/i);
     expect(instructions).toMatch(/diagnostic only/i);
+    expect(instructions).toMatch(/For app selection, when candidate_state\.selected_app is null/i);
+    expect(instructions).toMatch(/record state_patch\.selected_app/i);
+    expect(instructions).toMatch(/Do not use begin_setup before selected_app is recorded/i);
+    expect(instructions).toMatch(/never ask which app the candidate was sent to/i);
     expect(instructions).toMatch(/backend validators independently compute final quality/i);
   });
 

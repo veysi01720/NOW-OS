@@ -325,3 +325,13 @@ src/tests/workspaceLock.test.ts                                  |   1 +
 - `npm audit --omit=dev` returned 0 vulnerabilities locally and on the VPS source tree. No `npm audit fix` was run because there was no vulnerability or lockfile change to fix.
 - The false-positive code-hygiene `Possible Unreachable Statements` heuristic was removed. Dead-file, overlapping-guard, untested-export, and TODO marker sections remain. Current counts: 5 dead-file candidates, 14 low-reference functions, 77 untested exports, 7 markers.
 - Full local verification: build PASS; 102 test files / 702 tests PASS. Production deploy remains pending owner approval because these harness/report changes are not deployed.
+
+## Overnight Regression Hardening - 2026-08-16
+
+- Current deployed source before this checkpoint: `58acd65`; Terra/Responses is the global production route and V2/Assistants is retired from active traffic.
+- Stage-based policy context is active for intake, app selection, and installation. Runtime knowledge remains authoritative; training content is separate and excluded from candidate context.
+- A real VPS Terra chain had `4/5` full passes. The only observed variance was app selection: the model sometimes replied correctly but omitted `state_patch.selected_app`. A narrow Responses prompt contract now requires canonical app resolution, current-message evidence, and `next_action=update_candidate_state`; no deterministic fast-path was added.
+- Local verification after the hardening change: targeted Responses prompt tests `8/8`, build PASS, full suite `111 files / 784 tests PASS`.
+- VPS read-only checkpoint: backend/Evolution/PostgreSQL running with restart count zero; healthz/readyz 200; provider_unavailable count 0 in the last 24h; VPS HEAD matched GitHub master at `58acd65`.
+- VPS Evolution connection state could not be authenticated by the available read-only key request and returned 401; no claim of an open WhatsApp session is made. Evolution logs show a recent LOGOUT/pairing event, so connection stability is an outstanding risk and no reconnect/logout action was taken in this checkpoint.
+- Next gate: deploy the prompt hardening with the normal P0 process, then run the no-outbound real Terra regression corpus at least 5 times per behavior and record pass ratios. No live WhatsApp messages, owner approvals, state resets, or Evolution operations are part of this checkpoint.

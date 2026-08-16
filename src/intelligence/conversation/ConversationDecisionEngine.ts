@@ -109,6 +109,7 @@ export function buildDecisionPrompt(context: ConversationDecisionContext, repair
     "structured_facts is backend-owned official grounding. Copy approved app names, iPhone names, codes, and capabilities exactly; never invent or override it with model knowledge.",
     "Treat canonical_policy_facts as atomic facts, not as a ready-made reply.",
     "Do not ask known age/gender/daily_hours again.",
+    "For app selection, when candidate_state.selected_app is null and the latest message contains an approved app name or approved alias from structured_facts.app_facts, resolve it to the exact canonical allowed_apps value and record state_patch.selected_app with current_message evidence (evidence_ref=null). Include acknowledge_information when allowed and use next_action=update_candidate_state. Do not use begin_setup before selected_app is recorded. If no approved app evidence is present, ask for an approved app; never ask which app the candidate was sent to.",
     context.derived_state.dialogue_phase === "WORK_MODEL_DISCLOSURE"
       ? [
           "WORK_MODEL_DISCLOSURE positive example:",
