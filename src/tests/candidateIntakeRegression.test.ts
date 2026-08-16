@@ -1,4 +1,7 @@
 import { vi } from "vitest";
+import { mkdtempSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { handleIncomingMessage } from "../bridge/handleIncomingMessage.js";
 import type { NormalizedIncomingMessage } from "../bridge/normalizeEvolutionMessage.js";
 import { InMemoryStore } from "../storage/memoryStore.js";
@@ -6,6 +9,11 @@ import { InMemoryMessageDedupeStore } from "../storage/messageDedupeStore.js";
 import { UserRunLock } from "../queue/userRunLock.js";
 import { createTestEnv } from "./testDoubles.js";
 import { defaultUserState, UserState, UserIdentityInput } from "../storage/types.js";
+import { writeValidKnowledgeBankFixture } from "./fixtures/knowledgeBankFixture.js";
+
+const knowledgeBankDir = mkdtempSync(join(tmpdir(), "nowos-intake-regression-facts-"));
+writeValidKnowledgeBankFixture(knowledgeBankDir);
+afterAll(() => rmSync(knowledgeBankDir, { recursive: true, force: true }));
 
 class TestUserStateStore {
   public states = new Map<string, UserState>();
@@ -94,6 +102,7 @@ describe("Candidate Intake Regression Fixture", () => {
       userStateStore,
       eventLogStore: new TestEventLogStore(),
       userRunLock: new UserRunLock(),
+      knowledgeBankDir,
       logger: { info: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn() } as any,
       modelExecutionService,
     };

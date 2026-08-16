@@ -18,6 +18,10 @@ import { writeValidKnowledgeBankFixture } from "./fixtures/knowledgeBankFixture.
 import { buildDeterministicSafetyDecision } from "../intelligence/conversation/ConversationDecisionRepair.js";
 import { inferConversationIntent } from "../intelligence/conversation/ConversationContextBuilder.js";
 
+const defaultKnowledgeDir = mkdtempSync(join(tmpdir(), "nowos-conversation-v2-facts-"));
+writeValidKnowledgeBankFixture(defaultKnowledgeDir);
+afterAll(() => rmSync(defaultKnowledgeDir, { recursive: true, force: true }));
+
 const PREVIOUS_WORK_MODEL_REPLY =
   "Bilgilerini aldım. Onaylı uygulamada mesajlaşma ağırlıklı ve kamera açmadan ilerleyen çalışma modelini açıklıyorum. Kuruluma geçmeden önce bu çalışma modelinin sana uygun olduğunu netleştirelim. Uygun mu?";
 
@@ -79,6 +83,7 @@ function deps(responses: string[]) {
     messageDedupeStore: new InMemoryMessageDedupeStore(),
     userStateStore: new InMemoryUserStateStore(),
     userRunLock: new UserRunLock(),
+    knowledgeBankDir: defaultKnowledgeDir,
     logger: createSilentLogger()
   };
 }
