@@ -81,6 +81,58 @@ describe("candidate app routing", () => {
     expect(result.facts.some((fact) => fact.id === "policy_section_profile_bio_photo_rules")).toBe(true);
   });
 
+  it("projects the selected app's published installation facts into the stage context", () => {
+    const result = resolveCandidatePolicy(
+      { ...defaultUserState(), current_state: "INSTALLATION_IN_PROGRESS", selected_app: "Layla" },
+      ["Layla"],
+      [{
+        app: "Layla",
+        android_name: "Layla",
+        ios_name: "NIVI",
+        invite_code: "G-8UNHAWUFC",
+        agency_bind_code: null,
+        agency_code: null,
+        official_url: "https://example.test/layla",
+        status: "owner_approved",
+        aliases: ["Leyla"],
+        capabilities: { text_only: true, video_required: false },
+      }],
+      null,
+      "installation_question",
+      validPolicySectionsForTest(),
+    );
+
+    const fact = result.facts.find((item) => item.id === "structured_app_fact_layla");
+    expect(fact?.content).toContain("https://example.test/layla");
+    expect(fact?.content).toContain("G-8UNHAWUFC");
+    expect(fact?.content).toContain("NIVI");
+  });
+
+  it("projects the approved app catalog during app selection without requiring intent mappings", () => {
+    const result = resolveCandidatePolicy(
+      { ...defaultUserState(), current_state: "WAITING_FOR_APP" },
+      [],
+      ["Layla", "TanChat"].map((app) => ({
+        app,
+        android_name: app,
+        ios_name: app,
+        invite_code: null,
+        agency_bind_code: null,
+        agency_code: null,
+        official_url: null,
+        status: "owner_approved",
+        aliases: [],
+        capabilities: { text_only: false, video_required: false },
+      })),
+      null,
+      "unseen_app_selection_intent",
+      validPolicySectionsForTest(),
+    );
+
+    expect(result.facts.some((item) => item.id === "structured_app_fact_layla")).toBe(true);
+    expect(result.facts.some((item) => item.id === "structured_app_fact_tanchat")).toBe(true);
+  });
+
   it("uses profile rules for account_profile_question", () => {
     const result = resolveCandidatePolicy(
       { ...defaultUserState(), gender: "erkek" },

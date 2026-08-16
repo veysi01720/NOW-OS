@@ -66,6 +66,30 @@ function structuredJobDefinitionFact(fact: StructuredAppFact): ConversationPolic
   return { id: `structured_app_job_definition_${normalize(fact.app).replace(/[^a-z0-9]+/gu, "_")}`, topic: "candidate_work_model", fact: content, content, source: "knowledge_bank", version: "app_facts_structured.json" };
 }
 
+function structuredAppFactForStage(fact: StructuredAppFact, stage: CandidatePolicyStage): ConversationPolicyFact {
+  const details = [
+    `Approved application: ${fact.app}.`,
+    `Android display name: ${fact.android_name}.`,
+    `iOS display name: ${fact.ios_name}.`,
+    fact.official_url ? `Official download link: ${fact.official_url}.` : "Official download link: not published.",
+    fact.invite_code ? `Invite code: ${fact.invite_code}.` : "Invite code: not published.",
+    fact.agency_bind_code ? `Agency bind code: ${fact.agency_bind_code}.` : "Agency bind code: not published.",
+    fact.agency_code ? `Agency code: ${fact.agency_code}.` : "Agency code: not published.",
+    `Text-only capability: ${fact.capabilities.text_only ? "yes" : "not marked"}.`,
+  ].join(" ");
+  const content = stage === "installation"
+    ? `${details} Use only these published values during installation; do not invent a link, code, account, or control-screen step.`
+    : `Published application option: ${fact.app}; Android=${fact.android_name}; iOS=${fact.ios_name}; text-only=${fact.capabilities.text_only ? "yes" : "not marked"}. Do not ask which application the candidate was sent to.`;
+  return {
+    id: `structured_app_fact_${normalize(fact.app).replace(/[^a-z0-9]+/gu, "_")}`,
+    topic: stage === "installation" ? "installation_application_facts" : "candidate_app_options",
+    fact: content,
+    content,
+    source: "knowledge_bank",
+    version: "app_facts_structured.json",
+  };
+}
+
 export interface OwnerTransferPolicySection {
   section_id: string;
   title: string;
@@ -132,6 +156,15 @@ export function resolveCandidatePolicy(
   if (useGeneralWorkModel) facts.push(structuredGeneralWorkModelFact(generalWorkModel));
   const structuredFact = useGeneralWorkModel ? null : selectStructuredFact(state, allowedApps, structuredFacts);
   if (structuredFact) facts.push(structuredJobDefinitionFact(structuredFact));
+  if (stage === "installation" && structuredFact) {
+    facts.push(structuredAppFactForStage(structuredFact, stage));
+  }
+  if (stage === "app_selection") {
+    const appCatalog = structuredFacts
+      .filter((fact) => normalize(fact.status).includes("owner_approved"))
+      .map((fact) => structuredAppFactForStage(fact, stage));
+    for (const fact of appCatalog) facts.push(fact);
+  }
   const app = structuredFact?.app ?? allowedApps[0] ?? null;
 
   if ((state.gender === "erkek" || state.gender === "male") && app) {
