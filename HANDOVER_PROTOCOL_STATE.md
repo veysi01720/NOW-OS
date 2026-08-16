@@ -328,11 +328,11 @@ src/tests/workspaceLock.test.ts                                  |   1 +
 
 ## Overnight Regression Hardening - 2026-08-16
 
-- Current deployed source before this checkpoint: `58acd65`; Terra/Responses is the global production route and V2/Assistants is retired from active traffic.
+- Current deployed source before this checkpoint: `19d254b`; Terra/Responses is the global production route and V2/Assistants is retired from active traffic.
 - Stage-based policy context is active for intake, app selection, and installation. Runtime knowledge remains authoritative; training content is separate and excluded from candidate context.
-- A real VPS Terra chain had `4/5` full passes. The only observed variance was app selection: the model sometimes replied correctly but omitted `state_patch.selected_app`. A narrow Responses prompt contract now requires canonical app resolution, current-message evidence, and `next_action=update_candidate_state`; no deterministic fast-path was added.
+- A real VPS Terra chain first had `4/5` full passes because app selection sometimes omitted `state_patch.selected_app`. The app-selection contract was deployed, then phone-type showed the same variance and received the same narrow treatment. The final post-deploy chain is `5/5` with both patches present; no deterministic fast-path was added.
 - Local verification after the hardening change: targeted Responses prompt tests `8/8`, build PASS, full suite `111 files / 784 tests PASS`.
 - VPS read-only checkpoint: backend/Evolution/PostgreSQL running with restart count zero; healthz/readyz 200; provider_unavailable count 0 in the last 24h; VPS HEAD matched GitHub master at `58acd65`.
 - VPS Evolution connection state could not be authenticated by the available read-only key request and returned 401; no claim of an open WhatsApp session is made. Evolution logs show a recent LOGOUT/pairing event, so connection stability is an outstanding risk and no reconnect/logout action was taken in this checkpoint.
-- Next gate: deploy the prompt hardening with the normal P0 process, then run the no-outbound real Terra regression corpus at least 5 times per behavior and record pass ratios. No live WhatsApp messages, owner approvals, state resets, or Evolution operations are part of this checkpoint.
-- Post-deploy result: app-selection state capture reached `5/5`; one phone-type turn still omitted its state patch. A parallel narrow phone-type prompt contract was added locally, with the same canonical-value/evidence/transition requirements. It requires the P0 deploy and a second no-outbound measurement.
+- Post-deploy result: `19d254b` passed the P0 gate (784/784 tests, no-cache build, provenance labels, backend-only recreate, healthz/readyz 200) and the real Terra chain reached `5/5` with zero outbound.
+- Remaining evidence gap: the existing real harness covers intake, work acceptance, app selection, and phone type. Independent five-repeat assertions for payment, profile/photo, security boundary, off-topic routing, installation policy, and the owner visual flow still need a dedicated no-outbound corpus; they are not claimed as PASS here.
