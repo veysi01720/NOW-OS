@@ -427,7 +427,9 @@ describe("Quality Pack 1 V2 golden skeletons", () => {
     await handleIncomingMessage(candidateMessage("Hangi uygulamalar var", "fallback-repeat-safety-2"), deps);
     await handleIncomingMessage(candidateMessage("Hangi uygulamalar var", "fallback-repeat-safety-3"), deps);
 
-    const replies = deps.sender.sends.map((send) => send.text);
+    const replies = deps.sender.sends
+      .filter((send) => send.message.phone_number === CANDIDATE_PHONE)
+      .map((send) => send.text);
     expect(replies).toHaveLength(3);
     expect(new Set(replies).size).toBe(3);
     expect(normalizedText(replies[0] ?? "")).toContain("bunu hemen kontrol ediyorum");
@@ -455,7 +457,9 @@ describe("Quality Pack 1 V2 golden skeletons", () => {
     await handleIncomingMessage(candidateMessage("Nasil ilerleyecegim?", "fallback-repeat-transport-2"), deps);
     await handleIncomingMessage(candidateMessage("Nasil ilerleyecegim?", "fallback-repeat-transport-3"), deps);
 
-    const replies = deps.sender.sends.map((send) => send.text);
+    const replies = deps.sender.sends
+      .filter((send) => send.message.phone_number === CANDIDATE_PHONE)
+      .map((send) => send.text);
     expect(replies).toHaveLength(3);
     expect(new Set(replies).size).toBe(3);
     expect(normalizedText(replies[0] ?? "")).toContain("bunu hemen kontrol ediyorum");
@@ -575,13 +579,20 @@ describe("Quality Pack 1 V2 golden skeletons", () => {
 
     expect(deps.humanHandoffStore.list()).toHaveLength(1);
     expect(deps.humanHandoffStore.list()[0]?.reason_code).toBe("conversational_escalation_claim");
-    expect(normalizedText(deps.sender.sends[0]?.text ?? "")).toContain("kontrol");
-    expect(normalizedText(deps.sender.sends[0]?.text ?? "")).not.toContain("ekip");
+    expect(deps.humanHandoffStore.findPendingOwnerQuery()?.notification_status).toBe("sent");
+    const candidateReply = deps.sender.sends.find((item) => item.message.phone_number === CANDIDATE_PHONE)?.text ?? "";
+    expect(normalizedText(candidateReply)).toContain("kontrol");
+    expect(normalizedText(candidateReply)).not.toContain("ekip");
+    expect(deps.sender.sends.some((item) => item.message.phone_number === OWNER_PHONE)).toBe(true);
     expect(deps.logger.events).toEqual(
       expect.arrayContaining([
         expect.objectContaining({
           event_type: "HUMAN_HANDOFF_RECORDED",
           reason_code: "conversational_escalation_claim",
+        }),
+        expect.objectContaining({
+          event_type: "OWNER_ANSWER_REQUIRED_NOTIFICATION_SENT",
+          recipient_role: "owner",
         }),
       ]),
     );

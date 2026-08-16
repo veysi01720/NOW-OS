@@ -33,9 +33,16 @@ type CreateInput = {
   source_correlation_id: string;
 };
 
+type CreateOwnerQueryInput = Omit<CreateInput, "reason_code"> & {
+  reason_code?: string;
+  candidate_phone: string;
+  question_sanitized: string;
+  failure_reason: string;
+};
+
 export interface HumanHandoffStore {
   create(input: CreateInput): { created: boolean; record: HumanHandoffRecord };
-  createOwnerQuery(input: Omit<CreateInput, "reason_code"> & { candidate_phone: string; question_sanitized: string; failure_reason: string }): { created: boolean; record: HumanHandoffRecord };
+  createOwnerQuery(input: CreateOwnerQueryInput): { created: boolean; record: HumanHandoffRecord };
   findPendingOwnerQuery(): HumanHandoffRecord | null;
   resolveOwnerQuery(handoffId: string): boolean;
   markOwnerNotification(handoffId: string, status: "sent" | "failed"): boolean;
@@ -94,9 +101,10 @@ export class PersistentHumanHandoffStore implements HumanHandoffStore {
     return { created: true, record };
   }
 
-  createOwnerQuery(input: Omit<CreateInput, "reason_code"> & { candidate_phone: string; question_sanitized: string; failure_reason: string }): { created: boolean; record: HumanHandoffRecord } {
-    const result = this.create({ ...input, reason_code: "owner_answer_required" });
-    if (!result.created) return result;
+  createOwnerQuery(input: CreateOwnerQueryInput): { created: boolean; record: HumanHandoffRecord } {
+    const { reason_code: reasonCode = "owner_answer_required", ...createInput } = input;
+    const result = this.create({ ...createInput, reason_code: reasonCode });
+    if (!result.created && result.record.owner_query !== undefined) return result;
     result.record.notification_enabled = true;
     result.record.notification_status = "pending";
     result.record.owner_query = {
@@ -105,12 +113,17 @@ export class PersistentHumanHandoffStore implements HumanHandoffStore {
       failure_reason: input.failure_reason,
       team_escalated: false,
     };
+    result.record.updated_at = new Date().toISOString();
     this.save();
-    return result;
+    return { created: true, record: result.record };
   }
 
   findPendingOwnerQuery(): HumanHandoffRecord | null {
-    return this.records.find((item) => item.status === "pending" && item.reason_code === "owner_answer_required" && item.owner_query?.team_escalated !== true) ?? null;
+    return this.records.find((item) => (
+      item.status === "pending"
+      && item.owner_query !== undefined
+      && item.owner_query.team_escalated !== true
+    )) ?? null;
   }
 
   resolveOwnerQuery(handoffId: string): boolean {

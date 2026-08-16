@@ -23,3 +23,22 @@ describe("owner answer-required handoffs",()=>{it("stores a sanitized candidate 
  expect(s.markOwnerNotification(query.record.handoff_id,"sent")).toBe(true);
  expect(s.resolveOwnerQuery(query.record.handoff_id)).toBe(true);expect(s.findPendingOwnerQuery()).toBeNull();
 });});
+
+describe("owner-query escalation reason preservation",()=>{it("keeps the original conversational reason while enabling owner relay",()=>{
+ const d=mkdtempSync(join(tmpdir(),"handoff-conversational-query-"));const s=new PersistentHumanHandoffStore(join(d,"handoffs.json"));
+ const query=s.createOwnerQuery({tenant_id:"now_os",reason_code:"conversational_escalation_claim",conversation_key_hash:"candidate",source_correlation_id:"c1",candidate_phone:"905333333333",question_sanitized:"Bu akış ne demek?",failure_reason:"model_response_needs_owner_review"});
+ expect(query.created).toBe(true);expect(query.record.reason_code).toBe("conversational_escalation_claim");expect(query.record.notification_enabled).toBe(true);expect(s.findPendingOwnerQuery()?.handoff_id).toBe(query.record.handoff_id);
+});});
+
+describe("legacy conversational escalation upgrade",()=>{it("turns an old non-query handoff into a notifiable owner query",()=>{
+ const d=mkdtempSync(join(tmpdir(),"handoff-conversational-upgrade-"));const s=new PersistentHumanHandoffStore(join(d,"handoffs.json"));
+ const old=s.create({tenant_id:"now_os",reason_code:"conversational_escalation_claim",conversation_key_hash:"candidate",source_correlation_id:"old"});
+ const query=s.createOwnerQuery({tenant_id:"now_os",reason_code:"conversational_escalation_claim",conversation_key_hash:"candidate",source_correlation_id:"new",candidate_phone:"905333333333",question_sanitized:"Bu akış ne demek?",failure_reason:"model_response_needs_owner_review"});
+ expect(old.created).toBe(true);expect(query.created).toBe(true);expect(query.record.handoff_id).toBe(old.record.handoff_id);expect(query.record.owner_query?.candidate_phone).toBe("905333333333");expect(query.record.notification_status).toBe("pending");
+});});
+
+describe("owner-query lookup",()=>{it("does not mistake a regular handoff for an owner question",()=>{
+ const d=mkdtempSync(join(tmpdir(),"handoff-query-filter-"));const s=new PersistentHumanHandoffStore(join(d,"handoffs.json"));
+ s.create({tenant_id:"now_os",reason_code:"ASSISTANT_RESPONSE_INVALID",conversation_key_hash:"candidate",source_correlation_id:"c1"});
+ expect(s.findPendingOwnerQuery()).toBeNull();
+});});

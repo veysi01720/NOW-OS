@@ -341,34 +341,75 @@ function sanitizeOwnerQuestion(text: string, phone: string): string {
     .slice(0, 500);
 }
 
-const OWNER_ANSWER_PENDING_REPLY = "Bunu hemen kontrol ediyorum; birkaç dakika içinde döneceğim.";
+const OWNER_ANSWER_PENDING_REPLIES = [
+  "Bunu hemen kontrol ediyorum; birkaç dakika içinde döneceğim.",
+  "Bunu kontrol ediyorum; kısa süre içinde dönüş yapacağım.",
+  "Sorunu aldım, doğrulayıp kısa süre içinde yanıtlayacağım.",
+] as const;
+
+function selectOwnerAnswerPendingReply(
+  message: NormalizedIncomingMessage,
+  deps: HandleIncomingMessageDeps,
+): string {
+  const previousReplies = new Set(
+    deps.memoryStore.get(getConversationKey(message)).last_5_bot_replies
+      .map((reply) => normalizeUserText(reply)),
+  );
+  return OWNER_ANSWER_PENDING_REPLIES.find(
+    (reply) => !previousReplies.has(normalizeUserText(reply)),
+  ) ?? OWNER_ANSWER_PENDING_REPLIES[0];
+}
 
 async function holdOperationalQuestionForOwner(
   deps: HandleIncomingMessageDeps,
   message: NormalizedIncomingMessage,
+  options: {
+    force?: boolean;
+    reasonCode?: string;
+    failureReason?: string;
+  } = {},
 ): Promise<boolean> {
-  if (!deps.humanHandoffStore || !isOperationalUnknownQuestion(message)) return false;
+  if (!deps.humanHandoffStore || (!options.force && !isOperationalUnknownQuestion(message))) return false;
   const key = message.chat_type === "private" ? message.phone_number : message.remote_jid;
   const result = deps.humanHandoffStore.createOwnerQuery({
     tenant_id: "now_os",
+    reason_code: options.reasonCode,
     conversation_key_hash: createHash("sha256").update(key).digest("hex"),
     source_correlation_id: message.correlation_id,
     candidate_phone: message.phone_number,
     question_sanitized: sanitizeOwnerQuestion(message.text, message.phone_number),
-    failure_reason: "verified_knowledge_missing_or_unavailable",
+    failure_reason: options.failureReason ?? "verified_knowledge_missing_or_unavailable",
   });
   if (!result.created) return true;
 
+  deps.logger.info({
+    event_type: "HUMAN_HANDOFF_RECORDED",
+    correlation_id: message.correlation_id,
+    handoff_id: result.record.handoff_id,
+    reason_code: result.record.reason_code,
+    raw_text_logged: false,
+  });
+
   const ownerText = `Aday sorusu (${message.phone_number.slice(-4)}): ${result.record.owner_query?.question_sanitized ?? "[soru gizlendi]"}. Yanıt verememe nedeni: bilgi bankasında doğrulanmış karşılık yok veya doğrulanamadı. Lütfen adaya iletilecek kısa yanıtı yazın.`;
-  let notified = false;
-  for (const phone of deps.env.ownerPhoneNumbers) {
+  let notificationCount = 0;
+  for (const [ownerIndex, phone] of deps.env.ownerPhoneNumbers.entries()) {
     try {
       await deps.sender.sendText({ message: syntheticPrivateMessage(phone, ownerText, message.correlation_id), text: ownerText });
-      notified = true;
+      notificationCount += 1;
+      deps.logger.info({
+        event_type: "OWNER_ANSWER_REQUIRED_NOTIFICATION_SENT",
+        correlation_id: message.correlation_id,
+        handoff_id: result.record.handoff_id,
+        recipient_role: "owner",
+        recipient_index: ownerIndex + 1,
+        candidate_last4: message.phone_number.slice(-4),
+        raw_text_logged: false,
+      });
     } catch (error) {
-      deps.logger.warn({ event_type: "OWNER_ANSWER_REQUIRED_NOTIFICATION_FAILED", correlation_id: message.correlation_id, error: redactSecrets(error instanceof Error ? error.message : String(error)) });
+      deps.logger.warn({ event_type: "OWNER_ANSWER_REQUIRED_NOTIFICATION_FAILED", correlation_id: message.correlation_id, handoff_id: result.record.handoff_id, recipient_role: "owner", recipient_index: ownerIndex + 1, error: redactSecrets(error instanceof Error ? error.message : String(error)), raw_text_logged: false });
     }
   }
+  const notified = notificationCount > 0;
   deps.humanHandoffStore.markOwnerNotification(result.record.handoff_id, notified ? "sent" : "failed");
   const timeout = setTimeout(async () => {
     const pending = deps.humanHandoffStore?.findPendingOwnerQuery();
@@ -391,7 +432,7 @@ async function holdOperationalQuestionForOwner(
     deps.logger.warn({ event_type: "OWNER_ANSWER_REQUIRED_TEAM_ESCALATED", correlation_id: message.correlation_id, candidate_last4: pending.owner_query.candidate_phone.slice(-4), raw_text_logged: false });
   }, 15 * 60 * 1000);
   timeout.unref?.();
-  deps.logger.info({ event_type: "OWNER_ANSWER_REQUIRED", correlation_id: message.correlation_id, handoff_id: result.record.handoff_id, owner_notification_sent: notified, owner_count: deps.env.ownerPhoneNumbers.length, candidate_last4: message.phone_number.slice(-4), raw_text_logged: false });
+  deps.logger.info({ event_type: "OWNER_ANSWER_REQUIRED", correlation_id: message.correlation_id, handoff_id: result.record.handoff_id, owner_notification_sent: notified, owner_notification_count: notificationCount, owner_count: deps.env.ownerPhoneNumbers.length, candidate_last4: message.phone_number.slice(-4), raw_text_logged: false });
   return true;
 }
 
@@ -1464,11 +1505,23 @@ export async function handleIncomingMessage(
         });
          const policyContextGap = (decisionResult.context.derived_state.missing_stage_sections ?? []).length > 0
            && decisionResult.context.structured_facts?.policy_sections !== null;
-         const ownerAnswerRequired = policyContextGap
-           ? await holdOperationalQuestionForOwner(deps, message)
-           : (decisionResult.origin.startsWith("deterministic_")
-             && (decisionResult.decision.requires_escalation || decisionResult.origin === "deterministic_transport_failure")
-             && await holdOperationalQuestionForOwner(deps, message));
+         const conversationalEscalation = decisionResult.decision.requires_escalation
+           && decisionResult.decision.escalation_reason === "conversational_escalation_claim";
+         let ownerAnswerRequired = false;
+         if (policyContextGap) {
+           ownerAnswerRequired = await holdOperationalQuestionForOwner(deps, message);
+         }
+         if (!ownerAnswerRequired && conversationalEscalation) {
+           ownerAnswerRequired = await holdOperationalQuestionForOwner(deps, message, {
+             force: true,
+             reasonCode: "conversational_escalation_claim",
+             failureReason: "model_response_needs_owner_review",
+           });
+         }
+         if (!ownerAnswerRequired && decisionResult.origin.startsWith("deterministic_")
+           && (decisionResult.decision.requires_escalation || decisionResult.origin === "deterministic_transport_failure")) {
+           ownerAnswerRequired = await holdOperationalQuestionForOwner(deps, message);
+         }
          if (
            !ownerAnswerRequired &&
            decisionResult.decision.requires_escalation &&
@@ -1526,7 +1579,10 @@ export async function handleIncomingMessage(
           source: "conversation_decision_v2",
           authority: authorityContext,
         });
-         const replySent = await sendReply(message, ownerAnswerRequired ? OWNER_ANSWER_PENDING_REPLY : decisionResult.finalReply, deps, latencyTracker);
+         const outboundReply = ownerAnswerRequired
+           ? selectOwnerAnswerPendingReply(message, deps)
+           : decisionResult.finalReply;
+         const replySent = await sendReply(message, outboundReply, deps, latencyTracker);
         if (!replySent) {
           recordEvent(deps, {
             message,
@@ -1544,7 +1600,7 @@ export async function handleIncomingMessage(
             error_layer: "EvolutionSendText",
           };
         }
-         deps.memoryStore.appendBotReply(conversationKey, ownerAnswerRequired ? OWNER_ANSWER_PENDING_REPLY : decisionResult.finalReply);
+         deps.memoryStore.appendBotReply(conversationKey, outboundReply);
         recordEvent(deps, {
           message,
           state: decisionResult.nextState,
@@ -1566,7 +1622,7 @@ export async function handleIncomingMessage(
          if (!ownerAnswerRequired) recordHumanHandoff(deps, message, "MODEL_UNABLE_TO_COMPLETE");
         const fallbackSent = await sendReply(
           message,
-          ownerAnswerRequired ? OWNER_ANSWER_PENDING_REPLY : ASSISTANT_SAFE_FALLBACK_REPLY,
+          ownerAnswerRequired ? selectOwnerAnswerPendingReply(message, deps) : ASSISTANT_SAFE_FALLBACK_REPLY,
           deps,
           latencyTracker,
         );
@@ -1689,7 +1745,7 @@ export async function handleIncomingMessage(
       if (!ownerAnswerRequired) recordHumanHandoff(deps, message, "ASSISTANT_API_ERROR");
       const fallbackSent = await sendReply(
         message,
-        ownerAnswerRequired ? OWNER_ANSWER_PENDING_REPLY : ASSISTANT_SAFE_FALLBACK_REPLY,
+        ownerAnswerRequired ? selectOwnerAnswerPendingReply(message, deps) : ASSISTANT_SAFE_FALLBACK_REPLY,
         deps,
         latencyTracker,
       );
@@ -1725,7 +1781,7 @@ export async function handleIncomingMessage(
       if (!ownerAnswerRequired) recordHumanHandoff(deps, message, "ASSISTANT_RESPONSE_INVALID");
       const fallbackSent = await sendReply(
         message,
-        ownerAnswerRequired ? OWNER_ANSWER_PENDING_REPLY : ASSISTANT_SAFE_FALLBACK_REPLY,
+        ownerAnswerRequired ? selectOwnerAnswerPendingReply(message, deps) : ASSISTANT_SAFE_FALLBACK_REPLY,
         deps,
         latencyTracker,
       );

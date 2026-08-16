@@ -52,7 +52,10 @@ export function validateAndApplyStatePatch(
     }
   }
 
-  if (patch.preferred_work_mode !== undefined || patch.video_allowed !== undefined) {
+  const preferenceTouched =
+    (patch.preferred_work_mode !== undefined && patch.preferred_work_mode !== null)
+    || (patch.video_allowed !== undefined && patch.video_allowed !== null);
+  if (preferenceTouched) {
     if (patch.preferred_work_mode !== "text_only" || patch.video_allowed !== false) {
       reasons.push("STATE_PATCH_TEXT_ONLY_PREFERENCE_INVALID");
     } else {
@@ -78,7 +81,21 @@ export function validateAndApplyStatePatch(
     }
   }
 
-  if (patch.age !== undefined || patch.gender !== undefined || patch.daily_hours !== undefined) {
+  const intakePatch = {
+    age: patch.age,
+    gender: patch.gender,
+    daily_hours: patch.daily_hours,
+  };
+  const intakeFields = Object.entries(intakePatch)
+    .filter(([, value]) => value !== undefined && value !== null) as Array<
+      ["age" | "gender" | "daily_hours", number | string]
+    >;
+  const authoritativeIntakeEcho = intakeFields.length > 0
+    && intakeFields.every(([field, value]) =>
+      context.facts_extracted_from_current_message.includes(field)
+      && current[field] === value,
+    );
+  if (intakeFields.length > 0 && !authoritativeIntakeEcho) {
     reasons.push("AUTHORITATIVE_INTAKE_PATCH_NOT_ALLOWED_FROM_DECISION");
   }
 

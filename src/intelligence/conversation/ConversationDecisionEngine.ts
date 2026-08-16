@@ -26,6 +26,7 @@ import {
   type ConversationDecisionV3PolicyNormalizationResult,
 } from "./ConversationDecisionV3PolicyNormalizer.js";
 import { mapConversationDecisionV3ToBackendDecision } from "./ConversationDecisionV3Mapper.js";
+import { splitValidatorReasonCodes } from "./ConversationValidatorReasonCatalog.js";
 
 export interface ConversationDecisionEngineResult {
   context: ConversationDecisionContext;
@@ -49,6 +50,34 @@ export interface ConversationDecisionEngineResult {
 }
 
 export const CONVERSATION_BEHAVIOR_PROMPT_VERSION = "conversation_behavior_v2.1";
+
+function evaluateLegacyDecisionChecks(input: {
+  validationReasons: string[];
+  qualityReasons: string[];
+  twoLayerValidatorEnabled: boolean;
+  semanticQuestionAnswered: boolean | null;
+}): {
+  accepted: boolean;
+  acceptedWithVariance: boolean;
+  layer1ReasonCodes: string[];
+  layer2ReasonCodes: string[];
+} {
+  const categorized = splitValidatorReasonCodes([
+    ...input.validationReasons,
+    ...input.qualityReasons,
+  ]);
+  const acceptedWithVariance = input.twoLayerValidatorEnabled
+    && input.semanticQuestionAnswered === true
+    && categorized.layer_1_reason_codes.length === 0
+    && categorized.layer_2_reason_codes.length > 0;
+  return {
+    accepted: categorized.layer_1_reason_codes.length === 0
+      && (categorized.layer_2_reason_codes.length === 0 || acceptedWithVariance),
+    acceptedWithVariance,
+    layer1ReasonCodes: categorized.layer_1_reason_codes,
+    layer2ReasonCodes: categorized.layer_2_reason_codes,
+  };
+}
 
 function logMissingPolicyNormalization(
   logger: Logger,
@@ -563,6 +592,12 @@ export async function executeConversationDecisionV2(input: {
     validationReasons = validation.reason_codes;
     const quality = validateSemanticQuality(decision.reply.text, context);
     qualityReasons = quality.reason_codes;
+    const initialLegacyChecks = evaluateLegacyDecisionChecks({
+      validationReasons: validation.reason_codes,
+      qualityReasons: quality.reason_codes,
+      twoLayerValidatorEnabled: input.env.twoLayerValidatorEnabled === true,
+      semanticQuestionAnswered,
+    });
     if (!validation.ok || !quality.ok) {
       const repairReasons = [...new Set([...validation.reason_codes, ...quality.reason_codes])];
       if (modelCallCount > 0) {
@@ -584,9 +619,15 @@ export async function executeConversationDecisionV2(input: {
           if (repairResult.decision) {
             const repairValidation = validateConversationDecision(repairResult.decision, context);
             const repairQuality = validateSemanticQuality(repairResult.decision.reply.text, context);
+            const repairLegacyChecks = evaluateLegacyDecisionChecks({
+              validationReasons: repairValidation.reason_codes,
+              qualityReasons: repairQuality.reason_codes,
+              twoLayerValidatorEnabled: input.env.twoLayerValidatorEnabled === true,
+              semanticQuestionAnswered,
+            });
             validationReasons = [...repairReasons, ...repairValidation.reason_codes];
             qualityReasons = [...quality.reason_codes, ...repairQuality.reason_codes];
-            if (repairValidation.ok && repairQuality.ok) {
+            if (repairLegacyChecks.accepted) {
               decision = repairResult.decision;
               replyMutatedAfterModel = true;
               mutationSource = "model_repair";
@@ -610,7 +651,7 @@ export async function executeConversationDecisionV2(input: {
           replyMutatedAfterModel = true;
           mutationSource = "deterministic_transport_failure";
         }
-      } else {
+      } else if (!initialLegacyChecks.accepted) {
         decision = buildDeterministicSafetyDecision(context, "invalid_model_decision");
         mutationSource = "deterministic_safety_response";
       }
@@ -632,10 +673,30 @@ export async function executeConversationDecisionV2(input: {
 
   const finalQuality = validateSemanticQuality(decision.reply.text, context);
   const finalValidation = validateConversationDecision(decision, context);
-  if (!finalQuality.ok || !finalValidation.ok) {
+  const finalLegacyChecks = evaluateLegacyDecisionChecks({
+    validationReasons: finalValidation.reason_codes,
+    qualityReasons: finalQuality.reason_codes,
+    twoLayerValidatorEnabled: input.env.twoLayerValidatorEnabled === true,
+    semanticQuestionAnswered,
+  });
+  if (!finalLegacyChecks.accepted) {
     decision = buildDeterministicSafetyDecision(context, "invalid_model_decision");
     replyMutatedAfterModel = true;
     mutationSource = "final_validation_safety_response";
+  }
+  const traceChecks = evaluateLegacyDecisionChecks({
+    validationReasons: [...validationReasons, ...finalValidation.reason_codes],
+    qualityReasons: [...qualityReasons, ...finalQuality.reason_codes],
+    twoLayerValidatorEnabled: input.env.twoLayerValidatorEnabled === true,
+    semanticQuestionAnswered,
+  });
+  if (traceChecks.layer1ReasonCodes.length > 0) {
+    layer1Result = "fail";
+    layer1ReasonCodes = [...new Set([...layer1ReasonCodes, ...traceChecks.layer1ReasonCodes])];
+  }
+  if (traceChecks.layer2ReasonCodes.length > 0) {
+    layer2Result = traceChecks.acceptedWithVariance ? "accepted_with_variance" : "fail";
+    layer2ReasonCodes = [...new Set([...layer2ReasonCodes, ...traceChecks.layer2ReasonCodes])];
   }
   const finalReply = decision.reply.text;
 
