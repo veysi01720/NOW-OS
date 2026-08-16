@@ -152,7 +152,7 @@ describe("installation verification media boundary", () => {
     expect(reviewStore.list()[0]?.decision).toBe("rejected");
     expect(stateStore.states.get("905333333333")?.current_state).toBe("INSTALLATION_IN_PROGRESS");
     expect(deps.sender.sends.at(-2)?.text).toContain("kullanici adinda ay isareti yok");
-    expect(deps.sender.sends.at(-1)?.text).toContain("duzeltme iletildi");
+    expect(deps.sender.sends.at(-1)?.text).toContain("düzeltme iletildi");
   });
 
   it("locks later candidate messages after ambiguous verification and never makes a definitive claim", async () => {
