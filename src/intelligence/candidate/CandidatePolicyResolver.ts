@@ -95,6 +95,19 @@ function policySectionForIntent(intent: string | null): keyof StructuredPolicySe
   }
 }
 
+function policySectionContentForIntent(
+  key: keyof StructuredPolicySections,
+  content: string,
+  intent: string | null,
+): string {
+  if (key !== "routing_matrix" || !["candidate_app_routing", "ask_selected_app"].includes(intent ?? "")) return content;
+  return content
+    .split("\n")
+    .filter((line) => !/kurulum\s+sonrasi|onceki\s+uygulamalar/u.test(normalize(line)))
+    .concat("- Adaya uygulama seçmesini sorma; cihaz, tercih ve uygunluk bilgilerine göre onaylı listeden tek bir uygun uygulama öner.")
+    .join("\n");
+}
+
 export interface OwnerTransferPolicySection {
   section_id: string;
   title: string;
@@ -141,7 +154,16 @@ export function resolveCandidatePolicy(
   const facts: ConversationPolicyFact[] = [];
   const policySection = policySectionForIntent(intent);
   if (policySection && policySections?.[policySection]) {
-    facts.push(structuredPolicySectionFact(policySection, policySections[policySection]));
+    facts.push(structuredPolicySectionFact(
+      policySection,
+      policySectionContentForIntent(policySection, policySections[policySection], intent),
+    ));
+  }
+  if (
+    ["work_model_disclosure", "provide_work_model_disclosure", "ask_job_definition"].includes(intent ?? "")
+    && policySections?.profile_bio_photo_rules
+  ) {
+    facts.push(structuredPolicySectionFact("profile_bio_photo_rules", policySections.profile_bio_photo_rules));
   }
   if (policySections?.memory_rules && policySection !== "memory_rules") {
     facts.push(structuredPolicySectionFact("memory_rules", policySections.memory_rules));
@@ -207,11 +229,12 @@ export function resolveCandidatePolicy(
 
   const routingMatrix = policySections?.routing_matrix?.trim();
   if (routingMatrix && approvedApps.length > 0) {
+    const routingFact = policySectionContentForIntent("routing_matrix", routingMatrix, intent);
     facts.push({
       id: "candidate_secondary_app_options",
       topic: "candidate_app_routing",
-      fact: routingMatrix,
-      content: routingMatrix,
+      fact: routingFact,
+      content: routingFact,
       source: "knowledge_bank",
       version: "app_facts_structured.json"
     });

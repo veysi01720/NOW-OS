@@ -77,7 +77,7 @@ describe("candidate app routing", () => {
       followup_closure_group_rules: "Follow-up content.",
     };
     const result = resolveCandidatePolicy({ ...defaultUserState() }, ["Layla"], [], null, "candidate_app_routing", policySections);
-    expect(result.facts.find((fact) => fact.id === "policy_section_routing_matrix")?.content).toBe("Routing matrix content.");
+    expect(result.facts.find((fact) => fact.id === "policy_section_routing_matrix")?.content).toContain("Routing matrix content.");
     expect(result.facts.some((fact) => fact.id === "policy_section_profile_bio_photo_rules")).toBe(false);
   });
 
@@ -121,6 +121,33 @@ describe("candidate app routing", () => {
 
     expect(result.facts.find((fact) => fact.id === "owner_transfer_owner_rule")?.content)
       .toContain("kadin profil");
+  });
+
+  it("carries published profile rules into work model disclosure", () => {
+    const result = resolveCandidatePolicy(
+      { ...defaultUserState(), gender: "erkek" },
+      ["Layla"],
+      [],
+      null,
+      "provide_work_model_disclosure",
+      { ...validPolicySectionsForTest(), profile_bio_photo_rules: "Erkek adaylar kadin profil ve fotograf modeliyle ilerler." },
+    );
+    expect(result.facts.find((fact) => fact.id === "policy_section_profile_bio_photo_rules")?.content)
+      .toContain("kadin profil");
+  });
+
+  it("does not expose the post-install history question during app selection", () => {
+    const result = resolveCandidatePolicy(
+      defaultUserState(),
+      ["Layla"],
+      [{ app: "Layla", android_name: "Layla", ios_name: "NIVI", invite_code: null, agency_bind_code: null, agency_code: null, official_url: null, status: "owner_approved", aliases: [], capabilities: { text_only: true, video_required: false } }],
+      null,
+      "ask_selected_app",
+      { ...validPolicySectionsForTest(), routing_matrix: "Layla genellikle onceliklidir.\n- Kurulum sonrasi onceki uygulamalar sorulur." },
+    );
+    const routing = result.facts.find((fact) => fact.id === "policy_section_routing_matrix")?.content ?? "";
+    expect(routing).toContain("tek bir uygun uygulama öner");
+    expect(routing).not.toContain("onceki uygulamalar sorulur");
   });
 
   it("injects classified constraints without requiring an intent-specific mapping", () => {
