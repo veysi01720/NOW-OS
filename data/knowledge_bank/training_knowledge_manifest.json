@@ -1,0 +1,9 @@
+{
+  "version": "1.0",
+  "source_file": "training_content.md",
+  "structured_file": "training_content_structured.json",
+  "classification": "training",
+  "active_in_candidate_context": false,
+  "owner_review_required": true,
+  "publish_status": "owner_review_only"
+}

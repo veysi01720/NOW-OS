@@ -18,6 +18,7 @@ function createMockDeps() {
     openaiAssistantId: "test",
     ownerPhoneNumbers: ["905551112233"],
     managerPhoneNumbers: ["905554445566"],
+    teamEscalationPhoneNumbers: ["905352265056"],
     approvedApps: ["AppA"],
     dashboardAdminToken: "super_secret_admin",
     dashboardOwnerToken: "super_secret_owner",

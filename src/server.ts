@@ -35,6 +35,7 @@ import { createEvolutionSessionIntegrityCheck } from "./observability/evolutionS
 import { ZipIngestionStore } from "./bridge/zipIngestion/store.js";
 import { registerReviewRoutes } from "./bridge/reviewRoutes.js";
 import { validateKnowledgeAtStartup } from "./bridge/knowledgeStartupGuard.js";
+import { InstallationVerificationReviewStore } from "./store/installationVerificationReviewStore.js";
 
 const DEFAULT_RESPONSES_SHADOW_SNAPSHOT: ResponsesShadowSnapshot = {
   enabled: false,
@@ -347,6 +348,7 @@ export async function buildServer() {
     },
   );
   const humanHandoffStore = new PersistentHumanHandoffStore(resolve(DATA_DIR, "human-handoffs.json"));
+  const installationVerificationReviewStore = new InstallationVerificationReviewStore(resolve(DATA_DIR, "installation-verification-reviews.json"));
   const sessionIntegrityCheck = createEvolutionSessionIntegrityCheck({
     databaseUrl: env.evolutionSessionDatabaseUrl,
     instanceName: env.evolutionInstance,
@@ -470,6 +472,7 @@ export async function buildServer() {
     dailyReportStore: persistentStore.dailyReportStore,
     maintenanceStore,
     humanHandoffStore,
+    installationVerificationReviewStore,
     installationVerificationClassifier,
     actionAuditStore,
     knowledgeBankDir: resolve(DATA_DIR, "knowledge_bank"),

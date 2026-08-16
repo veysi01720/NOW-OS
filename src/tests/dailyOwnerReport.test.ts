@@ -12,6 +12,7 @@ function getEmptyEnv(): EnvConfig {
     openaiAssistantId: "test",
     ownerPhoneNumbers: ["905551112233"],
     managerPhoneNumbers: ["905554445566"],
+    teamEscalationPhoneNumbers: ["905352265056"],
     approvedApps: ["AppA"],
     dashboardAdminToken: "test",
     dashboardOwnerToken: "test_owner",

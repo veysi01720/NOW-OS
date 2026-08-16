@@ -5,7 +5,8 @@ export type UserStateTransitionSource =
   | "candidate_intake"
   | "conversation_decision_v2"
   | "behavior_snapshot"
-  | "behavior_transition";
+  | "behavior_transition"
+  | "owner_verification";
 
 export interface UserStateTransitionResult {
   applied: boolean;

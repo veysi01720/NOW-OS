@@ -111,10 +111,10 @@ describe("buildBackendContext", () => {
     expect(context.owner_instruction_override?.rule).not.toMatch(/\b(şef|sef)\b/iu);
   });
 
-  it("assigns manager only by whitelist", () => {
+  it("treats the legacy manager whitelist as owner access", () => {
     const context = buildBackendContext(baseMessage("905222222222"), createTestEnv(), new InMemoryStore());
 
-    expect(context.sender_role).toBe("manager");
+    expect(context.sender_role).toBe("owner");
   });
 
   it("does not infer manager role from user text and defaults valid private users to candidate", () => {

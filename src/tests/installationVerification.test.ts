@@ -10,6 +10,7 @@ import { InMemoryMessageDedupeStore } from "../storage/messageDedupeStore.js";
 import { InMemoryThreadStore } from "../storage/threadStore.js";
 import { defaultUserState } from "../storage/types.js";
 import { PersistentHumanHandoffStore } from "../store/humanHandoffStore.js";
+import { InstallationVerificationReviewStore } from "../store/installationVerificationReviewStore.js";
 import { stripMediaBase64 } from "../reliability/shadowQueue.js";
 import type { NormalizedIncomingMessage } from "../bridge/normalizeEvolutionMessage.js";
 import { createSilentLogger, createTestEnv, FakeSender, InMemoryUserStateStore } from "./testDoubles.js";
@@ -40,6 +41,22 @@ function imageMessage(base64: string, overrides: Partial<NormalizedIncomingMessa
   };
 }
 
+function ownerMessage(text: string): NormalizedIncomingMessage {
+  return {
+    correlation_id: "corr_owner_installation_review",
+    sender_id: "905111111111",
+    phone_number: "905111111111",
+    remote_jid: "905111111111@s.whatsapp.net",
+    message_id: "msg_owner_installation_review",
+    message_type: "conversation",
+    text,
+    chat_type: "private",
+    is_from_me: false,
+    is_group: false,
+    received_at: "2026-08-10T00:00:01.000Z"
+  };
+}
+
 function baseDeps() {
   return {
     env: createTestEnv(),
@@ -53,8 +70,9 @@ function baseDeps() {
 }
 
 describe("installation verification media boundary", () => {
-  it("advances INSTALLATION_IN_PROGRESS to TRAINING_READY for a clear classifier result", async () => {
+  it("holds a clear classifier result for owner review instead of auto-advancing", async () => {
     const stateStore = new InMemoryUserStateStore();
+    const reviewStore = new InstallationVerificationReviewStore(join(mkdtempSync(join(tmpdir(), "install-review-clear-")), "reviews.json"));
     stateStore.states.set("905333333333", {
       ...defaultUserState(),
       current_state: "INSTALLATION_IN_PROGRESS",
@@ -64,6 +82,7 @@ describe("installation verification media boundary", () => {
       ...baseDeps(),
       env: createTestEnv({ installationVisionEnabled: true, installationVisionAllowedCandidates: ["905333333333"] }),
       userStateStore: stateStore,
+      installationVerificationReviewStore: reviewStore,
       installationVerificationClassifier: ({ buffer }: { buffer: Buffer }) => {
         expect(buffer.length).toBeGreaterThan(0);
         return { status: "clear" as const, sanitized_result: "INSTALLATION_COMPLETE_CONFIRMED" };
@@ -73,9 +92,17 @@ describe("installation verification media boundary", () => {
     const result = await handleIncomingMessage(imageMessage(clearInstallationScreenshot), deps);
 
     expect(result.status).toBe("sent");
+    expect(stateStore.states.get("905333333333")?.current_state).toBe("INSTALLATION_IN_PROGRESS");
+    expect(stateStore.states.get("905333333333")?.installation_status).toBe("in_progress");
+    expect(deps.sender.sends.at(-1)?.text).toContain("kontrol ediliyor");
+    expect(deps.sender.sends).toHaveLength(2);
+
+    const ownerResult = await handleIncomingMessage(ownerMessage("görsel 3333 onay"), deps);
+    expect(ownerResult.status).toBe("sent");
     expect(stateStore.states.get("905333333333")?.current_state).toBe("TRAINING_READY");
     expect(stateStore.states.get("905333333333")?.installation_status).toBe("done");
-    expect(deps.sender.sends).toHaveLength(1);
+    expect(reviewStore.list()[0]?.decision).toBe("approved");
+    expect(deps.sender.sends.at(-1)?.text).toContain("onaylandı");
   });
 
   it("keeps state unchanged and records an ambiguous verification handoff", async () => {

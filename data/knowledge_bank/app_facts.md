@@ -1,133 +1,127 @@
 # Official App Facts
 
-## Genel İş Modeli
+## Genel Is Modeli
 
-- summary: Çalışma telefon ve uygulama üzerinden ilerler; profil hazırlanır ve uygulama içindeki kişilerle sohbet edilir.
-- workflow: Aday uygunluk bilgilerini verir, çalışma modelini anlar ve açık başlangıç isteğinden sonra uygun uygulamanın kurulumuna geçer.
-- earnings_policy: Sabit maaş veya garanti kazanç yoktur; sonuçlar aktiflik, sohbet kalitesi, hediyeler ve uygulama performansına göre değişir.
-- payment_policy: Çekim talebi günlük veya anlık verilebilir; hesaba ulaşma süresi 1-3 iş günüdür ve hafta sonları iş günü sayılmaz. Minimum ve kesintiler uygulama ekranından kontrol edilir. Yanlış IBAN uygulama içinden düzeltilebilir; çekim talebi iptal edilemez.
-- setup_boundary: Uygulama, kod, kurulum ve ödeme ayrıntıları yaş/cinsiyet uygunluğu ile çalışma modeli kabulü netleşmeden verilmez.
+- summary: Calisma telefon ve uygulama uzerinden ilerler; profil hazirlanir ve uygulama icindeki kisilerle sohbet edilir.
+- workflow: Aday uygunluk bilgilerini verir, calisma modelini anlar, acik baslangic isteginden sonra uygun uygulamanin kurulumuna gecer.
+- earnings_policy: Sabit maas veya garanti kazanc yoktur; sonuclar aktiflik, sohbet kalitesi, hediyeler ve uygulama performansina gore degisir.
+- payment_policy: Cekim talebi sadece gunluk verilebilir; odeme 1-3 is gununde ulasabilir, hafta sonu is gunu sayilmaz. Minimum ve kesintiler uygulama ekranindan kontrol edilir. Yanlis IBAN uygulama icinden duzeltilebilir; cekim talebi iptal edilemez.
+- setup_boundary: Uygulama, kod, kurulum ve odeme ayrintilari yas/cinsiyet uygunlugu ile calisma modeli kabul edilmeden verilmez.
 
-## Kurulum Süreci
+## Kurulum Sureci
 
-- Genel sıra: Aday uygunluğu ve çalışma modeli kabulü tamamlanır; cihazına uygun uygulama indirilir; davet kodu gerekiyorsa doğru alana girilir; kayıt tamamlanır; profil bilgileri doldurulur; en az 1 uygun profil fotoğrafı eklenir; kullanıcı adının sonuna 🌙 eklenir; uygulamanın ajans ekranından Now Ajans bağlantısı doğrulanır.
-- Eğitim kapısı: Now Ajans ajans bölümünde görünmeden ve profil/Üye ID/kullanıcı adı doğrulaması tamamlanmadan uygulamaya özel eğitime geçilmez.
-- Kurulum kanıtı: Aday aynı mesajda uygulama, Üye ID, kullanıcı adı ve Ajans bölümünün net ekran görüntüsünü paylaşır. TanChat için Data Center/Gelir Veri Kaydı ekranı istenir ancak zorunlu değildir.
-- Yanlış ajans veya ikinci bağlantı denemesinden sonra görünürlük sorunu varsa aday kendi başına çıkış veya hesap aşma işlemi yapmaz; yönetim kontrolüne aktarılır.
+- Genel sira: Uygunluk ve calisma modeli kabul edilir; cihaza uygun uygulama indirilir; kod gerekiyorsa dogru alana girilir; kayit tamamlanir; profil doldurulur; en az bir uygun foto eklenir; kullanici adinin sonuna ay isareti eklenir; Now Ajans baglantisi uygulama ekraninda dogrulanir.
+- Egitim kapisi: Now Ajans gorunmeden ve profil/Uye ID/kullanici adi kaniti tamamlanmadan uygulamaya ozel egitime gecilmez.
+- Kurulum kaniti: Uygulama, Uye ID, kullanici adi ve Ajans ekranini gosteren net gorsel istenir. TanChat/TanStar Data Center veya Gelir Veri Kaydi ek kanittir, tek basina zorunlu degildir.
+- Owner onayi: Davet veya ajans kodu calismazsa owner acikca kodsuz devam onayi verirse kod zorunlu kapisi uygulanmaz; kurulum yine owner incelemesine gider.
+- Yanlis ajans veya ikinci denemeden sonra aday kendi basina hesap asma, cikis veya baglanti degisikligi yapmaz; insan incelemesine aktarilir.
 
-### Uygulama Bazlı Kurulum Adımları
+### Uygulama Bazli Kurulum
 
-- Layla/NİVİ: Android'de Layla, iPhone'da NİVİ indirilir. Davet kodu kullanılmadan kayıt/giriş yapılır. Profil bilgileri doldurulur ve en az 1 uygun fotoğraf eklenir. Kullanıcı adının sonuna 🌙 eklenir. Ben > Ajans > Ajansa Katıl bölümünden `8UNHAWUFC` kodu girilir. Üye ID, kullanıcı adı ve Ajans ekranı gönderilir.
-- TanChat/TanStar: Android'de TanChat, iPhone'da TanStar indirilir. Kayıt sırasında davet kodu alanına `X3XREZ` girilir. Profil tamamlanır; Üye ID, kullanıcı adı ve Now Ajans görünen Ajans ekranı gönderilir.
-- Amar/Amar Lite: Kayıt sırasında `xvrgZkf6` davet kodu girilir. Kod kabul edilmezse profil fotoğrafı eklenip tekrar denenir; yine olmazsa kodsuz devam edilir. Ayarlar > Ajansa Bağlan bölümünde `10621` girilir. Üye ID, kullanıcı adı ve ajans bağlantısı doğrulanır.
-- Linky: Kayıt sırasında `M9W5B8` kodu girilir. Üye ID, kullanıcı adı ve Ajans ekranı gönderilir.
-- Soyo: Normal kayıt tamamlanır; Ajans bölümünden `3997` koduyla bağlanılır. Üye ID, kullanıcı adı ve Ajans ekranı gönderilir.
-- Timo: Kayıt sırasında `VVXVUD` kodu girilir. Üye ID, kullanıcı adı ve Ajans ekranı gönderilir.
+- Layla/NIVI: Android Layla, iPhone NIVI. Dogrulanmis yonlendirme linki: https://api.pocketliveapp.com/api/code/invite/redirect?code=G-8UNHAWUFC. Ben > Ajans > Ajansa Katil icinde `8UNHAWUFC` kodu kullanilir. Kod reddedilirse foto eklenip bir kez tekrar denenir; yine reddedilirse owner onayiyla kodsuz devam edilir.
+- TanChat/TanStar: Android TanChat, iPhone TanStar. Magazada uygulama adi aranir; kayit sirasinda `X3XREZ`; Bakiyem/Veri veya Now Ajans ekraninda baglanti kontrol edilir.
+- Amar/Amar Lite: Kayitta `xvrgZkf6`; Ayarlar > Ajansa Baglan icinde `10621`. Dogrulanmis davet URL'si: https://mdp-credit-api-overseas.zao-ai-deep.com/fep/momo/mdp-spacey/amr-act/index.html?uid=107929231&lang=tr#/i. Amar kod akisi Layla kod reddi kuraliyla karistirilmaz.
+- Linky: Magazada Linky aranir; kayitta `M9W5B8`; Uye ID, kullanici adi ve Ajans ekrani gonderilir.
+- Soyo: Kayit tamamlanir; Ajans bolumunde `3997`; yonetim onayi beklenir.
+- Timo: Kayitta `VVXVUD`; ajans baglantisi otomatik kontrol edilir.
+- Dogrulanmis link yoksa bot link uydurmaz; uygulama magazada adi ile aranir. Android/iOS ayrimi net degilse kesin cihaz ifadesi kurulmaz.
 
-- Now Ajans görünmüyorsa uygulamaya göre tek bir tekrar denemesi yapılır; tekrar başarısızsa yönetim kontrolüne aktarılır. Doğrulama tamamlanmadan eğitim başlatılmaz.
+## Uygulama Yonlendirme Matrisi
 
-## Uygulama Yönlendirme Matrisi
+- Sabit tek sira yoktur. Asagidaki liste katı kural degil, genel oncelik rehberidir; cihaz, deneyim, tercih, gecmis uygulamalar ve performansa gore degisebilir.
+- Mesajlasma agirlikli adaylarda Layla/NIVI genellikle oncelikli degerlendirilir.
+- Sesli veya goruntulu iletisim isteyenlerde TanChat/TanStar degerlendirilebilir.
+- Deneyimli adaylarda Amar/Amar Lite genellikle oncelikli degerlendirilir.
+- Timo, Linky ve Soyo ikincil alternatifler olarak aday durumuna gore dusunulebilir.
+- Kurulum sonrasi onceki uygulamalar sorulur ve tek seferde yalnizca uygun bir alternatif onerilir.
 
-- Sabit tek sıra yoktur; tercih, deneyim, cihaz ve performansa göre uygulama önerilir.
-- Mesajlaşma: Layla/NIVI.
-- Sesli/görüntülü: TanChat/TanStar.
-- Deneyimli aday: Amar/Amar Lite.
-- İkincil seçenekler: Timo, Linky, Soyo.
-- Kurulum sonrası adayın önceki uygulamaları sorulur ve yalnızca bir uygun alternatif önerilir.
+## Uygulama Bagimsizligi
 
-## Uygulama Bağımsızlığı
+- Her uygulamanin kurulumu, kodu, profil kaniti, kazanc/cekim bilgisi, ban cozumleri ve egitimi ayridir.
+- Bir uygulamanin kodu, ajans ekrani veya kuralı baska uygulamaya tasinmaz.
+- Mevcut baglam biliniyorsa adaydan tekrar sorulmaz.
+- Her yeni uygulama icin ayri uygulama-ozel egitim gerekir.
 
-- Her uygulamanın kurulumu, kodu, profil kanıtı, kazanç/çekim bilgisi, ban çözümü ve eğitimi ayrıdır.
-- Bir uygulamanın kuralı başka uygulamaya taşınmaz.
-- Mevcut uygulama bağlamı biliniyorsa adaydan tekrar sorulmaz.
-- Her yeni uygulama için ayrı uygulama-özel eğitim gerekir.
+## Profil Bio ve Fotograf Kurallari
 
-## Profil, Bio ve Fotoğraf Kuralları
-
-- Erkek adaylar için hesap açma kuralı: erkek kullanıcılar sadece kadın profili açıp kadın fotoğrafları yükledikleri profilden kazanç sağlar; bu durumun uygunluğu önceden adaya sorulur.
-- Kullanıcı adı sonunda 🌙 bulunmalıdır.
-- Eğitim öncesi en az 1 uygun fotoğraf gerekir; 2-3 fotoğraf yeterli olabilir.
-- Fotoğraf net, kaliteli, yüz görünür ve uygulama kurallarına uygun olmalıdır.
-- İzinsiz görsel, sahte kimlik veya doğrulama atlatma kullanılamaz.
-- Bio önerilir ancak zorunlu değildir; aday karar verir.
-- Bio, profil ve anılarda telefon, WhatsApp, sosyal medya, e-posta, IBAN, banka bilgisi, ödeme bağlantısı veya adres bulunmaz.
-- Anılarda çıplaklık ve yasaklı içerik bulunmaz.
+- Erkek adaylara kadin profil/fotograf calisma modeli, aday uygunlugu ve acik onay alinarak anlatilir; sahte kimlik veya izinsiz kisi taklidi onerilmez.
+- Kullanici adinin sonuna ay isareti eklenir.
+- Egitim oncesi en az bir uygun fotograf gerekir; fotograf net, kaliteli, yuz gorunur ve uygulama kurallarina uygun olmalidir.
+- Bio zorunlu degildir; profil ve anilarda telefon, WhatsApp, sosyal medya, e-posta, IBAN, banka bilgisi, odeme linki veya adres bulunmaz.
+- Ciplaklik ve yasakli icerik kullanilmaz.
 
 ## Bellek ve Tekrar Sormama
 
-- Adayın yaş, cinsiyet, günlük süre, deneyim, cihaz, tercih, seçilen uygulama, Üye ID, kullanıcı adı, profil, ajans ve eğitim durumu korunur.
-- Daha önce verilen bilgi tekrar sorulmaz.
-- Birden fazla eksik alan varsa tek mesajda birlikte istenir.
-- Uygulama, ödeme, ban ve teknik vakaların bağlamı birbirinden ayrılır.
+- Yas, cinsiyet, gunluk sure, deneyim, cihaz, tercih, secilen uygulama, Uye ID, kullanici adi, profil, ajans ve egitim durumu korunur.
+- Daha once verilen bilgi tekrar sorulmaz; birden fazla eksik alan tek mesajda istenir.
+- Uygulama, odeme, ban ve teknik vaka baglamlari birbirine karistirilmaz.
 
-## İlk Temas Sınırı
+## Ilk Temas Siniri
 
-- Yaş ve cinsiyet alınmadan uygulama adı, kod, kurulum, kazanç veya ödeme ayrıntısı verilmez.
+- Yas ve cinsiyet alinmadan uygulama adi, kod, kurulum, kazanc veya odeme ayrintisi verilmez.
+- Ilk mesajda yas, cinsiyet ve gunluk sure sorulur; gecmis uygulama ve uygulama kodu ilk mesaja konmaz.
 
-## Kaynak, Kimlik ve Ton
+## Kaynak Kimlik ve Ton
 
 - Guncel owner kaynagi once gelir; ayni konuda daha yeni ve daha ozel owner kurali kazanir.
 - Uygulamaya ozel kural genel kuraldan ustundur.
-- Bot, Now Ajans WhatsApp operasyon ve egitim asistanidir; kendini patron veya insan gibi tanitmaz.
-- Yanıtlar kısa ve net tutulur; gereksiz uzatılmaz.
-- Garanti verilmez, bilinmeyen bilgi uydurulmaz ve uygulama kurallari birbirine tasinmaz.
-- Aday mesajlari kalici politika degildir; owner dogrulamasi olmadan bilgi bankasina yazilmaz.
+- Yanıtlar kisa ve net tutulur; bilinmeyen bilgi uydurulmaz.
+- Aday mesaji owner onayi olmadan kalici politika olmaz.
 
 ## Uygunluk ve Red
 
 - Turkce iletisim gerekir.
-- Minimum yas 18'dir.
-- Erkek adaylar 18-30, kadin adaylar 18-40 araliginda degerlendirilir.
-- 18 yas altina veya ust sinira cikana uygulama, kod veya kurulum verilmez.
-- Gunde 3-4 saat onerilir; dusuk sure performansi etkileyebilir, kazanc garantisi yoktur.
+- Erkek adaylar 18-30 araliginda degerlendirilir.
+- Kadin adaylar 18-40 araliginda degerlendirilir; 40-50 arasi deneyimli kadin adaylar ayrica degerlendirilebilir; 50+ kapali kalir.
+- 18 yas altinda veya ilgili ust sinirin disinda uygulama, kod veya kurulum verilmez.
+- Gunluk 3-4 saat onerisi ciddiyet/performance icin kullanilir; kazanc garantisi degildir.
 - Kayit, kurulum, egitim ve ajans ucreti yoktur.
-- Yas veya cinsiyet bir aciklamadan sonra hala yoksa gorusme kapatilir; sure ve deneyim bir kez sorulur.
 
 ## Kurulum Izni
 
-- "Evet", "uygun", "olur", "tamam" veya "anladim" tek basina kurulum izni degildir.
+- Evet, uygun, olur, tamam veya anladim tek basina kurulum izni degildir.
 - Acik baslangic istegi olmadan kurulum gonderilmez.
-- Gecerli acik baslangic ornekleri: "baslayalim", "calismak istiyorum", "kuruluma gecelim", "nasil baslayacagim", "uygulamayi gonder", "uygulamayi at", "hesap acalim", "tamam ben baslayayim", "kurulum yapalim".
+- Gecerli ornekler: baslayalim, calismak istiyorum, kuruluma gecelim, nasil baslayacagim, uygulamayi gonder, hesap acalim, kurulum yapalim.
 
 ## Uygulama Ozel Kurulum Kaniti ve Retry
 
-- Her uygulamanin kurulumu ve kaniti ayridir; bir uygulamanin kodu veya kurali baska uygulamaya tasinmaz.
-- Layla/NIVI: Android Layla, iPhone NIVI; davet kodu yok; profil ve en az 1 uygun fotograf; kullanici adinin sonuna ay isareti; Ben > Ajans > Ajansa Katil icinde `8UNHAWUFC`.
-- TanChat/TanStar: Android TanChat, iPhone TanStar; kayit sirasinda `X3XREZ`; profil ve Now Ajans gorunen ekrani.
-- Amar/Amar Lite: kayit sirasinda `xvrgZkf6`; Ayarlar > Ajansa Baglan icinde `10621`; kod reddedilirse fotograf sonrasi tekrar denenir, sonra yonetime aktarilir.
-- Linky: `M9W5B8`; Soyo: `3997`; Timo: `VVXVUD`.
-- Her kurulumda Uye ID, kullanici adi ve Now Ajans gorunen Ajans kaniti istenir. TanChat/TanStar Data Center/Gelir Veri Kaydi ek kanittir, zorunlu degildir.
-- Now Ajans gorunmuyorsa uygulamaya gore en fazla bir tekrar denenir; Layla/NIVI, Soyo ve Amar icin owner kaynagindaki yaklasik 30 dakikalik bekleme sonrasi tek tekrar uygulanir. Diger uygulamalarda tek tekrar sonrasi yonetime aktarilir.
-- Kurulum kaniti tamamlanmadan egitime gecilmez; belirsiz veya celiskili kanit insan devrine gider.
+- Her uygulamanin kurulumu ve kaniti ayridir; kodlar karistirilmaz.
+- Now Ajans gorunmuyorsa en fazla bir dogru tekrar denenir; sonrasi owner/yönetim kontroludur.
+- Kod veya ajans baglantisi owner onayi ile atlanabilir; bu durumda state otomatik degil, owner karariyla ilerler.
+- Kanit tamamlanmadan egitime gecilmez; belirsiz veya celiskili kanit insan devrine gider.
 
 ## Egitim Formati
 
 - Egitim, genel is modeli ve kurulum kaniti tamamlandiktan sonra uygulamaya ozel ilerler.
-- Her uygulamanin egitimi ayri tutulur; bir uygulamanin egitim metni digerine tasinmaz.
-- 100 mesajlik mesaj/bio bankasi aktif bilgi bankasina alinmaz; owner-review kaynagi olarak ayri tutulur.
+- Her uygulamanin egitimi ayri tutulur; 100 mesajlik mesaj/bio bankasi ayri training kaynaginda tutulur.
 
-## Gizlilik, Odeme ve Teknik Destek
+## Gizlilik Odeme ve Teknik Destek
 
-- Profil, bio ve anilarda telefon, WhatsApp, sosyal medya, e-posta, IBAN, banka bilgisi, odeme baglantisi veya adres paylasilmaz.
-- Sifre, kart, kimlik veya hassas hesap bilgisi istenmez; adaydan gelen hassas veri kalici loga yazilmaz.
-- Cekim talebi hesaba 1-3 is gununde ulasabilir; hafta sonu is gunu sayilmaz. Yanlis IBAN uygulama icinden duzeltilebilir; cekim talebi iptal edilemez.
-- Sabit kazanc veya odeme garantisi verilmez; guncel minimum, kesinti ve uygulama ici kurallar resmi uygulama ekranindan dogrulanir.
-- Kurulum, ajans, ban veya teknik sorun cozulmuyorsa aday kendi basina hesap silme, hesap asma veya ikinci baglanti denemesi yapmaz; gerekli kanitla insan devrine aktarilir.
+- Cekim sadece gunluk verilebilir; 1-3 is gunu, hafta sonu haric. Yanlis IBAN duzeltilebilir; cekim iptal edilemez.
+- Sabit kazanc, komisyon veya kesin odeme tarihi verilmez; minimum ve kesinti uygulama ekranindan kontrol edilir.
+- Hata ekraninda uygulama, Uye ID, kullanici adi ve kod kontrol edilir. Iki dogru denemeden sonra insan devri yapilir.
+- Ban, farkli ajans veya hesap erisim sorununda yeni hesap, sahte kimlik veya dogrulama asma yontemi onerilmez.
 
-## Takip, Kapaniş ve Grup Operasyonlari
+## Takip Kapanis ve Grup Operasyonlari
 
-- Ilgilenmeyen adayla israrci takip yapilmaz; acikca istemeyen adayin gorusmesi kapatilir.
-- Takip mesaji yalnizca gerekli oldugunda, kisa ve dogal bicimde gonderilir; ayni ilk mesaj tekrarlanmaz.
-- Grup operasyonu su an kapali: otomatik `@Herkes` broadcast gonderilmez, grup mesaji otomatiklestirilmez.
-- Grup mesaji, aday verisi ve owner talimati ayri baglamlarda tutulur; aday bilgisi izinsiz gruba aktarilmaz.
+- Aday istedigi zaman ara verebilir veya uygulamayi silebilir; silmek ajans baglantisini kaldirmaz, eski bakiye yeni hesaba aktarilmaz.
+- Acikca istemeyen adaya ikna veya takip mesaji gonderilmez.
+- Aday sessiz kalirsa iki saat sonra tek nazik takip yapilir; tekrar tekrar yazilmaz.
+- Grup otomasyonu ve `@Herkes` broadcast kapali kalir.
 
-## Uygulama Fact'leri
+## Owner Uzerinden Dinamik Egitim Yonlendirme
+
+- Owner yeni egitimci, kurulum veya uygulama bilgisini verdiginde guncel kaynak kullanilir; sabit egitim numarasi varsayilmaz.
+- Kurulum, ajans ve secilen uygulama tamamlaninca ilgili uygulamanin guncel egitim kisisi kullanilir.
+- Yetki veya insan karari isteyen durumlar owner/human handoff akisina gider.
+
+## Uygulama Facts
 
 | app | android_name | ios_name | invite_code | agency_bind_code | agency_code | official_url | status | notes |
 |---|---|---|---|---|---|---|---|---|
-| Layla | Layla | NİVİ | 8UNHAWUFC |  |  |  | owner_approved | Text-only, messaging-first |
+| Layla | Layla | NIVI | 8UNHAWUFC |  |  | https://api.pocketliveapp.com/api/code/invite/redirect?code=G-8UNHAWUFC | owner_approved | Text-only, messaging-first |
 | TanChat | TanChat | TanStar | X3XREZ |  |  |  | owner_approved | Voice/video candidate |
-| Amar | Amar | Amar Lite | xvrgZkf6 | 10621 |  |  | owner_approved | Experienced candidate |
-| Linky | Linky | Linky | M9W5B8 |  |  |  | owner_approved | Code |
-| Soyo | Soyo | Soyo | 3997 |  | 3997 |  | owner_approved | Code |
-| Timo | Timo | Timo | VVXVUD |  |  |  | owner_approved | Secondary app option |
+| Amar | Amar | Amar Lite | xvrgZkf6 | 10621 |  | https://mdp-credit-api-overseas.zao-ai-deep.com/fep/momo/mdp-spacey/amr-act/index.html?uid=107929231&lang=tr#/i | owner_approved | Experienced candidate |
+| Linky | Linky | Linky | M9W5B8 |  |  |  | owner_approved | Secondary option |
+| Soyo | Soyo | Soyo | 3997 |  | 3997 |  | owner_approved | Secondary option |
+| Timo | Timo | Timo | VVXVUD |  |  |  | owner_approved | Secondary option |

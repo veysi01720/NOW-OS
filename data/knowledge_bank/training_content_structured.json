@@ -1,0 +1,11 @@
+{
+  "version": "1.0",
+  "source": "training_content.md",
+  "active_in_candidate_context": false,
+  "owner_review_required": true,
+  "sections": [
+    {"id": "training_formats", "classification": "training", "content": "Training may be written, voice, video, or one-to-one; each application has separate training; no exam is required after understanding."},
+    {"id": "message_bio_gift_banks", "classification": "training", "content": "Message, bio, and gift examples remain owner-review material and do not enter active candidate context automatically."},
+    {"id": "training_handoff", "classification": "training", "content": "Training starts after installation and agency evidence are approved; the current educator is selected from owner-approved application-specific information."}
+  ]
+}

@@ -78,6 +78,7 @@ import { emptyModelAdapterCanaryObservation } from "../modelAdapter/modelAdapter
 import { inferConversationIntent } from "../intelligence/conversation/ConversationContextBuilder.js";
 import type { TrainingHandoffStore } from "../store/trainingHandoffStore.js";
 import { trainingOwnerDecision } from "../store/trainingHandoffStore.js";
+import type { InstallationVerificationReviewStore } from "../store/installationVerificationReviewStore.js";
 import {
   verifyInstallationMedia,
   type InstallationVerificationClassifier,
@@ -120,6 +121,7 @@ export interface HandleIncomingMessageDeps {
   humanHandoffStore?: HumanHandoffStore;
   trainingHandoffStore?: TrainingHandoffStore;
   installationVerificationClassifier?: InstallationVerificationClassifier;
+  installationVerificationReviewStore?: InstallationVerificationReviewStore;
   actionAuditStore?: ActionAuditStore;
   knowledgeBankDir?: string;
 }
@@ -304,6 +306,33 @@ async function notifyTrainingOwner(deps: HandleIncomingMessageDeps, text: string
       deps.logger.warn({ event_type: "POST_INSTALL_TRAINING_OWNER_NOTIFICATION_FAILED", correlation_id: correlationId, error: redactSecrets(error instanceof Error ? error.message : String(error)) });
     }
   }
+}
+
+async function notifyInstallationOwner(deps: HandleIncomingMessageDeps, text: string, correlationId: string): Promise<boolean> {
+  let sent = false;
+  for (const phone of deps.env.ownerPhoneNumbers) {
+    try {
+      await deps.sender.sendText({ message: syntheticPrivateMessage(phone, text, correlationId), text });
+      sent = true;
+    } catch (error) {
+      deps.logger.warn({ event_type: "INSTALLATION_REVIEW_OWNER_NOTIFICATION_FAILED", correlation_id: correlationId, error: redactSecrets(error instanceof Error ? error.message : String(error)), raw_text_logged: false });
+    }
+  }
+  return sent;
+}
+
+function normalizeOwnerDecisionText(value: string): string {
+  return value.trim().toLocaleLowerCase("tr-TR").normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/ı/g, "i").replace(/\s+/g, " ");
+}
+
+function parseInstallationOwnerReply(text: string): { suffix: string; decision: "approved" | "rejected"; correction?: string } | null {
+  const normalized = normalizeOwnerDecisionText(text);
+  const match = normalized.match(/^gorsel\s+(\d{4})\s+([\s\S]+)$/u);
+  if (!match) return null;
+  const value = match[2].trim();
+  if (/^(onay|onayliyorum|onayla|tamam|olur|gecti)$/u.test(value)) return { suffix: match[1], decision: "approved" };
+  if (/^(red|ret|reddet|olmadi|gecmedi)$/u.test(value)) return { suffix: match[1], decision: "rejected" };
+  return { suffix: match[1], decision: "rejected", correction: value };
 }
 
 function modelExecutionServiceFor(deps: HandleIncomingMessageDeps): ModelExecutionService {
@@ -511,6 +540,39 @@ export async function handleIncomingMessage(
   const authorityContext = resolveAuthorityContext(message, deps.env);
   const senderRole = authorityContext.sender_role;
   const isCandidate = senderRole === "candidate";
+
+  if ((senderRole === "owner" || senderRole === "manager") && message.chat_type === "private" && deps.installationVerificationReviewStore) {
+    const ownerDecision = parseInstallationOwnerReply(message.text);
+    if (ownerDecision) {
+      const review = deps.installationVerificationReviewStore.pendingForLast4(ownerDecision.suffix);
+      if (!review) {
+        await sendReply(message, `Görsel ${ownerDecision.suffix} için bekleyen bir inceleme bulunamadı; state değişmedi.`, deps, latencyTracker);
+        return latencyTracker.finish({ status: "sent", correlation_id: message.correlation_id });
+      }
+      const resolved = deps.installationVerificationReviewStore.resolve(review.review_id, ownerDecision.decision, ownerDecision.correction);
+      if (!resolved) {
+        await sendReply(message, "Görsel kararı uygulanamadı; state değişmedi.", deps, latencyTracker);
+        return latencyTracker.finish({ status: "sent", correlation_id: message.correlation_id });
+      }
+      const candidateKey = review.candidate_phone;
+      const current = deps.userStateStore?.getOrCreateState(candidateKey, defaultUserState());
+      if (current && ownerDecision.decision === "approved") {
+        const nextState: UserState = { ...current, installation_status: "done", installation_verification_status: "clear", current_state: "TRAINING_READY", expected_next_step: "start_training" };
+        applyUserStateTransition({ store: deps.userStateStore, conversationKey: candidateKey, currentState: current, nextState, source: "owner_verification" });
+        const candidateMessage = syntheticPrivateMessage(candidateKey, "", message.correlation_id);
+        await deps.sender.sendText({ message: candidateMessage, text: "Kurulum görselin onaylandı. Eğitim adımına geçebiliriz." });
+      } else if (current && ownerDecision.decision === "rejected") {
+        const nextState: UserState = { ...current, current_state: "INSTALLATION_IN_PROGRESS", installation_status: "in_progress", installation_verification_status: "ambiguous", expected_next_step: "provide_clear_installation_image" };
+        applyUserStateTransition({ store: deps.userStateStore, conversationKey: candidateKey, currentState: current, nextState, source: "owner_verification" });
+        const candidateMessage = syntheticPrivateMessage(candidateKey, "", message.correlation_id);
+        const text = ownerDecision.correction ?? "Görsel kurulum doğrulaması için yeterli değil; lütfen düzeltip yeni bir ekran görüntüsü gönder.";
+        await deps.sender.sendText({ message: candidateMessage, text });
+      }
+      await sendReply(message, ownerDecision.decision === "approved" ? "Görsel onaylandı; adayın kurulumu TRAINING_READY durumuna alındı." : "Görsel reddedildi; aday beklemede ve düzeltme iletildi.", deps, latencyTracker);
+      logger.info({ event_type: "INSTALLATION_VERIFICATION_OWNER_DECISION", correlation_id: message.correlation_id, review_id: review.review_id, decision: ownerDecision.decision, candidate_last4: review.candidate_phone_last4, raw_text_logged: false });
+      return latencyTracker.finish({ status: "sent", correlation_id: message.correlation_id });
+    }
+  }
   const zipRouting = detectZipRouting({ message, senderRole });
   if (zipRouting.document_message_detected) {
     if (zipRouting.unsupported_archive_detected) {
@@ -762,6 +824,41 @@ export async function handleIncomingMessage(
         raw_media_logged: false,
         raw_media_persisted: false,
       });
+
+      if (deps.installationVerificationReviewStore) {
+        const review = deps.installationVerificationReviewStore.create({
+          candidatePhone: message.phone_number,
+          selectedApp: storedState?.selected_app ?? null,
+          visionHint: verification.status,
+          now: deps.nowMs?.() ?? Date.now(),
+        });
+        const lockedState: UserState = {
+          ...storedState,
+          current_state: "INSTALLATION_IN_PROGRESS",
+          installation_status: "in_progress",
+          installation_verification_status: "ambiguous",
+          expected_next_step: "await_owner_installation_review",
+        };
+        applyUserStateTransition({ store: deps.userStateStore, conversationKey, currentState: storedState, nextState: lockedState, source: "candidate_intake", authority: authorityContext });
+        recordHumanHandoff(deps, message, "installation_verification_owner_review");
+        const ownerText = `Kurulum görseli incelemesi: görsel ${review.candidate_phone_last4}; uygulama=${review.selected_app ?? "belirtilmedi"}; vision ipucu=${verification.status === "clear" ? "net görünüyor" : "belirsiz"}. Karar için: görsel ${review.candidate_phone_last4} onay veya görsel ${review.candidate_phone_last4} red.`;
+        const ownerSent = await notifyInstallationOwner(deps, ownerText, message.correlation_id);
+        deps.installationVerificationReviewStore.markOwnerNotified(review.review_id);
+        const teamTimer = setTimeout(async () => {
+          const pending = deps.installationVerificationReviewStore?.pendingForCandidate(review.candidate_phone);
+          if (!pending || pending.team_escalated) return;
+          for (const phone of deps.env.teamEscalationPhoneNumbers) {
+            try { await deps.sender.sendText({ message: syntheticPrivateMessage(phone, "", message.correlation_id), text: `Görsel ${review.candidate_phone_last4} için owner 15 dakika içinde yanıt vermedi; insan kontrolü gerekiyor.` }); } catch { /* notification failure is logged below */ }
+          }
+          deps.installationVerificationReviewStore?.markTeamEscalated(review.review_id);
+          deps.logger.warn({ event_type: "INSTALLATION_VERIFICATION_TEAM_ESCALATED", correlation_id: message.correlation_id, candidate_last4: review.candidate_phone_last4, raw_text_logged: false });
+        }, 15 * 60 * 1000);
+        teamTimer.unref?.();
+        const candidateReply = "Görselini aldım, kontrol ediliyor. Kısa süre içinde dönüş yapılacak.";
+        const sent = await sendReply(message, candidateReply, deps, latencyTracker);
+        logger.info({ event_type: "INSTALLATION_VERIFICATION_OWNER_REVIEW_PENDING", correlation_id: message.correlation_id, review_id: review.review_id, owner_notification_sent: ownerSent, team_escalation_configured: deps.env.teamEscalationPhoneNumbers.length > 0, raw_media_logged: false, raw_media_persisted: false });
+        return sent ? { status: "sent", correlation_id: message.correlation_id } : { status: "reply_send_failed", correlation_id: message.correlation_id, error_layer: "EvolutionSendText" };
+      }
 
       if (verification.status === "clear" && storedState) {
         const nextState: UserState = {

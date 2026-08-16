@@ -121,7 +121,7 @@ describe("Owner Reporting v1", () => {
       new InMemoryReportDataSource([candidateState()])
     );
 
-    expect(context.sender_role).toBe("manager");
+    expect(context.sender_role).toBe("owner");
     expect(context.report_summary?.total_candidates).toBe(1);
   });
 

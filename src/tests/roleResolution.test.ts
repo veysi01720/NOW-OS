@@ -24,7 +24,7 @@ describe("roleResolution", () => {
     }
   });
 
-  it("should resolve manager regardless of format", () => {
+  it("should resolve the owner second number regardless of format", () => {
     const formats = [
       "+90 537 444 55 66",
       "05374445566",
@@ -35,7 +35,7 @@ describe("roleResolution", () => {
 
     for (const fmt of formats) {
       const role = resolveSenderRole(fmt, whitelist, { chatType: "private" });
-      expect(role).toBe("manager");
+      expect(role).toBe("owner");
     }
   });
 

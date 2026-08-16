@@ -30,6 +30,7 @@ export function createTestEnv(overrides: Partial<EnvConfig> = {}): EnvConfig {
     dashboardManagerToken: "manager_secret",
     ownerPhoneNumbers: ["905111111111"],
     managerPhoneNumbers: ["905222222222"],
+    teamEscalationPhoneNumbers: ["905352265056"],
     approvedApps: [],
     approvedAppsOverride: [],
     webhookQueueMode: "off",

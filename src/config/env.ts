@@ -22,6 +22,7 @@ export interface EnvConfig {
   realOpenaiPublishEnabled: boolean;
   ownerPhoneNumbers: string[];
   managerPhoneNumbers: string[];
+  teamEscalationPhoneNumbers: string[];
   approvedApps: string[];
   approvedAppsOverride?: string[];
   dashboardAdminToken: string;
@@ -144,8 +145,9 @@ export function loadEnv(): EnvConfig {
     openaiAssistantId: readEnv("OPENAI_ASSISTANT_ID"),
     openaiVectorStoreId: process.env.OPENAI_VECTOR_STORE_ID,
     realOpenaiPublishEnabled: process.env.REAL_OPENAI_PUBLISH_ENABLED === "true",
-    ownerPhoneNumbers: parseCsv(process.env.OWNER_PHONE_NUMBERS),
-    managerPhoneNumbers: parseCsv(process.env.MANAGER_PHONE_NUMBERS),
+    ownerPhoneNumbers: [...new Set([...parseCsv(process.env.OWNER_PHONE_NUMBERS), ...parseCsv(process.env.MANAGER_PHONE_NUMBERS)])],
+    managerPhoneNumbers: [],
+    teamEscalationPhoneNumbers: parseCsv(process.env.TEAM_ESCALATION_PHONE_NUMBERS ?? process.env.TEAM_ESCALATION_PHONE),
     approvedApps: deriveApprovedApps(structuredFacts, approvedAppsOverride),
     approvedAppsOverride,
     dashboardAdminToken: process.env.DASHBOARD_ADMIN_TOKEN ?? "",

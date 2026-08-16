@@ -43,7 +43,9 @@ export function resolveSenderRole(
   }
 
   if (managerSet.has(normalized)) {
-    return "manager";
+    // The legacy manager allowlist is retained as an input for compatibility;
+    // every privileged phone now resolves to the single owner authority.
+    return "owner";
   }
 
   if (normalized !== "" && options.chatType === "private") {
