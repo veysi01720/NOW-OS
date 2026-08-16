@@ -356,16 +356,12 @@ export function buildDeterministicSafetyDecision(
     return buildJobDefinitionSafetyDecision(context);
   }
 
-  const baseReply = reason === "provider_unavailable"
-    ? "Şu an yanıtı güvenli şekilde oluşturamadım. Yanlış yönlendirmemek için ekip bu mesajı netleştirsin."
-    : reason === "policy_missing"
-      ? "Bu konuda doğrulanmış bilgi eksik. Yanlış yönlendirmemek için ekip netleştirsin."
-      : "Bu cevabı güvenli şekilde netleştiremedim. Yanlış yönlendirmemek için ekip kontrol etsin.";
-  const topic = fallbackTopic(context);
-  const reply = selectRepeatSafeFallbackReply(context, baseReply, [
-    `Az önce de ${topic} için ekip kontrolü istemiştim. Yanlış yönlendirmemek için bu mesajı da aynı güvenli kontrolde tutuyorum.`,
-    `${topic} hakkında doğrulanmamış cevap vermeyeceğim. Ekip netleştirene kadar güvenli sınırı koruyorum.`
-  ]);
+  const reply = selectRepeatSafeFallbackReply(context,
+    "Bunu hemen kontrol ediyorum; birkaç dakika içinde döneceğim.",
+    [
+      "Bunu kontrol ediyorum; kısa süre içinde dönüş yapacağım.",
+      "Sorunu aldım, doğrulayıp kısa süre içinde yanıtlayacağım."
+    ]);
   return {
     ...baseDecision(
       reply,

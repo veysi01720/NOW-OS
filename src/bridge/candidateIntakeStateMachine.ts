@@ -292,7 +292,7 @@ export function detectPhoneType(text: string): { phone_type: "android" | "ios" |
 
 export function detectModelAcceptance(text: string): "accepted" | "rejected" | null {
   const normalizedText = normalizeText(text);
-  if (/\b(kabul|uygun|tamam|olur|evet|baslayalim|baÅŸlayalim|anladim)\b/u.test(normalizedText)) {
+  if (/\b(kabul|uygun|uygub|tamam|olur|evet|baslayalim|baÅŸlayalim|anladim)\b/u.test(normalizedText)) {
     return "accepted";
   }
   if (/\b(uygun degil|istemiyorum|hayir|vazgectim|kabul etmiyorum)\b/u.test(normalizedText)) {

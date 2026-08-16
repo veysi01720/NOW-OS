@@ -988,7 +988,7 @@ export async function handleIncomingMessage(
         authority: authorityContext,
       });
       recordHumanHandoff(deps, message, "installation_verification_ambiguous");
-      const reply = "Kurulum görselini net doğrulayamadım; kontrol için ekibe ilettim.";
+      const reply = "Kurulum görselini net doğrulayamadım; kurulum ilerlemeden önce inceleme gerekiyor.";
       const sent = await sendReply(message, reply, deps, latencyTracker);
       return sent
         ? { status: "fallback_sent", correlation_id: message.correlation_id }

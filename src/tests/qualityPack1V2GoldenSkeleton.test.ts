@@ -430,9 +430,9 @@ describe("Quality Pack 1 V2 golden skeletons", () => {
     const replies = deps.sender.sends.map((send) => send.text);
     expect(replies).toHaveLength(3);
     expect(new Set(replies).size).toBe(3);
-    expect(normalizedText(replies[0] ?? "")).toContain("bu cevabi guvenli sekilde netlestiremedim");
-    expect(normalizedText(replies[1] ?? "")).toContain("az once de uygulama bilgisi");
-    expect(normalizedText(replies[2] ?? "")).toContain("uygulama bilgisi hakkinda dogrulanmamis cevap vermeyecegim");
+    expect(normalizedText(replies[0] ?? "")).toContain("bunu hemen kontrol ediyorum");
+    expect(normalizedText(replies[1] ?? "")).toContain("bunu kontrol ediyorum");
+    expect(normalizedText(replies[2] ?? "")).toContain("sorunu aldim");
     expect(deps.assistantClient.runCalls).toHaveLength(6);
     const traces = deps.logger.events.filter((event) => event.event_type === "CONVERSATION_DECISION_V2_TRACE");
     expect(traces).toHaveLength(3);
@@ -458,9 +458,9 @@ describe("Quality Pack 1 V2 golden skeletons", () => {
     const replies = deps.sender.sends.map((send) => send.text);
     expect(replies).toHaveLength(3);
     expect(new Set(replies).size).toBe(3);
-    expect(normalizedText(replies[0] ?? "")).toContain("su an yaniti guvenli sekilde olusturamadim");
-    expect(normalizedText(replies[1] ?? "")).toContain("az once de bu konu");
-    expect(normalizedText(replies[2] ?? "")).toContain("bu konu hakkinda dogrulanmamis cevap vermeyecegim");
+    expect(normalizedText(replies[0] ?? "")).toContain("bunu hemen kontrol ediyorum");
+    expect(normalizedText(replies[1] ?? "")).toContain("bunu kontrol ediyorum");
+    expect(normalizedText(replies[2] ?? "")).toContain("sorunu aldim");
     expect(deps.assistantClient.runCalls).toHaveLength(3);
     const traces = deps.logger.events.filter((event) => event.event_type === "CONVERSATION_DECISION_V2_TRACE");
     expect(traces).toHaveLength(3);
@@ -575,7 +575,8 @@ describe("Quality Pack 1 V2 golden skeletons", () => {
 
     expect(deps.humanHandoffStore.list()).toHaveLength(1);
     expect(deps.humanHandoffStore.list()[0]?.reason_code).toBe("conversational_escalation_claim");
-    expect(normalizedText(deps.sender.sends[0]?.text ?? "")).toContain("ekip");
+    expect(normalizedText(deps.sender.sends[0]?.text ?? "")).toContain("kontrol");
+    expect(normalizedText(deps.sender.sends[0]?.text ?? "")).not.toContain("ekip");
     expect(deps.logger.events).toEqual(
       expect.arrayContaining([
         expect.objectContaining({

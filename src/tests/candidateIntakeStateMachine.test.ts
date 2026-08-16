@@ -439,6 +439,32 @@ describe("Candidate Intake State Machine", () => {
     expect(result.captured_fields).toContain("model_acceptance");
   });
 
+  it("treats the common Uygub typo as explicit work model acceptance", () => {
+    const store = new TestUserStateStore();
+    store.states.set("905333333333", {
+      ...defaultUserState(),
+      age: 27,
+      gender: "erkek",
+      daily_hours: 4,
+      eligibility_status: "eligible",
+      work_model_disclosed: true,
+      model_acceptance: "pending",
+      current_state: "WORK_MODEL_ACCEPTANCE",
+      missing_fields: ["model_acceptance"],
+      expected_next_step: "ask_work_model_acceptance"
+    });
+
+    const result = applyCandidateIntakeStateMachine(
+      message({ phone_number: "905333333333", text: "Uygub" }),
+      createTestEnv({ approvedApps: ["Layla"] }),
+      store
+    );
+
+    expect(result.next_state.model_acceptance).toBe("accepted");
+    expect(result.next_state.current_state).toBe("WAITING_FOR_APP");
+    expect(result.captured_fields).toContain("model_acceptance");
+  });
+
   it("does not run candidate state transitions for owner messages", () => {
     const store = new TestUserStateStore();
 

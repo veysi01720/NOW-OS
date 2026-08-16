@@ -131,7 +131,7 @@ function safePaymentTrustReply(decision: ConversationDecisionV3): ConversationDe
     ...decision,
     reply: {
       ...decision.reply,
-      text: "Bu konuda kesin bir guvence veremem; dogrulanmis odeme bilgisi yoksa ekip kontrol etsin.",
+      text: "Bu konuda kesin bir guvence veremem; yayinlanmis ve dogrulanmis odeme kurali olmadan kesin bilgi soyleyemem.",
       contains_question: false,
     },
   };
