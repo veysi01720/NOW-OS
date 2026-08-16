@@ -12,6 +12,7 @@ export interface EnvConfig {
   evolutionApiBaseUrl: string;
   evolutionInstance: string;
   evolutionApiKey: string;
+  evolutionBotPhoneNumber?: string;
   evolutionAutoReconnectEnabled?: boolean;
   evolutionReconnectBaseDelayMs?: number;
   evolutionReconnectCooldownMs?: number;
@@ -137,6 +138,7 @@ export function loadEnv(): EnvConfig {
     evolutionApiBaseUrl: readEnv("EVOLUTION_API_BASE_URL"),
     evolutionInstance: readEnv("EVOLUTION_INSTANCE"),
     evolutionApiKey: readEnv("EVOLUTION_API_KEY"),
+    evolutionBotPhoneNumber: process.env.EVOLUTION_BOT_PHONE_NUMBER?.trim() || undefined,
     evolutionAutoReconnectEnabled: process.env.EVOLUTION_AUTO_RECONNECT_ENABLED !== "false",
     evolutionReconnectBaseDelayMs: parsePositiveInteger(process.env.EVOLUTION_RECONNECT_BASE_DELAY_MS, 5_000),
     evolutionReconnectCooldownMs: parsePositiveInteger(process.env.EVOLUTION_RECONNECT_COOLDOWN_MS, 30 * 60 * 1000),

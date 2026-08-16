@@ -321,6 +321,79 @@ async function notifyInstallationOwner(deps: HandleIncomingMessageDeps, text: st
   return sent;
 }
 
+function isOperationalUnknownQuestion(message: NormalizedIncomingMessage): boolean {
+  const intent = inferConversationIntent(message.text);
+  if (intent === "off_topic" || intent === "account_profile_question" || intent === "payment_question") return false;
+  const normalized = message.text.toLocaleLowerCase("tr-TR").normalize("NFKD").replace(/\p{M}/gu, "").replace(/ı/g, "i");
+  if (/(?:garanti|kesin kazanc|odeme|para|puan|kamera|goruntulu|video|profil|hesap)/u.test(normalized)) return false;
+  if (/(?:hangi|uygulamalar?\s+var)/u.test(normalized)) return false;
+  return intent === "ask_missing_info"
+    || /(?:uygulama|kurulum|odeme|kazanc|puan|egitim|destek|ajans|kod|vazgec|devam)/u.test(normalized);
+}
+
+function sanitizeOwnerQuestion(text: string, phone: string): string {
+  return text
+    .replace(new RegExp(phone.replace(/\D/g, ""), "g"), "[candidate_phone]")
+    .replace(/\b(?:\+?90)?5\d{9}\b/g, "[phone]")
+    .replace(/\s+/g, " ")
+    .trim()
+    .slice(0, 500);
+}
+
+const OWNER_ANSWER_PENDING_REPLY = "Bunu hemen kontrol ediyorum; birkaç dakika içinde döneceğim.";
+
+async function holdOperationalQuestionForOwner(
+  deps: HandleIncomingMessageDeps,
+  message: NormalizedIncomingMessage,
+): Promise<boolean> {
+  if (!deps.humanHandoffStore || !isOperationalUnknownQuestion(message)) return false;
+  const key = message.chat_type === "private" ? message.phone_number : message.remote_jid;
+  const result = deps.humanHandoffStore.createOwnerQuery({
+    tenant_id: "now_os",
+    conversation_key_hash: createHash("sha256").update(key).digest("hex"),
+    source_correlation_id: message.correlation_id,
+    candidate_phone: message.phone_number,
+    question_sanitized: sanitizeOwnerQuestion(message.text, message.phone_number),
+    failure_reason: "verified_knowledge_missing_or_unavailable",
+  });
+  if (!result.created) return true;
+
+  const ownerText = `Aday sorusu (${message.phone_number.slice(-4)}): ${result.record.owner_query?.question_sanitized ?? "[soru gizlendi]"}. Yanıt verememe nedeni: bilgi bankasında doğrulanmış karşılık yok veya doğrulanamadı. Lütfen adaya iletilecek kısa yanıtı yazın.`;
+  let notified = false;
+  for (const phone of deps.env.ownerPhoneNumbers) {
+    try {
+      await deps.sender.sendText({ message: syntheticPrivateMessage(phone, ownerText, message.correlation_id), text: ownerText });
+      notified = true;
+    } catch (error) {
+      deps.logger.warn({ event_type: "OWNER_ANSWER_REQUIRED_NOTIFICATION_FAILED", correlation_id: message.correlation_id, error: redactSecrets(error instanceof Error ? error.message : String(error)) });
+    }
+  }
+  deps.humanHandoffStore.markOwnerNotification(result.record.handoff_id, notified ? "sent" : "failed");
+  const timeout = setTimeout(async () => {
+    const pending = deps.humanHandoffStore?.findPendingOwnerQuery();
+    if (!pending?.owner_query || pending.handoff_id !== result.record.handoff_id) return;
+    for (const phone of deps.env.teamEscalationPhoneNumbers) {
+      try {
+        const teamText = `Aday ${pending.owner_query.candidate_phone.slice(-4)} için owner yanıtı 15 dakika içinde gelmedi; ekip yönlendirmesi gerekiyor.`;
+        await deps.sender.sendText({ message: syntheticPrivateMessage(phone, teamText, message.correlation_id), text: teamText });
+      } catch (error) {
+        deps.logger.warn({ event_type: "OWNER_ANSWER_REQUIRED_TEAM_ESCALATION_FAILED", correlation_id: message.correlation_id, error: redactSecrets(error instanceof Error ? error.message : String(error)) });
+      }
+    }
+    try {
+      const candidateText = "Owner yanıtı gecikti; konun ekip kontrolüne yönlendiriliyor. Ekip kısa süre içinde seninle iletişime geçecek.";
+      await deps.sender.sendText({ message: syntheticPrivateMessage(pending.owner_query.candidate_phone, "", message.correlation_id), text: candidateText });
+    } catch (error) {
+      deps.logger.warn({ event_type: "OWNER_ANSWER_REQUIRED_CANDIDATE_NOTICE_FAILED", correlation_id: message.correlation_id, error: redactSecrets(error instanceof Error ? error.message : String(error)) });
+    }
+    deps.humanHandoffStore?.markOwnerQueryTeamEscalated(result.record.handoff_id);
+    deps.logger.warn({ event_type: "OWNER_ANSWER_REQUIRED_TEAM_ESCALATED", correlation_id: message.correlation_id, candidate_last4: pending.owner_query.candidate_phone.slice(-4), raw_text_logged: false });
+  }, 15 * 60 * 1000);
+  timeout.unref?.();
+  deps.logger.info({ event_type: "OWNER_ANSWER_REQUIRED", correlation_id: message.correlation_id, handoff_id: result.record.handoff_id, owner_notification_sent: notified, owner_count: deps.env.ownerPhoneNumbers.length, candidate_last4: message.phone_number.slice(-4), raw_text_logged: false });
+  return true;
+}
+
 function normalizeOwnerDecisionText(value: string): string {
   return value.trim().toLocaleLowerCase("tr-TR").normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/ı/g, "i").replace(/\s+/g, " ");
 }
@@ -571,6 +644,22 @@ export async function handleIncomingMessage(
       await sendReply(message, ownerDecision.decision === "approved" ? "Görsel onaylandı; adayın kurulumu TRAINING_READY durumuna alındı." : "Görsel reddedildi; aday beklemede ve düzeltme iletildi.", deps, latencyTracker);
       logger.info({ event_type: "INSTALLATION_VERIFICATION_OWNER_DECISION", correlation_id: message.correlation_id, review_id: review.review_id, decision: ownerDecision.decision, candidate_last4: review.candidate_phone_last4, raw_text_logged: false });
       return latencyTracker.finish({ status: "sent", correlation_id: message.correlation_id });
+    }
+  }
+  if ((senderRole === "owner" || senderRole === "manager") && message.chat_type === "private" && deps.humanHandoffStore && !message.text.trim().startsWith("#")) {
+    const pendingOwnerQuery = deps.humanHandoffStore.findPendingOwnerQuery();
+    if (pendingOwnerQuery?.owner_query) {
+      const candidateMessage = syntheticPrivateMessage(pendingOwnerQuery.owner_query.candidate_phone, "", message.correlation_id);
+      const candidateReply = message.text.trim();
+      try {
+        await deps.sender.sendText({ message: candidateMessage, text: candidateReply });
+        deps.humanHandoffStore.resolveOwnerQuery(pendingOwnerQuery.handoff_id);
+        logger.info({ event_type: "OWNER_ANSWER_RELAYED_TO_CANDIDATE", correlation_id: message.correlation_id, handoff_id: pendingOwnerQuery.handoff_id, candidate_last4: pendingOwnerQuery.owner_query.candidate_phone.slice(-4), raw_text_logged: false });
+        await sendReply(message, "Yanıt adaya iletildi.", deps, latencyTracker);
+        return latencyTracker.finish({ status: "sent", correlation_id: message.correlation_id });
+      } catch (error) {
+        logger.error({ event_type: "OWNER_ANSWER_RELAY_FAILED", correlation_id: message.correlation_id, handoff_id: pendingOwnerQuery.handoff_id, error: redactSecrets(error instanceof Error ? error.message : String(error)), raw_text_logged: false });
+      }
     }
   }
   const zipRouting = detectZipRouting({ message, senderRole });
@@ -1372,8 +1461,12 @@ export async function handleIncomingMessage(
           modelExecutionService,
           logger,
         });
-        if (
-          decisionResult.decision.requires_escalation &&
+         const ownerAnswerRequired = decisionResult.origin.startsWith("deterministic_")
+           && (decisionResult.decision.requires_escalation || decisionResult.origin === "deterministic_transport_failure")
+           && await holdOperationalQuestionForOwner(deps, message);
+         if (
+           !ownerAnswerRequired &&
+           decisionResult.decision.requires_escalation &&
           decisionResult.decision.escalation_reason === "conversational_escalation_claim"
         ) {
           recordHumanHandoff(deps, message, "conversational_escalation_claim");
@@ -1428,7 +1521,7 @@ export async function handleIncomingMessage(
           source: "conversation_decision_v2",
           authority: authorityContext,
         });
-        const replySent = await sendReply(message, decisionResult.finalReply, deps, latencyTracker);
+         const replySent = await sendReply(message, ownerAnswerRequired ? OWNER_ANSWER_PENDING_REPLY : decisionResult.finalReply, deps, latencyTracker);
         if (!replySent) {
           recordEvent(deps, {
             message,
@@ -1446,7 +1539,7 @@ export async function handleIncomingMessage(
             error_layer: "EvolutionSendText",
           };
         }
-        deps.memoryStore.appendBotReply(conversationKey, decisionResult.finalReply);
+         deps.memoryStore.appendBotReply(conversationKey, ownerAnswerRequired ? OWNER_ANSWER_PENDING_REPLY : decisionResult.finalReply);
         recordEvent(deps, {
           message,
           state: decisionResult.nextState,
@@ -1464,10 +1557,11 @@ export async function handleIncomingMessage(
           event_type: "CONVERSATION_DECISION_V2_ERROR",
           error: redactSecrets(error instanceof Error ? error.message : String(error)),
         });
-        recordHumanHandoff(deps, message, "MODEL_UNABLE_TO_COMPLETE");
+         const ownerAnswerRequired = await holdOperationalQuestionForOwner(deps, message);
+         if (!ownerAnswerRequired) recordHumanHandoff(deps, message, "MODEL_UNABLE_TO_COMPLETE");
         const fallbackSent = await sendReply(
           message,
-          ASSISTANT_SAFE_FALLBACK_REPLY,
+          ownerAnswerRequired ? OWNER_ANSWER_PENDING_REPLY : ASSISTANT_SAFE_FALLBACK_REPLY,
           deps,
           latencyTracker,
         );
@@ -1586,10 +1680,11 @@ export async function handleIncomingMessage(
           error instanceof Error ? error.message : String(error),
         ),
       });
-      recordHumanHandoff(deps, message, "ASSISTANT_API_ERROR");
+      const ownerAnswerRequired = await holdOperationalQuestionForOwner(deps, message);
+      if (!ownerAnswerRequired) recordHumanHandoff(deps, message, "ASSISTANT_API_ERROR");
       const fallbackSent = await sendReply(
         message,
-        ASSISTANT_SAFE_FALLBACK_REPLY,
+        ownerAnswerRequired ? OWNER_ANSWER_PENDING_REPLY : ASSISTANT_SAFE_FALLBACK_REPLY,
         deps,
         latencyTracker,
       );
@@ -1621,10 +1716,11 @@ export async function handleIncomingMessage(
         raw_preview: parsed.error.raw_preview,
       };
       logger[parserErrorLogMethod(parsed.error.code)](invalidLog);
-      recordHumanHandoff(deps, message, "ASSISTANT_RESPONSE_INVALID");
+      const ownerAnswerRequired = await holdOperationalQuestionForOwner(deps, message);
+      if (!ownerAnswerRequired) recordHumanHandoff(deps, message, "ASSISTANT_RESPONSE_INVALID");
       const fallbackSent = await sendReply(
         message,
-        ASSISTANT_SAFE_FALLBACK_REPLY,
+        ownerAnswerRequired ? OWNER_ANSWER_PENDING_REPLY : ASSISTANT_SAFE_FALLBACK_REPLY,
         deps,
         latencyTracker,
       );

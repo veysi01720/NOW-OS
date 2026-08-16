@@ -15,3 +15,11 @@ describe("handoff notification policy",()=>{it("enables owner notification only 
  expect(escalation.record.notification_enabled).toBe(true);expect(escalation.record.notification_status).toBe("pending");
  expect(other.record.notification_enabled).toBe(false);expect(other.record.notification_status).toBe("disabled");
 });});
+
+describe("owner answer-required handoffs",()=>{it("stores a sanitized candidate question and resolves it",()=>{
+ const d=mkdtempSync(join(tmpdir(),"handoff-owner-query-"));const s=new PersistentHumanHandoffStore(join(d,"handoffs.json"));
+ const query=s.createOwnerQuery({tenant_id:"now_os",conversation_key_hash:"candidate",source_correlation_id:"c1",candidate_phone:"905333333333",question_sanitized:"Kurulum kodu neden gerekli?",failure_reason:"verified_knowledge_missing_or_unavailable"});
+ expect(query.created).toBe(true);expect(query.record.reason_code).toBe("owner_answer_required");expect(s.findPendingOwnerQuery()?.owner_query?.question_sanitized).toContain("Kurulum");
+ expect(s.markOwnerNotification(query.record.handoff_id,"sent")).toBe(true);
+ expect(s.resolveOwnerQuery(query.record.handoff_id)).toBe(true);expect(s.findPendingOwnerQuery()).toBeNull();
+});});

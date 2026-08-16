@@ -20,6 +20,8 @@ import {
 } from "./testDoubles.js";
 import { ZipIngestionStore } from "../bridge/zipIngestion/store.js";
 import { writeValidKnowledgeBankFixture } from "./fixtures/knowledgeBankFixture.js";
+import { PersistentHumanHandoffStore } from "../store/humanHandoffStore.js";
+import { vi } from "vitest";
 
 function message(overrides: Partial<NormalizedIncomingMessage> = {}): NormalizedIncomingMessage {
   return {
@@ -82,6 +84,49 @@ class MutableUserStateStore implements UserStateStore {
 }
 
 describe("handleIncomingMessage", () => {
+  it("holds an unknown operational question, notifies both owners, and relays the owner answer", async () => {
+    const handoffStore = new PersistentHumanHandoffStore(join(mkdtempSync(join(process.cwd(), "tmp-owner-answer-")), "handoffs.json"));
+    const testDeps = { ...deps("{}"), humanHandoffStore: handoffStore };
+    const candidate = await handleIncomingMessage(message({ text: "Kurulumda ajans kodu neden gerekli?", message_id: "unknown-operational" }), testDeps as any);
+
+    expect(candidate.status).toBe("fallback_sent");
+    expect(testDeps.sender.sends.map((item) => item.text)).toContain("Bunu hemen kontrol ediyorum; birkaç dakika içinde döneceğim.");
+    expect(testDeps.sender.sends.some((item) => item.message.phone_number === "905111111111")).toBe(true);
+    expect(handoffStore.findPendingOwnerQuery()?.reason_code).toBe("owner_answer_required");
+
+    const owner = await handleIncomingMessage(message({ phone_number: "905111111111", sender_id: "905111111111", text: "Kodsuz devam edebilirsin.", message_id: "owner-answer" }), testDeps as any);
+    expect(owner.status).toBe("sent");
+    expect(testDeps.sender.sends.at(-2)?.message.phone_number).toBe("905333333333");
+    expect(testDeps.sender.sends.at(-2)?.text).toBe("Kodsuz devam edebilirsin.");
+    expect(handoffStore.findPendingOwnerQuery()).toBeNull();
+  });
+
+  it("routes an unanswered unknown operational question to the team after 15 minutes", async () => {
+    vi.useFakeTimers();
+    try {
+      const handoffStore = new PersistentHumanHandoffStore(join(mkdtempSync(join(process.cwd(), "tmp-owner-timeout-")), "handoffs.json"));
+      const testDeps = { ...deps("{}"), humanHandoffStore: handoffStore };
+      await handleIncomingMessage(message({ text: "Kurulumda ajans kodu neden gerekli?", message_id: "unknown-timeout" }), testDeps as any);
+      await vi.advanceTimersByTimeAsync(15 * 60 * 1000);
+      expect(testDeps.sender.sends.some((item) => item.message.phone_number === "905352265056")).toBe(true);
+      expect(handoffStore.list().find((item) => item.reason_code === "owner_answer_required")?.owner_query?.team_escalated).toBe(true);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("does not ask owners for security boundaries or off-topic chat", async () => {
+    const paymentStore = new PersistentHumanHandoffStore(join(mkdtempSync(join(process.cwd(), "tmp-owner-payment-")), "handoffs.json"));
+    const paymentDeps = { ...deps("{}"), humanHandoffStore: paymentStore };
+    await handleIncomingMessage(message({ text: "Kesin kazanc garanti mi?", message_id: "payment-boundary" }), paymentDeps as any);
+    expect(paymentStore.findPendingOwnerQuery()).toBeNull();
+
+    const offTopicStore = new PersistentHumanHandoffStore(join(mkdtempSync(join(process.cwd(), "tmp-owner-offtopic-")), "handoffs.json"));
+    const offTopicDeps = { ...deps("{}"), humanHandoffStore: offTopicStore };
+    await handleIncomingMessage(message({ text: "Arda kim?", message_id: "off-topic" }), offTopicDeps as any);
+    expect(offTopicStore.findPendingOwnerQuery()).toBeNull();
+  });
+
   it("auto-approves and publishes a single #bilgi section after owner says evet", async () => {
     const root = mkdtempSync(join(process.cwd(), "tmp-owner-short-review-"));
     try {
