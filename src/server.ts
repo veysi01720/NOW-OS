@@ -224,6 +224,8 @@ export async function buildServer() {
         runtime_source_readable: knowledgeValidation.runtime_source_readable,
         runtime_backup_present: knowledgeValidation.runtime_backup_present,
         runtime_manifest_hash_valid: knowledgeValidation.runtime_manifest_hash_valid,
+        stage_policy_presence: knowledgeValidation.stage_policy_presence,
+        stage_policy_warning_codes: knowledgeValidation.stage_policy_warning_codes,
         error_count: knowledgeValidation.error_codes.length,
       });
       throw new Error("Knowledge startup validation failed");
@@ -241,8 +243,16 @@ export async function buildServer() {
       runtime_backup_present: knowledgeValidation.runtime_backup_present,
       runtime_backup_age_seconds: knowledgeValidation.runtime_backup_age_seconds,
       runtime_manifest_hash_valid: knowledgeValidation.runtime_manifest_hash_valid,
+      stage_policy_presence: knowledgeValidation.stage_policy_presence,
+      stage_policy_warning_codes: knowledgeValidation.stage_policy_warning_codes,
       fallback_policy_warning_count: knowledgeValidation.fallback_policy_warning_codes.length,
     });
+    if (knowledgeValidation.stage_policy_warning_codes.length > 0) {
+      logger.warn({
+        event_type: "KNOWLEDGE_STARTUP_STAGE_POLICY_WARNING",
+        warning_codes: knowledgeValidation.stage_policy_warning_codes,
+      });
+    }
     if (knowledgeValidation.fallback_policy_warning_codes.length > 0) {
       logger.warn({
         event_type: "KNOWLEDGE_STARTUP_FALLBACK_POLICY_WARNING",

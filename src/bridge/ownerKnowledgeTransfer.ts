@@ -115,7 +115,11 @@ function verifyMaterializedKnowledge(
             : null;
     if (intent) {
       const loadedPolicy = loadStructuredAppFacts(resolve(appFactsPath, ".."));
-      const decisionContext = resolveCandidatePolicy(defaultUserState(), [], loadedPolicy.app_facts, loadedPolicy.general_work_model, intent, loadedPolicy.policy_sections, loadedPolicy.owner_transfer_sections);
+      const verificationState: ReturnType<typeof defaultUserState> = {
+        ...defaultUserState(),
+        current_state: intent === "technical_issue" ? "INSTALLATION_IN_PROGRESS" : intent === "account_profile_question" ? "WAITING_FOR_APP" : "NEW_LEAD",
+      };
+      const decisionContext = resolveCandidatePolicy(verificationState, [], loadedPolicy.app_facts, loadedPolicy.general_work_model, intent, loadedPolicy.policy_sections, loadedPolicy.owner_transfer_sections);
       if (decisionContext.facts.some((fact) => fact.content.includes(content))) contextPaths.add(`decision_context.canonical_policy_facts:${intent}`);
       else failures.push(`DECISION_CONTEXT_MISSING:${candidate.section_id ?? candidate.id}`);
     }

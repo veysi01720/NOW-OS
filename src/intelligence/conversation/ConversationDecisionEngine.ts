@@ -68,7 +68,7 @@ function logMissingPolicyNormalization(
   });
 }
 
-function buildDecisionPrompt(context: ConversationDecisionContext, repairInput?: {
+export function buildDecisionPrompt(context: ConversationDecisionContext, repairInput?: {
   previousRawText: string;
   reasonCodes: string[];
 }): string {
@@ -103,6 +103,9 @@ function buildDecisionPrompt(context: ConversationDecisionContext, repairInput?:
     }),
     "Answer the latest user message first.",
     "Use only canonical_policy_facts, structured_facts, candidate_state, and the latest user message.",
+    `Policy stage: ${context.derived_state.policy_stage ?? "unknown"}. Policy sections selected: ${context.derived_state.policy_section_ids?.join(",") || "none"}. Estimated policy tokens: ${context.derived_state.policy_context_token_estimate ?? 0}.`,
+    "The following grounded policy text is present in this prompt and must be used when it answers the latest question:",
+    ...context.canonical_policy_facts.map((fact) => `[${fact.id}] ${fact.content}`),
     "structured_facts is backend-owned official grounding. Copy approved app names, iPhone names, codes, and capabilities exactly; never invent or override it with model knowledge.",
     "Treat canonical_policy_facts as atomic facts, not as a ready-made reply.",
     "Do not ask known age/gender/daily_hours again.",
@@ -349,10 +352,11 @@ async function runModelDecision(input: {
   normalization: ConversationDecisionV3PolicyNormalizationResult | null;
   semanticValidation: ReturnType<typeof validateConversationDecisionV3Semantics> | null;
 }> {
+  const decisionPrompt = buildDecisionPrompt(input.context, input.repairInput);
   const payload = {
     ...input.backendContext,
     conversation_decision_v2: input.context,
-    conversation_decision_v2_instructions: buildDecisionPrompt(input.context, input.repairInput)
+    conversation_decision_v2_instructions: decisionPrompt
   } as BackendContextPayloadV1;
 
   const adapterInput: ModelAdapterInput = {
@@ -361,7 +365,7 @@ async function runModelDecision(input: {
     mode: "conversation_decision_v2",
     senderRole: input.backendContext.sender_role,
     channelType: input.backendContext.chat_type,
-    normalizedUserMessage: buildDecisionPrompt(input.context, input.repairInput),
+    normalizedUserMessage: decisionPrompt,
     contextPayload: payload,
     retrievedKnowledge: input.backendContext.answer_plan
       ? {
@@ -386,6 +390,10 @@ async function runModelDecision(input: {
         two_layer_validator_enabled: input.env.twoLayerValidatorEnabled
       },
       inferredIntent: input.context.latest_message.inferred_intent,
+      policyStage: input.context.derived_state.policy_stage,
+      policySectionIds: input.context.derived_state.policy_section_ids,
+      policyContextTokenEstimate: input.context.derived_state.policy_context_token_estimate,
+      policyPromptTextPresent: input.context.canonical_policy_facts.every((fact) => decisionPrompt.includes(fact.content)),
       candidatePhone: input.backendContext.sender_role === "candidate"
         ? input.backendContext.sender.phone_number
         : undefined,
@@ -442,6 +450,26 @@ export async function executeConversationDecisionV2(input: {
     env: input.env,
     capturedFields: input.capturedFields
   });
+
+  if ((context.derived_state.missing_stage_sections ?? []).length > 0) {
+    input.logger.warn({
+      event_type: "POLICY_STAGE_SECTIONS_MISSING",
+      correlation_id: context.request_id,
+      policy_stage: context.derived_state.policy_stage,
+      missing_section_ids: context.derived_state.missing_stage_sections ?? [],
+      raw_policy_text_logged: false,
+    });
+  }
+  if (context.canonical_policy_facts.length === 0 && context.structured_facts?.policy_sections) {
+    input.logger.warn({
+      event_type: "POLICY_CONTEXT_COVERAGE_GAP",
+      correlation_id: context.request_id,
+      policy_stage: context.derived_state.policy_stage,
+      reason: "structured_policy_sections_present_but_context_empty",
+      owner_notification_required: true,
+      raw_policy_text_logged: false,
+    });
+  }
 
   let decision: ConversationDecision | null = null;
   let rawModelOutput = "";

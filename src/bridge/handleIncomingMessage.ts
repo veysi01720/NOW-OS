@@ -1462,9 +1462,13 @@ export async function handleIncomingMessage(
           modelExecutionService,
           logger,
         });
-         const ownerAnswerRequired = decisionResult.origin.startsWith("deterministic_")
-           && (decisionResult.decision.requires_escalation || decisionResult.origin === "deterministic_transport_failure")
-           && await holdOperationalQuestionForOwner(deps, message);
+         const policyContextGap = (decisionResult.context.derived_state.missing_stage_sections ?? []).length > 0
+           && decisionResult.context.structured_facts?.policy_sections !== null;
+         const ownerAnswerRequired = policyContextGap
+           ? await holdOperationalQuestionForOwner(deps, message)
+           : (decisionResult.origin.startsWith("deterministic_")
+             && (decisionResult.decision.requires_escalation || decisionResult.origin === "deterministic_transport_failure")
+             && await holdOperationalQuestionForOwner(deps, message));
          if (
            !ownerAnswerRequired &&
            decisionResult.decision.requires_escalation &&

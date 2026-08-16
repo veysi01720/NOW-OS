@@ -76,9 +76,9 @@ describe("candidate app routing", () => {
       privacy_payment_support: "Privacy content.",
       followup_closure_group_rules: "Follow-up content.",
     };
-    const result = resolveCandidatePolicy({ ...defaultUserState() }, ["Layla"], [], null, "candidate_app_routing", policySections);
+    const result = resolveCandidatePolicy({ ...defaultUserState(), current_state: "WAITING_FOR_APP" }, ["Layla"], [], null, "candidate_app_routing", policySections);
     expect(result.facts.find((fact) => fact.id === "policy_section_routing_matrix")?.content).toContain("Routing matrix content.");
-    expect(result.facts.some((fact) => fact.id === "policy_section_profile_bio_photo_rules")).toBe(false);
+    expect(result.facts.some((fact) => fact.id === "policy_section_profile_bio_photo_rules")).toBe(true);
   });
 
   it("uses profile rules for account_profile_question", () => {
@@ -138,7 +138,7 @@ describe("candidate app routing", () => {
 
   it("does not expose the post-install history question during app selection", () => {
     const result = resolveCandidatePolicy(
-      defaultUserState(),
+      { ...defaultUserState(), current_state: "WAITING_FOR_APP" },
       ["Layla"],
       [{ app: "Layla", android_name: "Layla", ios_name: "NIVI", invite_code: null, agency_bind_code: null, agency_code: null, official_url: null, status: "owner_approved", aliases: [], capabilities: { text_only: true, video_required: false } }],
       null,
@@ -146,7 +146,7 @@ describe("candidate app routing", () => {
       { ...validPolicySectionsForTest(), routing_matrix: "Layla genellikle onceliklidir.\n- Kurulum sonrasi onceki uygulamalar sorulur." },
     );
     const routing = result.facts.find((fact) => fact.id === "policy_section_routing_matrix")?.content ?? "";
-    expect(routing).toContain("tek bir uygun uygulama öner");
+    expect(routing).toContain("tek bir uygun uygulama oner");
     expect(routing).not.toContain("onceki uygulamalar sorulur");
   });
 

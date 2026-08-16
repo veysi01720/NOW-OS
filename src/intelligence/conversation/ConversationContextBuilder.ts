@@ -92,7 +92,11 @@ export function buildConversationDecisionContext(input: {
     derived_state: {
       intake_complete: intakeComplete,
       eligibility_status: policy.policyMissing ? "policy_missing" : state.eligibility_status ?? "unresolved",
-      dialogue_phase: state.current_state
+      dialogue_phase: state.current_state,
+      policy_stage: policy.stage,
+      policy_section_ids: policy.policy_section_ids,
+      policy_context_token_estimate: policy.policy_context_token_estimate,
+      missing_stage_sections: policy.missing_stage_sections,
     },
     facts_extracted_from_current_message: [...input.capturedFields],
     canonical_policy_facts: policy.facts,

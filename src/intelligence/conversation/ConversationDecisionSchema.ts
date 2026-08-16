@@ -72,6 +72,10 @@ export interface ConversationDecisionContext {
     intake_complete: boolean;
     eligibility_status: UserState["eligibility_status"];
     dialogue_phase: string;
+    policy_stage?: "intake" | "app_selection" | "installation";
+    policy_section_ids?: string[];
+    policy_context_token_estimate?: number;
+    missing_stage_sections?: string[];
   };
   facts_extracted_from_current_message: string[];
   canonical_policy_facts: ConversationPolicyFact[];

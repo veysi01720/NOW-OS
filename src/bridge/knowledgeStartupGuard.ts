@@ -16,6 +16,8 @@ export interface KnowledgeStartupValidation {
   runtime_backup_present: boolean;
   runtime_backup_age_seconds: number | null;
   runtime_manifest_hash_valid: boolean;
+  stage_policy_presence: Record<"intake" | "app_selection" | "installation", boolean>;
+  stage_policy_warning_codes: string[];
   error_codes: string[];
   fallback_policy_warning_codes: string[];
 }
@@ -60,6 +62,16 @@ function fallbackPolicyWarnings(facts: StructuredAppFactsContext): string[] {
   return warnings;
 }
 
+function stagePolicyPresence(facts: StructuredAppFactsContext): Record<"intake" | "app_selection" | "installation", boolean> {
+  const sections = facts.policy_sections;
+  const has = (keys: string[]) => Boolean(sections && keys.every((key) => typeof sections[key as keyof typeof sections] === "string" && sections[key as keyof typeof sections].trim() !== ""));
+  return {
+    intake: has(["eligibility_rejection", "profile_bio_photo_rules", "memory_rules"]),
+    app_selection: has(["routing_matrix", "application_independence", "profile_bio_photo_rules", "memory_rules"]),
+    installation: has(["installation_permission", "application_independence", "profile_bio_photo_rules", "memory_rules"]),
+  };
+}
+
 export function validateKnowledgeAtStartup(knowledgeBankDir?: string): KnowledgeStartupValidation {
   const dir = knowledgeBankDir ?? process.env.KNOWLEDGE_BANK_DIR ?? resolve(process.cwd(), "data", "knowledge_bank");
   const runtime = inspectRuntimeKnowledgeState(dir);
@@ -79,6 +91,10 @@ export function validateKnowledgeAtStartup(knowledgeBankDir?: string): Knowledge
   const ageValid = facts.source_status === "loaded" && hasAgeInvariant(facts);
   const paymentValid = facts.source_status === "loaded" && hasPaymentInvariant(facts);
   const fallbackWarnings = fallbackPolicyWarnings(facts);
+  const stagePresence = stagePolicyPresence(facts);
+  const stageWarnings = Object.entries(stagePresence)
+    .filter(([, present]) => !present)
+    .map(([stage]) => `STAGE_POLICY_SECTIONS_MISSING_${stage.toUpperCase()}`);
   if (!routingValid) errors.push("ROUTING_TARGET_NOT_APPROVED");
   if (!ageValid) errors.push("AGE_POLICY_INVARIANT_MISMATCH");
   if (!paymentValid) errors.push("PAYMENT_POLICY_INVARIANT_MISMATCH");
@@ -96,6 +112,8 @@ export function validateKnowledgeAtStartup(knowledgeBankDir?: string): Knowledge
     runtime_backup_present: runtime.latest_backup_present,
     runtime_backup_age_seconds: runtime.latest_backup_age_seconds,
     runtime_manifest_hash_valid: runtime.manifest_hash_valid,
+    stage_policy_presence: stagePresence,
+    stage_policy_warning_codes: stageWarnings,
     error_codes: [...new Set(errors)],
     fallback_policy_warning_codes: fallbackWarnings,
   };

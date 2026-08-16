@@ -3,109 +3,67 @@ import type { StructuredAppFact, StructuredGeneralWorkModel } from "../../bridge
 import type { StructuredPolicySections } from "../../contracts/backendContextPayload.js";
 import type { ConversationPolicyFact } from "../conversation/ConversationDecisionSchema.js";
 
+export type CandidatePolicyStage = "intake" | "app_selection" | "installation";
+
 export interface CandidatePolicyResolution {
   facts: ConversationPolicyFact[];
   policyMissing: boolean;
   secondary_apps: string[];
+  stage: CandidatePolicyStage;
+  policy_section_ids: string[];
+  policy_context_token_estimate: number;
+  missing_stage_sections: string[];
 }
 
+const STAGE_POLICY_SECTIONS: Record<CandidatePolicyStage, Array<keyof StructuredPolicySections>> = {
+  intake: ["eligibility_rejection", "profile_bio_photo_rules", "memory_rules"],
+  app_selection: ["routing_matrix", "application_independence", "profile_bio_photo_rules", "memory_rules"],
+  installation: ["installation_permission", "application_independence", "profile_bio_photo_rules", "memory_rules"],
+};
+
+const ALWAYS_REQUIRED_CONSTRAINT_SECTIONS: Array<keyof StructuredPolicySections> = [
+  "eligibility_rejection",
+  "privacy_payment_support",
+];
+
 function normalize(value: string): string {
-  return value.toLocaleLowerCase("tr-TR").normalize("NFKD").replace(/\p{M}/gu, "").replace(/ı/gu, "i");
+  return value.toLocaleLowerCase("tr-TR").normalize("NFKD").replace(/\p{M}/gu, "").replace(/Ä±/gu, "i");
+}
+
+function resolvePolicyStage(state: UserState): CandidatePolicyStage {
+  if (
+    ["READY_FOR_INSTALLATION", "INSTALLATION_IN_PROGRESS", "INSTALLATION_DONE", "TRAINING_READY", "TRAINING_IN_PROGRESS", "TRAINING_DONE"].includes(state.current_state)
+    || state.installation_status === "in_progress"
+    || state.installation_status === "done"
+  ) return "installation";
+  if (["WAITING_FOR_APP", "WAITING_FOR_PHONE_TYPE"].includes(state.current_state) || state.selected_app !== null) return "app_selection";
+  return "intake";
 }
 
 function appMatches(value: string | null | undefined, fact: StructuredAppFact): boolean {
   if (!value) return false;
   const target = normalize(value);
-  return [
-    fact.app,
-    fact.android_name,
-    fact.ios_name,
-    ...fact.aliases,
-  ].some((candidate) => normalize(candidate) === target);
+  return [fact.app, fact.android_name, fact.ios_name, ...fact.aliases].some((candidate) => normalize(candidate) === target);
 }
 
-function selectStructuredFact(
-  state: UserState,
-  allowedApps: string[],
-  structuredFacts: StructuredAppFact[],
-): StructuredAppFact | null {
+function selectStructuredFact(state: UserState, allowedApps: string[], structuredFacts: StructuredAppFact[]): StructuredAppFact | null {
   const ownerApproved = structuredFacts.filter((fact) => normalize(fact.status).includes("owner_approved"));
   if (ownerApproved.length === 0) return null;
-
   const selected = ownerApproved.find((fact) => appMatches(state.selected_app, fact));
   if (selected) return selected;
-
   const textOnly = ownerApproved.find((fact) => fact.capabilities.text_only);
   if (textOnly) return textOnly;
-
-  const allowed = ownerApproved.find((fact) => allowedApps.some((app) => appMatches(app, fact)));
-  return allowed ?? ownerApproved[0] ?? null;
+  return ownerApproved.find((fact) => allowedApps.some((app) => appMatches(app, fact))) ?? ownerApproved[0] ?? null;
 }
 
 function structuredJobDefinitionFact(fact: StructuredAppFact): ConversationPolicyFact {
   const display = fact.app === fact.ios_name ? fact.app : `${fact.app} (iPhone: ${fact.ios_name})`;
-  const textOnlyBoundary = fact.capabilities.text_only
+  const boundary = fact.capabilities.text_only
     ? "Text/chat-oriented work is supported; do not present camera or video as required."
     : "No text-only guarantee is encoded for this app; do not invent camera, account, or profile requirements.";
   const invitePart = fact.invite_code ? ` Approved invite code: ${fact.invite_code}.` : "";
-  const content =
-    `Approved app: ${display}. Job definition: the candidate answers incoming chats/messages in writing inside the approved app. ` +
-    `${textOnlyBoundary}${invitePart} Do not invent earnings, setup links, account ownership, or hidden platform behavior.`;
-  return {
-    id: `structured_app_job_definition_${normalize(fact.app).replace(/[^a-z0-9]+/gu, "_")}`,
-    topic: "candidate_work_model",
-    fact: content,
-    content,
-    source: "knowledge_bank",
-    version: "app_facts_structured.json",
-  };
-}
-
-function policySectionForIntent(intent: string | null): keyof StructuredPolicySections | null {
-  switch (intent) {
-    case "candidate_app_routing":
-    case "ask_selected_app":
-    case "ask_how_work_is_done":
-      return "routing_matrix";
-    case "ask_profile":
-    case "ask_account_profile":
-    case "account_profile_question":
-    case "ask_camera_requirement":
-      return "profile_bio_photo_rules";
-    case "ask_eligibility":
-    case "ask_missing_age":
-    case "ask_missing_gender":
-      return "eligibility_rejection";
-    case "ask_installation_permission":
-    case "begin_setup":
-    case "installation_permission":
-      return "installation_permission";
-    case "payment_withdrawal":
-    case "technical_issue":
-    case "privacy_question":
-      return "privacy_payment_support";
-    case "follow_up":
-    case "closure":
-    case "group_operation":
-      return "followup_closure_group_rules";
-    case "clarify_previous_explanation":
-      return "memory_rules";
-    default:
-      return null;
-  }
-}
-
-function policySectionContentForIntent(
-  key: keyof StructuredPolicySections,
-  content: string,
-  intent: string | null,
-): string {
-  if (key !== "routing_matrix" || !["candidate_app_routing", "ask_selected_app"].includes(intent ?? "")) return content;
-  return content
-    .split("\n")
-    .filter((line) => !/kurulum\s+sonrasi|onceki\s+uygulamalar/u.test(normalize(line)))
-    .concat("- Adaya uygulama seçmesini sorma; cihaz, tercih ve uygunluk bilgilerine göre onaylı listeden tek bir uygun uygulama öner.")
-    .join("\n");
+  const content = `Approved app: ${display}. Job definition: the candidate answers incoming chats/messages in writing inside the approved app. ${boundary}${invitePart} Do not invent earnings, setup links, account ownership, or hidden platform behavior.`;
+  return { id: `structured_app_job_definition_${normalize(fact.app).replace(/[^a-z0-9]+/gu, "_")}`, topic: "candidate_work_model", fact: content, content, source: "knowledge_bank", version: "app_facts_structured.json" };
 }
 
 export interface OwnerTransferPolicySection {
@@ -116,30 +74,29 @@ export interface OwnerTransferPolicySection {
 }
 
 function structuredPolicySectionFact(key: keyof StructuredPolicySections, content: string): ConversationPolicyFact {
-  return {
-    id: `policy_section_${key}`,
-    topic: key,
-    fact: content,
-    content,
-    source: "knowledge_bank",
-    version: "app_facts_structured.json",
-  };
+  return { id: `policy_section_${key}`, topic: key, fact: content, content, source: "knowledge_bank", version: "app_facts_structured.json" };
 }
 
-function ownerTransferMatchesIntent(section: OwnerTransferPolicySection, intent: string | null): boolean {
+function prepareRoutingSection(content: string, stage: CandidatePolicyStage): string {
+  if (stage !== "app_selection") return content;
+  return content
+    .split("\n")
+    .filter((line) => !/kurulum\s+sonrasi|onceki\s+uygulamalar/u.test(normalize(line)))
+    .concat("- Adaya uygulama secmesini sorma; cihaz, tercih ve uygunluk bilgilerine gore onayli listeden tek bir uygun uygulama oner.")
+    .join("\n");
+}
+
+function ownerTransferMatchesStage(section: OwnerTransferPolicySection, stage: CandidatePolicyStage): boolean {
   if (section.classification === "archive") return false;
   if (section.classification === "constraint" || section.classification === "critical") return true;
   const text = normalize(`${section.title} ${section.content}`);
-  if (["account_profile_question", "ask_profile", "ask_account_profile", "ask_camera_requirement", "work_model_disclosure"].includes(intent ?? "")) {
-    return /(erkek|hesap|profil|bio|foto|fotograf|kamera)/u.test(text);
-  }
-  if (["begin_setup", "installation_permission", "ask_installation_permission", "technical_issue"].includes(intent ?? "")) {
-    return /(kurulum|uygulama|destek|sorun|ekran|yonetim)/u.test(text);
-  }
-  if (["payment_withdrawal", "privacy_question"].includes(intent ?? "")) return /(odeme|cekim|kazanc|iban|gizlilik)/u.test(text);
-  if (["ask_eligibility", "ask_missing_age", "ask_missing_gender"].includes(intent ?? "")) return /(yas|cinsiyet|uygun|red)/u.test(text);
-  if (["candidate_app_routing", "ask_selected_app"].includes(intent ?? "")) return /(uygulama|alternatif|yonlendirme)/u.test(text);
-  return false;
+  if (stage === "intake") return /(yas|cinsiyet|uygun|profil|bio|foto|fotograf|is model|calisma)/u.test(text);
+  if (stage === "app_selection") return /(uygulama|alternatif|yonlendirme|profil|cihaz)/u.test(text);
+  return /(kurulum|uygulama|kod|davet|ajans|destek|sorun|ekran|profil|foto|fotograf)/u.test(text);
+}
+
+function ownerTransferFact(section: OwnerTransferPolicySection): ConversationPolicyFact {
+  return { id: `owner_transfer_${section.section_id}`, topic: "owner_transfer_knowledge", fact: section.content, content: section.content, source: "knowledge_bank", version: "app_facts_structured.json" };
 }
 
 export function resolveCandidatePolicy(
@@ -152,124 +109,59 @@ export function resolveCandidatePolicy(
   ownerTransferSections: OwnerTransferPolicySection[] = [],
 ): CandidatePolicyResolution {
   const facts: ConversationPolicyFact[] = [];
-  const policySection = policySectionForIntent(intent);
-  if (policySection && policySections?.[policySection]) {
-    facts.push(structuredPolicySectionFact(
-      policySection,
-      policySectionContentForIntent(policySection, policySections[policySection], intent),
-    ));
+  const stage = resolvePolicyStage(state);
+  const stageSections = [...STAGE_POLICY_SECTIONS[stage], ...ALWAYS_REQUIRED_CONSTRAINT_SECTIONS];
+  const availableStageSections = stageSections.filter((key, index) => stageSections.indexOf(key) === index && policySections?.[key]?.trim());
+  const rawSectionTokens = Math.ceil(availableStageSections.reduce((total, key) => total + (policySections?.[key]?.length ?? 0), 0) / 4);
+  const selectedStageSections = rawSectionTokens > 2000
+    ? [
+        ...ALWAYS_REQUIRED_CONSTRAINT_SECTIONS.filter((key) => policySections?.[key]?.trim()),
+        ...STAGE_POLICY_SECTIONS[stage].filter((key) => policySections?.[key]?.trim()),
+      ].filter((key, index, keys) => keys.indexOf(key) === index).slice(0, 4)
+    : availableStageSections;
+  const seenSections = new Set<string>();
+  for (const key of selectedStageSections) {
+    const content = policySections?.[key]?.trim();
+    if (!content || seenSections.has(key)) continue;
+    seenSections.add(key);
+    facts.push(structuredPolicySectionFact(key, key === "routing_matrix" ? prepareRoutingSection(content, stage) : content));
   }
-  if (
-    ["work_model_disclosure", "provide_work_model_disclosure", "ask_job_definition"].includes(intent ?? "")
-    && policySections?.profile_bio_photo_rules
-  ) {
-    facts.push(structuredPolicySectionFact("profile_bio_photo_rules", policySections.profile_bio_photo_rules));
-  }
-  if (policySections?.memory_rules && policySection !== "memory_rules") {
-    facts.push(structuredPolicySectionFact("memory_rules", policySections.memory_rules));
-  }
-  for (const section of ownerTransferSections.filter((item) => ownerTransferMatchesIntent(item, intent))) {
-    facts.push({
-      id: `owner_transfer_${section.section_id}`,
-      topic: "owner_transfer_knowledge",
-      fact: section.content,
-      content: section.content,
-      source: "knowledge_bank",
-      version: "app_facts_structured.json",
-    });
-  }
-  const useGeneralWorkModel = intent === "ask_job_definition" && generalWorkModel !== null;
+  for (const section of ownerTransferSections.filter((item) => ownerTransferMatchesStage(item, stage))) facts.push(ownerTransferFact(section));
+
+  const useGeneralWorkModel = generalWorkModel !== null && (stage === "intake" || ["ask_job_definition", "work_model_disclosure", "provide_work_model_disclosure"].includes(intent ?? ""));
   if (useGeneralWorkModel) facts.push(structuredGeneralWorkModelFact(generalWorkModel));
   const structuredFact = useGeneralWorkModel ? null : selectStructuredFact(state, allowedApps, structuredFacts);
   if (structuredFact) facts.push(structuredJobDefinitionFact(structuredFact));
-  // allowedApps is already derived from owner-approved structured facts in
-  // production; retaining its first entry keeps test/legacy callers that
-  // provide the approved list directly compatible without reintroducing a
-  // hardcoded app name.
-  const app = useGeneralWorkModel ? null : structuredFact?.app ?? allowedApps[0] ?? null;
+  const app = structuredFact?.app ?? allowedApps[0] ?? null;
 
   if ((state.gender === "erkek" || state.gender === "male") && app) {
-    facts.push({
-      id: "male_candidate_work_model",
-      topic: "male_candidate_work_model",
-      fact:
-        `${app} is the approved app to mention for a male candidate when the candidate wants text/chat-oriented work; do not present camera/video as required.`,
-      content:
-        `${app} is the approved app to mention for a male candidate when the candidate wants text/chat-oriented work; do not present camera/video as required.`,
-      source: "canonical_policy",
-      version: "conversation_v2"
-    });
-    facts.push({
-      id: "work_model_acceptance_required",
-      topic: "work_model_acceptance",
-      fact:
-        "After age, gender, and daily availability are captured, explain the work model clearly and ask for explicit acceptance before any setup, link, invite code, phone setup, or profile setup.",
-      content:
-        "After age, gender, and daily availability are captured, explain the work model clearly and ask for explicit acceptance before any setup, link, invite code, phone setup, or profile setup.",
-      source: "canonical_policy",
-      version: "conversation_v2"
-    });
-    facts.push({
-      id: "candidate_work_steps_chat_based",
-      topic: "candidate_work_steps",
-      fact:
-        "The safe high-level explanation is: the candidate proceeds in the approved app, follows team guidance, and communicates through chats/messages; avoid unsupported claims about earnings, identity, account ownership, or hidden platform behavior.",
-      content:
-        "The safe high-level explanation is: the candidate proceeds in the approved app, follows team guidance, and communicates through chats/messages; avoid unsupported claims about earnings, identity, account ownership, or hidden platform behavior.",
-      source: "canonical_policy",
-      version: "conversation_v2"
-    });
+    const content = `${app} is the approved app to mention for a male candidate when the candidate wants text/chat-oriented work; do not present camera/video as required.`;
+    facts.push({ id: "male_candidate_work_model", topic: "male_candidate_work_model", fact: content, content, source: "canonical_policy", version: "conversation_v2" });
+    const acceptance = "After age, gender, and daily availability are captured, explain the work model clearly and ask for explicit acceptance before any setup, link, invite code, phone setup, or profile setup.";
+    facts.push({ id: "work_model_acceptance_required", topic: "work_model_acceptance", fact: acceptance, content: acceptance, source: "canonical_policy", version: "conversation_v2" });
+    const steps = "The safe high-level explanation is: the candidate proceeds in the approved app, follows team guidance, and communicates through chats/messages; avoid unsupported claims about earnings, identity, account ownership, or hidden platform behavior.";
+    facts.push({ id: "candidate_work_steps_chat_based", topic: "candidate_work_steps", fact: steps, content: steps, source: "canonical_policy", version: "conversation_v2" });
   }
 
-  const approvedApps = structuredFacts
-    .filter((fact) => normalize(fact.status).includes("owner_approved"))
-    .map((fact) => fact.app);
-  const secondaryApps = approvedApps
-    .filter((candidate) => normalize(candidate) !== normalize(state.selected_app ?? ""));
-
+  const approvedApps = structuredFacts.filter((fact) => normalize(fact.status).includes("owner_approved")).map((fact) => fact.app);
+  const secondaryApps = approvedApps.filter((candidate) => normalize(candidate) !== normalize(state.selected_app ?? ""));
   const routingMatrix = policySections?.routing_matrix?.trim();
   if (routingMatrix && approvedApps.length > 0) {
-    const routingFact = policySectionContentForIntent("routing_matrix", routingMatrix, intent);
-    facts.push({
-      id: "candidate_secondary_app_options",
-      topic: "candidate_app_routing",
-      fact: routingFact,
-      content: routingFact,
-      source: "knowledge_bank",
-      version: "app_facts_structured.json"
-    });
+    const routingFact = prepareRoutingSection(routingMatrix, stage);
+    facts.push({ id: "candidate_secondary_app_options", topic: "candidate_app_routing", fact: routingFact, content: routingFact, source: "knowledge_bank", version: "app_facts_structured.json" });
   }
-
   if (!facts.some((fact) => fact.id === "candidate_default_work_model") && app && !useGeneralWorkModel) {
-    facts.push({
-      id: "candidate_default_work_model",
-      topic: "candidate_work_model",
-      fact:
-        `${app} may be mentioned as the approved app; explain only verified high-level work steps and do not move to setup before missing fields and explicit acceptance are complete.`,
-      content:
-        `${app} may be mentioned as the approved app; explain only verified high-level work steps and do not move to setup before missing fields and explicit acceptance are complete.`,
-      source: "canonical_policy",
-      version: "conversation_v2"
-    });
+    const content = `${app} may be mentioned as the approved app; explain only verified high-level work steps and do not move to setup before missing fields and explicit acceptance are complete.`;
+    facts.push({ id: "candidate_default_work_model", topic: "candidate_work_model", fact: content, content, source: "canonical_policy", version: "conversation_v2" });
   }
 
-  return { facts, policyMissing: facts.length === 0, secondary_apps: secondaryApps };
+  const policySectionIds = facts.filter((fact) => fact.id.startsWith("policy_section_")).map((fact) => fact.id.slice("policy_section_".length));
+  const estimatedTokens = Math.ceil(facts.reduce((total, fact) => total + fact.content.length, 0) / 4);
+  const missingStageSections = stageSections.filter((key) => !policySections?.[key]?.trim());
+  return { facts, policyMissing: facts.length === 0, secondary_apps: secondaryApps, stage, policy_section_ids: policySectionIds, policy_context_token_estimate: estimatedTokens, missing_stage_sections: missingStageSections };
 }
 
 function structuredGeneralWorkModelFact(model: StructuredGeneralWorkModel): ConversationPolicyFact {
-  const content = [
-    `General work model: ${model.summary}`,
-    `Workflow: ${model.workflow}`,
-    `Earnings policy: ${model.earnings_policy}`,
-    `Payment policy: ${model.payment_policy}`,
-    `Setup boundary: ${model.setup_boundary}`,
-  ].join(" ");
-  return {
-    id: "general_work_model",
-    topic: "general_work_model",
-    fact: content,
-    content,
-    source: "knowledge_bank",
-    version: "app_facts_structured.json",
-  };
+  const content = [`General work model: ${model.summary}`, `Workflow: ${model.workflow}`, `Earnings policy: ${model.earnings_policy}`, `Payment policy: ${model.payment_policy}`, `Setup boundary: ${model.setup_boundary}`].join(" ");
+  return { id: "general_work_model", topic: "general_work_model", fact: content, content, source: "knowledge_bank", version: "app_facts_structured.json" };
 }
