@@ -168,6 +168,22 @@ describe("ModelExecutionService adapter selection", () => {
     expect(snapshot.responses_api_used).toBe(true);
   });
 
+  it("fails closed instead of falling back to Assistants when global Responses has no adapter", async () => {
+    const client = new FakeAssistantClient([
+      '{"contract_version":"1.0","reply":"Legacy must not run","internal_boss_note":""}',
+    ]);
+    const service = new ModelExecutionService(client, new InMemoryThreadStore(), {
+      modelAdapterLayerEnabled: true,
+      modelAdapterCanaryMode: "off",
+    });
+
+    await expect(service.execute(modelInput({ model_adapter_layer_enabled: true })))
+      .rejects.toMatchObject({ normalized: { code: "PROVIDER_UNAVAILABLE", causeCategory: "responses_adapter_missing" } });
+    expect(client.runCalls).toHaveLength(0);
+    expect(client.createThreadCalls).toBe(0);
+    expect(service.snapshot().model_adapter_provider).toBe("openai_responses");
+  });
+
   it("keeps legacy behavior when the global flag is false", async () => {
     const client = new FakeAssistantClient([
       '{"contract_version":"1.0","reply":"Legacy ok","internal_boss_note":""}',

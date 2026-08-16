@@ -13,9 +13,11 @@ describe("runtime knowledge state", () => {
       app_facts: [{ app: "Test", android_name: "Test", ios_name: "Test", status: "owner_approved", aliases: [], capabilities: { text_only: true, video_required: false } }],
       general_work_model: { summary: "summary", workflow: "workflow", earnings_policy: "policy", payment_policy: "payment", setup_boundary: "setup" },
       policy_sections: {
+        first_contact_boundary: "first contact", source_identity_tone: "source and tone",
         routing_matrix: "routing", application_independence: "independence", profile_bio_photo_rules: "profile",
-        memory_rules: "memory", eligibility_rejection: "eligibility", installation_permission: "installation",
-        privacy_payment_support: "privacy", followup_closure_group_rules: "followup"
+        memory_rules: "memory", eligibility_rejection: "eligibility", installation_process: "installation process",
+        installation_permission: "installation", installation_proof_retry: "installation proof",
+        privacy_payment_support: "privacy", followup_closure_group_rules: "followup", owner_training_routing: "training routing"
       },
       owner_transfer_sections: []
     });

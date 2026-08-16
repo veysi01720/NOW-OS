@@ -62,6 +62,17 @@ function normalizeCandidateKey(value: string | null | undefined): string {
 }
 
 export function resolveModelAdapterExecution(input: AdapterSelectionInput): AdapterExecutionDecision {
+  // Global Responses mode is the production route, not a canary. Historical
+  // canary latches must never reactivate the retired Assistants provider.
+  if (input.featureFlags.model_adapter_layer_enabled) {
+    return {
+      useAdapterLayer: true,
+      adapterName: "responses_adapter",
+      provider: "openai_responses",
+      reason: "enabled_global",
+      canaryScope: "none",
+    };
+  }
   if (input.featureFlags.model_adapter_stop_latched === true) {
     return {
       useAdapterLayer: false,
@@ -69,15 +80,6 @@ export function resolveModelAdapterExecution(input: AdapterSelectionInput): Adap
       provider: "openai_assistant",
       reason: "disabled_stop_latched",
       canaryScope: "off",
-    };
-  }
-  if (input.featureFlags.model_adapter_layer_enabled) {
-    return {
-      useAdapterLayer: true,
-      adapterName: "assistant_adapter",
-      provider: "openai_assistant",
-      reason: "enabled_global",
-      canaryScope: "none",
     };
   }
 

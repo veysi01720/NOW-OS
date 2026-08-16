@@ -164,8 +164,25 @@ describe("model adapter scoped canary flag", () => {
     });
     expect(decision.useAdapterLayer).toBe(true);
     expect(decision.reason).toBe("enabled_global");
-    expect(decision.provider).toBe("openai_assistant");
-    expect(decision.adapterName).toBe("assistant_adapter");
+    expect(decision.provider).toBe("openai_responses");
+    expect(decision.adapterName).toBe("responses_adapter");
+  });
+
+  it("ignores a historical canary stop latch in global Responses mode", () => {
+    const decision = resolveModelAdapterExecution({
+      ...baseInput,
+      featureFlags: {
+        ...baseInput.featureFlags,
+        model_adapter_layer_enabled: true,
+        model_adapter_stop_latched: true,
+      },
+    });
+    expect(decision).toMatchObject({
+      useAdapterLayer: true,
+      reason: "enabled_global",
+      provider: "openai_responses",
+      adapterName: "responses_adapter",
+    });
   });
 
   it("returns only sanitized decision data", () => {

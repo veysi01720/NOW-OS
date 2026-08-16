@@ -2,6 +2,7 @@ import { resolve } from "node:path";
 import { loadStructuredAppFacts, type StructuredAppFactsContext } from "./structuredAppFacts.js";
 import { deriveApprovedApps } from "../config/approvedApps.js";
 import { inspectRuntimeKnowledgeState } from "./runtimeKnowledgeState.js";
+import { inspectTrainingKnowledgeIntegrity } from "./trainingKnowledgeIntegrity.js";
 
 export interface KnowledgeStartupValidation {
   valid: boolean;
@@ -16,8 +17,11 @@ export interface KnowledgeStartupValidation {
   runtime_backup_present: boolean;
   runtime_backup_age_seconds: number | null;
   runtime_manifest_hash_valid: boolean;
-  stage_policy_presence: Record<"intake" | "app_selection" | "installation", boolean>;
+  stage_policy_presence: Record<"intake" | "app_selection" | "installation" | "training", boolean>;
   stage_policy_warning_codes: string[];
+  training_knowledge_valid: boolean;
+  training_candidate_context_isolated: boolean;
+  training_section_count: number;
   error_codes: string[];
   fallback_policy_warning_codes: string[];
 }
@@ -62,13 +66,14 @@ function fallbackPolicyWarnings(facts: StructuredAppFactsContext): string[] {
   return warnings;
 }
 
-function stagePolicyPresence(facts: StructuredAppFactsContext): Record<"intake" | "app_selection" | "installation", boolean> {
+function stagePolicyPresence(facts: StructuredAppFactsContext): Record<"intake" | "app_selection" | "installation" | "training", boolean> {
   const sections = facts.policy_sections;
   const has = (keys: string[]) => Boolean(sections && keys.every((key) => typeof sections[key as keyof typeof sections] === "string" && sections[key as keyof typeof sections].trim() !== ""));
   return {
-    intake: has(["eligibility_rejection", "profile_bio_photo_rules", "memory_rules"]),
-    app_selection: has(["routing_matrix", "application_independence", "profile_bio_photo_rules", "memory_rules"]),
-    installation: has(["installation_permission", "application_independence", "profile_bio_photo_rules", "memory_rules"]),
+    intake: has(["first_contact_boundary", "source_identity_tone", "eligibility_rejection", "profile_bio_photo_rules", "memory_rules"]),
+    app_selection: has(["routing_matrix", "application_independence", "profile_bio_photo_rules", "memory_rules", "source_identity_tone"]),
+    installation: has(["installation_process", "installation_permission", "installation_proof_retry", "application_independence", "profile_bio_photo_rules", "memory_rules", "source_identity_tone"]),
+    training: has(["owner_training_routing", "application_independence", "memory_rules", "source_identity_tone"]),
   };
 }
 
@@ -76,10 +81,12 @@ export function validateKnowledgeAtStartup(knowledgeBankDir?: string): Knowledge
   const dir = knowledgeBankDir ?? process.env.KNOWLEDGE_BANK_DIR ?? resolve(process.cwd(), "data", "knowledge_bank");
   const runtime = inspectRuntimeKnowledgeState(dir);
   const facts = loadStructuredAppFacts(dir);
+  const training = inspectTrainingKnowledgeIntegrity(dir);
   const manifestStatus = runtime.manifest_status;
   const errors = [...facts.errors.map(() => "STRUCTURED_FACTS_SCHEMA_INVALID")];
   if (runtime.manifest_status === "missing") errors.push("STRUCTURED_MANIFEST_MISSING");
   if (runtime.manifest_status === "invalid") errors.push("STRUCTURED_FACTS_HASH_MISMATCH");
+  errors.push(...training.error_codes);
   errors.push(...runtime.errors.filter((code) =>
     code !== "RUNTIME_STRUCTURED_MANIFEST_MISSING" &&
     code !== "RUNTIME_STRUCTURED_MANIFEST_INVALID" &&
@@ -100,7 +107,7 @@ export function validateKnowledgeAtStartup(knowledgeBankDir?: string): Knowledge
   if (!paymentValid) errors.push("PAYMENT_POLICY_INVARIANT_MISMATCH");
 
   return {
-    valid: facts.source_status === "loaded" && manifestStatus === "valid" && errors.length === 0,
+    valid: facts.source_status === "loaded" && manifestStatus === "valid" && training.valid && errors.length === 0,
     structured_status: facts.source_status,
     manifest_status: manifestStatus,
     approved_app_count: approvedApps.length,
@@ -114,6 +121,9 @@ export function validateKnowledgeAtStartup(knowledgeBankDir?: string): Knowledge
     runtime_manifest_hash_valid: runtime.manifest_hash_valid,
     stage_policy_presence: stagePresence,
     stage_policy_warning_codes: stageWarnings,
+    training_knowledge_valid: training.valid,
+    training_candidate_context_isolated: training.candidate_context_isolated,
+    training_section_count: training.section_count,
     error_codes: [...new Set(errors)],
     fallback_policy_warning_codes: fallbackWarnings,
   };

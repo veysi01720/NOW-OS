@@ -17,9 +17,17 @@ function docker(args) {
 const image = argument("image");
 const finalTag = argument("final-tag", image);
 const manifestPathInImage = argument("manifest-path", "/app/build/provenance/source-manifest.json");
+const sourceCommit = argument(
+  "source-commit",
+  execFileSync("git", ["rev-parse", "HEAD"], { encoding: "utf8" }).trim(),
+);
 
 if (!image) {
   console.error("IMAGE_PROVENANCE_LABELED=NO reason=IMAGE_ARG_MISSING");
+  process.exit(1);
+}
+if (!/^[a-f0-9]{7,40}$/i.test(sourceCommit)) {
+  console.error("IMAGE_PROVENANCE_LABELED=NO reason=SOURCE_COMMIT_INVALID");
   process.exit(1);
 }
 
@@ -47,7 +55,8 @@ try {
   }
 
   const labelChange =
-    `LABEL now_os.source_tree_hash=${manifest.source_tree_hash} ` +
+    `LABEL now_os.source_commit=${sourceCommit} ` +
+    `now_os.source_tree_hash=${manifest.source_tree_hash} ` +
     `now_os.package_lock_hash=${manifest.package_lock_hash} ` +
     `now_os.dist_tree_hash=${manifest.dist_tree_hash} ` +
     `now_os.workspace_identity_hash=${manifest.workspace_identity_hash} ` +
@@ -57,6 +66,7 @@ try {
 
   console.log(
     `IMAGE_PROVENANCE_LABELED=YES image=${finalTag} ` +
+    `source_commit=${sourceCommit} ` +
     `source_tree_hash=${manifest.source_tree_hash} ` +
     `package_lock_hash=${manifest.package_lock_hash} ` +
     `dist_tree_hash=${manifest.dist_tree_hash} ` +

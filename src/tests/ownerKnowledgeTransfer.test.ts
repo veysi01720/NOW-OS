@@ -15,8 +15,11 @@ function knowledgeBank(dir: string): void {
   const generic = "# Source\n\nOwner approved source content with enough detail for validation.\n";
   for (const file of ["app_routing_rules.md", "link_catalog.md", "owner_rules.md", "safety_boundaries.md", "training_content.md"]) writeFileSync(resolve(dir, file), generic);
   const headings = [
+    "İlk Temas Sınırı", "Kaynak Kimlik ve Ton",
     "Uygulama Yönlendirme Matrisi", "Uygulama Bağımsızlığı", "Profil Bio ve Fotoğraf Kuralları",
-    "Bellek ve Tekrar Sormama", "Uygunluk ve Red", "Kurulum İzni", "Gizlilik Ödeme ve Teknik Destek", "Takip Kapanış ve Grup Operasyonları",
+    "Bellek ve Tekrar Sormama", "Uygunluk ve Red", "Kurulum Süreci", "Kurulum İzni",
+    "Uygulama Özel Kurulum Kanıtı ve Retry", "Gizlilik Ödeme ve Teknik Destek",
+    "Takip Kapanış ve Grup Operasyonları", "Owner Üzerinden Dinamik Eğitim Yönlendirme",
   ];
   const policy = headings.map((heading) => `## ${heading}\n\nMevcut owner politikası ve güvenli uygulama kuralı.`).join("\n\n");
   writeFileSync(resolve(dir, "app_facts.md"), [

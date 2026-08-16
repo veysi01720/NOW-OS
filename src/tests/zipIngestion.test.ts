@@ -115,6 +115,7 @@ describe("Phase 3 ZIP ingestion pipeline", () => {
       expect(testDeps.assistantClient.runCalls).toHaveLength(0);
       expect(testDeps.sender.sends.map((send) => send.text)).toEqual([
         "1 bolum tespit edildi, owner onayini bekliyor. Aktif bilgi degistirilmedi.",
+        expect.stringContaining("ZIP inceleme ozeti:"),
         expect.stringContaining("ZIP inceleme ozeti:")
       ]);
       expect(testDeps.sender.sends.map((send) => send.text).join(" ")).not.toContain("kuyruga aliyorum");

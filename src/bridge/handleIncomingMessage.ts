@@ -299,8 +299,15 @@ function syntheticPrivateMessage(phone: string, text: string, correlationId: str
   };
 }
 
+function ownerRecipientPhones(deps: HandleIncomingMessageDeps): string[] {
+  return [...new Set([
+    ...deps.env.ownerPhoneNumbers,
+    ...deps.env.managerPhoneNumbers,
+  ].filter((phone) => phone.trim() !== ""))];
+}
+
 async function notifyTrainingOwner(deps: HandleIncomingMessageDeps, text: string, correlationId: string): Promise<void> {
-  for (const phone of deps.env.ownerPhoneNumbers) {
+  for (const phone of ownerRecipientPhones(deps)) {
     try {
       await deps.sender.sendText({ message: syntheticPrivateMessage(phone, text, correlationId), text });
     } catch (error) {
@@ -311,7 +318,7 @@ async function notifyTrainingOwner(deps: HandleIncomingMessageDeps, text: string
 
 async function notifyInstallationOwner(deps: HandleIncomingMessageDeps, text: string, correlationId: string): Promise<boolean> {
   let sent = false;
-  for (const phone of deps.env.ownerPhoneNumbers) {
+  for (const phone of ownerRecipientPhones(deps)) {
     try {
       await deps.sender.sendText({ message: syntheticPrivateMessage(phone, text, correlationId), text });
       sent = true;
@@ -390,9 +397,11 @@ async function holdOperationalQuestionForOwner(
     raw_text_logged: false,
   });
 
-  const ownerText = `Aday sorusu (${message.phone_number.slice(-4)}): ${result.record.owner_query?.question_sanitized ?? "[soru gizlendi]"}. Yanıt verememe nedeni: bilgi bankasında doğrulanmış karşılık yok veya doğrulanamadı. Lütfen adaya iletilecek kısa yanıtı yazın.`;
+  const candidateSuffix = message.phone_number.slice(-4);
+  const ownerText = `Aday sorusu (${candidateSuffix}): ${result.record.owner_query?.question_sanitized ?? "[soru gizlendi]"}. Yanıt verememe nedeni: bilgi bankasında doğrulanmış karşılık yok veya doğrulanamadı. Yanıt için: cevap ${candidateSuffix} <adaya iletilecek kısa yanıt>.`;
   let notificationCount = 0;
-  for (const [ownerIndex, phone] of deps.env.ownerPhoneNumbers.entries()) {
+  const ownerRecipients = ownerRecipientPhones(deps);
+  for (const [ownerIndex, phone] of ownerRecipients.entries()) {
     try {
       await deps.sender.sendText({ message: syntheticPrivateMessage(phone, ownerText, message.correlation_id), text: ownerText });
       notificationCount += 1;
@@ -412,8 +421,9 @@ async function holdOperationalQuestionForOwner(
   const notified = notificationCount > 0;
   deps.humanHandoffStore.markOwnerNotification(result.record.handoff_id, notified ? "sent" : "failed");
   const timeout = setTimeout(async () => {
-    const pending = deps.humanHandoffStore?.findPendingOwnerQuery();
-    if (!pending?.owner_query || pending.handoff_id !== result.record.handoff_id) return;
+    const pending = deps.humanHandoffStore?.listPendingOwnerQueries()
+      .find((item) => item.handoff_id === result.record.handoff_id);
+    if (!pending?.owner_query) return;
     for (const phone of deps.env.teamEscalationPhoneNumbers) {
       try {
         const teamText = `Aday ${pending.owner_query.candidate_phone.slice(-4)} için owner yanıtı 15 dakika içinde gelmedi; ekip yönlendirmesi gerekiyor.`;
@@ -432,7 +442,7 @@ async function holdOperationalQuestionForOwner(
     deps.logger.warn({ event_type: "OWNER_ANSWER_REQUIRED_TEAM_ESCALATED", correlation_id: message.correlation_id, candidate_last4: pending.owner_query.candidate_phone.slice(-4), raw_text_logged: false });
   }, 15 * 60 * 1000);
   timeout.unref?.();
-  deps.logger.info({ event_type: "OWNER_ANSWER_REQUIRED", correlation_id: message.correlation_id, handoff_id: result.record.handoff_id, owner_notification_sent: notified, owner_notification_count: notificationCount, owner_count: deps.env.ownerPhoneNumbers.length, candidate_last4: message.phone_number.slice(-4), raw_text_logged: false });
+  deps.logger.info({ event_type: "OWNER_ANSWER_REQUIRED", correlation_id: message.correlation_id, handoff_id: result.record.handoff_id, owner_notification_sent: notified, owner_notification_count: notificationCount, owner_count: ownerRecipients.length, candidate_last4: candidateSuffix, raw_text_logged: false });
   return true;
 }
 
@@ -448,6 +458,12 @@ function parseInstallationOwnerReply(text: string): { suffix: string; decision: 
   if (matchesNormalizedHint(value, ["onay", "onayliyorum", "onayla", "tamam", "olur", "gecti"])) return { suffix: match[1], decision: "approved" };
   if (matchesNormalizedHint(value, ["red", "ret", "reddet", "olmadi", "gecmedi"], { strict: true })) return { suffix: match[1], decision: "rejected" };
   return { suffix: match[1], decision: "rejected", correction: value };
+}
+
+function parseOwnerQueryReply(text: string): { suffix: string; answer: string } | null {
+  const match = text.trim().match(/^(?:cevap|yanıt|yanit)\s+(\d{4})\s+([\s\S]+)$/iu);
+  if (!match || match[2].trim() === "") return null;
+  return { suffix: match[1], answer: match[2].trim() };
 }
 
 function modelExecutionServiceFor(deps: HandleIncomingMessageDeps): ModelExecutionService {
@@ -689,10 +705,24 @@ export async function handleIncomingMessage(
     }
   }
   if ((senderRole === "owner" || senderRole === "manager") && message.chat_type === "private" && deps.humanHandoffStore && !message.text.trim().startsWith("#")) {
-    const pendingOwnerQuery = deps.humanHandoffStore.findPendingOwnerQuery();
+    const pendingOwnerQueries = deps.humanHandoffStore.listPendingOwnerQueries();
+    const targetedReply = parseOwnerQueryReply(message.text);
+    const suffixMatches = targetedReply
+      ? pendingOwnerQueries.filter((item) => item.owner_query?.candidate_phone.endsWith(targetedReply.suffix))
+      : [];
+    if (targetedReply && suffixMatches.length !== 1) {
+      await sendReply(message, `Aday ${targetedReply.suffix} için tek bir bekleyen soru bulunamadı; hiçbir yanıt iletilmedi.`, deps, latencyTracker);
+      return latencyTracker.finish({ status: "sent", correlation_id: message.correlation_id });
+    }
+    if (!targetedReply && pendingOwnerQueries.length > 1) {
+      const suffixes = pendingOwnerQueries.map((item) => item.owner_query?.candidate_phone.slice(-4)).filter(Boolean).join(", ");
+      await sendReply(message, `Birden fazla bekleyen aday var (${suffixes}). Yanıtı "cevap 1234 <mesaj>" biçiminde gönder; hiçbir yanıt iletilmedi.`, deps, latencyTracker);
+      return latencyTracker.finish({ status: "sent", correlation_id: message.correlation_id });
+    }
+    const pendingOwnerQuery = targetedReply ? suffixMatches[0] : pendingOwnerQueries[0];
     if (pendingOwnerQuery?.owner_query) {
       const candidateMessage = syntheticPrivateMessage(pendingOwnerQuery.owner_query.candidate_phone, "", message.correlation_id);
-      const candidateReply = message.text.trim();
+      const candidateReply = targetedReply?.answer ?? message.text.trim();
       try {
         await deps.sender.sendText({ message: candidateMessage, text: candidateReply });
         deps.humanHandoffStore.resolveOwnerQuery(pendingOwnerQuery.handoff_id);

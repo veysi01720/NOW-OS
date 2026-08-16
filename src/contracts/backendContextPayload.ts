@@ -141,14 +141,19 @@ export interface StructuredFactsContext {
 }
 
 export interface StructuredPolicySections {
+  first_contact_boundary: string;
+  source_identity_tone: string;
   routing_matrix: string;
   application_independence: string;
   profile_bio_photo_rules: string;
   memory_rules: string;
   eligibility_rejection: string;
+  installation_process: string;
   installation_permission: string;
+  installation_proof_retry: string;
   privacy_payment_support: string;
   followup_closure_group_rules: string;
+  owner_training_routing: string;
 }
 
 export interface OwnerReportSummary {

@@ -44,6 +44,7 @@ export interface HumanHandoffStore {
   create(input: CreateInput): { created: boolean; record: HumanHandoffRecord };
   createOwnerQuery(input: CreateOwnerQueryInput): { created: boolean; record: HumanHandoffRecord };
   findPendingOwnerQuery(): HumanHandoffRecord | null;
+  listPendingOwnerQueries(): HumanHandoffRecord[];
   resolveOwnerQuery(handoffId: string): boolean;
   markOwnerNotification(handoffId: string, status: "sent" | "failed"): boolean;
   markOwnerQueryTeamEscalated(handoffId: string): boolean;
@@ -119,11 +120,15 @@ export class PersistentHumanHandoffStore implements HumanHandoffStore {
   }
 
   findPendingOwnerQuery(): HumanHandoffRecord | null {
-    return this.records.find((item) => (
+    return this.listPendingOwnerQueries()[0] ?? null;
+  }
+
+  listPendingOwnerQueries(): HumanHandoffRecord[] {
+    return this.records.filter((item) => (
       item.status === "pending"
       && item.owner_query !== undefined
       && item.owner_query.team_escalated !== true
-    )) ?? null;
+    ));
   }
 
   resolveOwnerQuery(handoffId: string): boolean {

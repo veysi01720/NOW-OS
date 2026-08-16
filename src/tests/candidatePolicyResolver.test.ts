@@ -3,10 +3,10 @@ import { resolveCandidatePolicy } from "../intelligence/candidate/CandidatePolic
 import { defaultUserState } from "../storage/types.js";
 
 describe("candidate app routing", () => {
-  it("uses the approved routing matrix without removed applications", () => {
+  it("does not create an application fact from an environment-only list", () => {
     const result = resolveCandidatePolicy({ ...defaultUserState(), gender: "kadın" }, ["Layla"]);
     expect(result.secondary_apps).toEqual([]);
-    expect(result.facts.find((fact) => fact.id === "candidate_default_work_model")?.content).toContain("Layla");
+    expect(result.facts.find((fact) => fact.id === "candidate_default_work_model")).toBeUndefined();
     expect(result.facts.find((fact) => fact.id === "candidate_secondary_app_options")).toBeUndefined();
   });
 
@@ -66,16 +66,7 @@ describe("candidate app routing", () => {
   });
 
   it("uses the matching published policy section for the relevant intent", () => {
-    const policySections = {
-      routing_matrix: "Routing matrix content.",
-      application_independence: "Application independence content.",
-      profile_bio_photo_rules: "Profile content.",
-      memory_rules: "Memory content.",
-      eligibility_rejection: "Eligibility content.",
-      installation_permission: "Installation content.",
-      privacy_payment_support: "Privacy content.",
-      followup_closure_group_rules: "Follow-up content.",
-    };
+    const policySections = { ...validPolicySectionsForTest(), routing_matrix: "Routing matrix content." };
     const result = resolveCandidatePolicy({ ...defaultUserState(), current_state: "WAITING_FOR_APP" }, ["Layla"], [], null, "candidate_app_routing", policySections);
     expect(result.facts.find((fact) => fact.id === "policy_section_routing_matrix")?.content).toContain("Routing matrix content.");
     expect(result.facts.some((fact) => fact.id === "policy_section_profile_bio_photo_rules")).toBe(true);
@@ -253,13 +244,18 @@ describe("candidate app routing", () => {
 
 function validPolicySectionsForTest() {
   return {
+    first_contact_boundary: "First contact.",
+    source_identity_tone: "Source identity.",
     routing_matrix: "Routing.",
     application_independence: "Independence.",
     profile_bio_photo_rules: "Profile.",
     memory_rules: "Memory.",
     eligibility_rejection: "Eligibility.",
+    installation_process: "Installation process.",
     installation_permission: "Installation.",
+    installation_proof_retry: "Installation proof retry.",
     privacy_payment_support: "Privacy.",
     followup_closure_group_rules: "Follow-up.",
+    owner_training_routing: "Owner training routing.",
   };
 }

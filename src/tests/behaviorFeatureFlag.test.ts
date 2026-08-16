@@ -315,7 +315,7 @@ describe("behavior orchestrator feature flag", () => {
     const sender = new FakeSender();
 
     const result = await handleIncomingMessage(ownerMessage(), {
-      env: createTestEnv({ behaviorOrchestratorEnabled: false, modelAdapterLayerEnabled: true }),
+      env: createTestEnv({ behaviorOrchestratorEnabled: false, modelAdapterLayerEnabled: false }),
       assistantClient,
       sender,
       threadStore: new InMemoryThreadStore(),
@@ -341,7 +341,7 @@ describe("behavior orchestrator feature flag", () => {
     const logger = createSilentLogger();
 
     const result = await handleIncomingMessage(ownerMessage(), {
-      env: createTestEnv({ behaviorOrchestratorEnabled: true, behaviorCanaryMode: "internal", modelAdapterLayerEnabled: true }),
+      env: createTestEnv({ behaviorOrchestratorEnabled: true, behaviorCanaryMode: "internal", modelAdapterLayerEnabled: false }),
       assistantClient,
       sender,
       threadStore: new InMemoryThreadStore(),
@@ -360,7 +360,7 @@ describe("behavior orchestrator feature flag", () => {
     expect(logger.events).toEqual(expect.arrayContaining([
       expect.objectContaining({
         event_type: "ASSISTANT_RUN_STARTED",
-        model_adapter_layer_enabled: true,
+        model_adapter_layer_enabled: false,
       }),
     ]));
   });

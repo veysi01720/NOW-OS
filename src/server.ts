@@ -228,6 +228,9 @@ export async function buildServer() {
         runtime_manifest_hash_valid: knowledgeValidation.runtime_manifest_hash_valid,
         stage_policy_presence: knowledgeValidation.stage_policy_presence,
         stage_policy_warning_codes: knowledgeValidation.stage_policy_warning_codes,
+        training_knowledge_valid: knowledgeValidation.training_knowledge_valid,
+        training_candidate_context_isolated: knowledgeValidation.training_candidate_context_isolated,
+        training_section_count: knowledgeValidation.training_section_count,
         error_count: knowledgeValidation.error_codes.length,
       });
       throw new Error("Knowledge startup validation failed");
@@ -247,6 +250,9 @@ export async function buildServer() {
       runtime_manifest_hash_valid: knowledgeValidation.runtime_manifest_hash_valid,
       stage_policy_presence: knowledgeValidation.stage_policy_presence,
       stage_policy_warning_codes: knowledgeValidation.stage_policy_warning_codes,
+      training_knowledge_valid: knowledgeValidation.training_knowledge_valid,
+      training_candidate_context_isolated: knowledgeValidation.training_candidate_context_isolated,
+      training_section_count: knowledgeValidation.training_section_count,
       fallback_policy_warning_count: knowledgeValidation.fallback_policy_warning_codes.length,
     });
     if (knowledgeValidation.stage_policy_warning_codes.length > 0) {

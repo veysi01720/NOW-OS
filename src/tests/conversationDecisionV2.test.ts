@@ -19,7 +19,7 @@ import { buildDeterministicSafetyDecision } from "../intelligence/conversation/C
 import { inferConversationIntent } from "../intelligence/conversation/ConversationContextBuilder.js";
 
 const PREVIOUS_WORK_MODEL_REPLY =
-  "Bilgilerini aldım. Erkek adaylar için onaylı yönlendirme şu: Layla, mesajlaşma ağırlıklı ve kamera açmadan ilerlemek isteyen adaylar için uygundur. Kuruluma geçmeden önce bu çalışma modelinin sana uygun olduğunu netleştirelim. Uygun mu?";
+  "Bilgilerini aldım. Onaylı uygulamada mesajlaşma ağırlıklı ve kamera açmadan ilerleyen çalışma modelini açıklıyorum. Kuruluma geçmeden önce bu çalışma modelinin sana uygun olduğunu netleştirelim. Uygun mu?";
 
 function message(text: string, id: string): NormalizedIncomingMessage {
   return {
@@ -427,7 +427,7 @@ describe("Conversation Decision V2 candidate route", () => {
   });
 
   it("does not repeat the exact production work-model paragraph on clarification", async () => {
-    const simpleClarification = "Basitçe şöyle: Layla içinde gelen sohbetlere yazıyla cevap vererek ilerlersin. Kamera zorunlu diye bir kural yok; önce bu mesajlaşma ağırlıklı çalışma biçiminin sana uyup uymadığını netleştiriyoruz.";
+    const simpleClarification = "Basitçe şöyle: onaylı uygulamada gelen sohbetlere yazıyla cevap vererek ilerlersin. Kamera zorunlu diye bir kural yok; önce bu mesajlaşma ağırlıklı çalışma biçiminin sana uyup uymadığını netleştiriyoruz.";
     const testDeps = deps([
       decision({ reply: { text: PREVIOUS_WORK_MODEL_REPLY, language: "tr", tone: "natural_concise", contains_question: true } }),
       decision({
@@ -528,7 +528,7 @@ describe("Conversation Decision V2 candidate route", () => {
         intent: { primary: "ask_how_work_is_done", secondary: [], confidence: 0.9 },
         direct_question: { present: true, question_summary: "Aday işin nasıl yapılacağını soruyor", answered_in_reply: true },
         reply: {
-          text: "Layla içinde sohbetlere yazıyla cevap vererek ilerlersin. Ekip yönlendirmesi dışındaki hesap/profil detaylarını uydurmadan netleştiririz; önce bu çalışma modeli sana uyuyor mu?",
+          text: "Onaylı uygulamada sohbetlere yazıyla cevap vererek ilerlersin. Hesap veya profil detaylarını uydurmadan, yayınlanmış kurallarla ilerleriz; önce bu çalışma modeli sana uyuyor mu?",
           language: "tr",
           tone: "natural_concise",
           contains_question: true

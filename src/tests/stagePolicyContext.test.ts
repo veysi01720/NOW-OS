@@ -4,14 +4,19 @@ import { buildDecisionPrompt } from "../intelligence/conversation/ConversationDe
 import { defaultUserState } from "../storage/types.js";
 
 const sections = {
+  first_contact_boundary: "Ilk temasta uygunluk bilgileri alinir.",
+  source_identity_tone: "Guncel owner kaynagi kullanilir; bilgi uydurulmaz.",
   routing_matrix: "Layla, TanChat ve Timo routing matrix.",
   application_independence: "Uygulamalar birbirinden bagimsizdir.",
   profile_bio_photo_rules: "Erkek adaylarda kadin profil ve fotograf kurali.",
   memory_rules: "Daha once verilen bilgi tekrar sorulmaz.",
   eligibility_rejection: "Yas ve cinsiyet uygunluk sinirlari.",
-  installation_permission: "Kurulum adimlari, davet kodu ve kontrol ekranlari.",
+  installation_process: "Kurulum adimlari, davet kodu ve kontrol ekranlari.",
+  installation_permission: "Acik baslangic istegi gerekir.",
+  installation_proof_retry: "Kurulum kaniti ve retry sonrasi owner kontrolu gerekir.",
   privacy_payment_support: "Odeme ve gizlilik sinirlari.",
   followup_closure_group_rules: "Takip ve kapanis kurallari.",
+  owner_training_routing: "Egitim yonlendirmesi owner kaynagindan gelir.",
 };
 
 describe("stage-based policy context", () => {
@@ -26,8 +31,10 @@ describe("stage-based policy context", () => {
     );
 
     expect(result.stage).toBe("installation");
-    expect(result.policy_section_ids).toEqual(expect.arrayContaining(["installation_permission", "application_independence", "profile_bio_photo_rules", "memory_rules"]));
+    expect(result.policy_section_ids).toEqual(expect.arrayContaining(["installation_process", "installation_permission", "installation_proof_retry", "application_independence", "profile_bio_photo_rules", "memory_rules"]));
     expect(result.facts.map((fact) => fact.content).join(" ")).toContain("davet kodu");
+    expect(result.facts.map((fact) => fact.id)).not.toContain("work_model_acceptance_required");
+    expect(result.facts.map((fact) => fact.id)).not.toContain("candidate_secondary_app_options");
   });
 
   it("loads all intake constraints and keeps prompt text auditable", () => {

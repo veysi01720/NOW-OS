@@ -112,14 +112,19 @@ function toGeneralWorkModel(value: unknown): StructuredGeneralWorkModel | null {
 }
 
 const POLICY_SECTION_KEYS: Array<keyof StructuredPolicySections> = [
+  "first_contact_boundary",
+  "source_identity_tone",
   "routing_matrix",
   "application_independence",
   "profile_bio_photo_rules",
   "memory_rules",
   "eligibility_rejection",
+  "installation_process",
   "installation_permission",
+  "installation_proof_retry",
   "privacy_payment_support",
   "followup_closure_group_rules",
+  "owner_training_routing",
 ];
 
 function toPolicySections(value: unknown): { sections: StructuredPolicySections | null; errors: string[] } {

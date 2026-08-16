@@ -33,7 +33,7 @@ RUN npm run build \
   && node scripts/generate-build-provenance.mjs --test-result "$TEST_RESULT_REFERENCE" \
   && node scripts/verify-build-provenance.mjs --manifest build/provenance/source-manifest.json
 
-# now_os.source_tree_hash / package_lock_hash / dist_tree_hash /
+# now_os.source_commit / source_tree_hash / package_lock_hash / dist_tree_hash /
 # workspace_identity_hash / provenance_manifest_hash labels are stamped
 # AFTER this build completes, by scripts/stamp-image-provenance-labels.mjs,
 # which reads build/provenance/source-manifest.json back out of the built

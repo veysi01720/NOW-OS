@@ -175,6 +175,7 @@ export class ModelExecutionService {
     assistantClient: AssistantClient;
     threadStore: ThreadStore;
   }) => IModelAdapter;
+  private readonly hasExplicitAdapterFactory: boolean;
 
   constructor(
     private readonly assistantClient: AssistantClient,
@@ -194,6 +195,7 @@ export class ModelExecutionService {
       logger?: Logger;
     },
   ) {
+    this.hasExplicitAdapterFactory = initialFlags?.adapterFactory !== undefined;
     this.adapterFactory = initialFlags?.adapterFactory ?? createModelAdapter;
     this.responsesShadowObserver = initialFlags?.responsesShadowObserver;
     this.canaryControl = initialFlags?.canaryControl;
@@ -355,17 +357,34 @@ export class ModelExecutionService {
       traceId: input.metadata.traceId,
       featureFlags: input.metadata.featureFlags,
     });
+    let globalAdapterUnavailable = false;
     if (
       decision.useAdapterLayer
       && !this.canaryAdapter
+      && !this.hasExplicitAdapterFactory
     ) {
-      decision = {
-        useAdapterLayer: false,
-        adapterName: "assistant_adapter",
-        provider: "openai_assistant",
-        reason: "denied_adapter_unavailable",
-        canaryScope: "off",
-      };
+      if (input.metadata.featureFlags.model_adapter_layer_enabled) {
+        decision = {
+          useAdapterLayer: true,
+          adapterName: "responses_adapter",
+          provider: "openai_responses",
+          reason: "denied_adapter_unavailable",
+          canaryScope: "none",
+        };
+        this.lastDecision = decision;
+        this.lastGlobalEnabled = true;
+        this.lastConfiguredCanaryMode = configuredMode;
+        this.lastCanaryMode = effectiveMode;
+        globalAdapterUnavailable = true;
+      } else {
+        decision = {
+          useAdapterLayer: false,
+          adapterName: "assistant_adapter",
+          provider: "openai_assistant",
+          reason: "denied_adapter_unavailable",
+          canaryScope: "off",
+        };
+      }
     }
     if (
       decision.useAdapterLayer
@@ -398,6 +417,14 @@ export class ModelExecutionService {
     this.emitCanaryDecisionLog(input.metadata.traceId, decision, "model_execution");
 
     try {
+      if (globalAdapterUnavailable) {
+        throw new ModelExecutionError({
+          code: "PROVIDER_UNAVAILABLE",
+          retryable: true,
+          safeMessage: "Responses adapter is unavailable while global Responses mode is enabled.",
+          causeCategory: "responses_adapter_missing",
+        });
+      }
       if (signal?.aborted) {
         throw new ModelExecutionError({
           code: "CANCELLED",

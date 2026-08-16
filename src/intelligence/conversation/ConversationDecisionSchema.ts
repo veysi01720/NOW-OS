@@ -41,7 +41,7 @@ export interface ConversationPolicyFact {
   topic: string;
   fact: string;
   content: string;
-  source: "canonical_policy" | "knowledge_bank";
+  source: "canonical_policy" | "knowledge_bank" | "runtime_contract";
   version: string;
 }
 
@@ -72,7 +72,7 @@ export interface ConversationDecisionContext {
     intake_complete: boolean;
     eligibility_status: UserState["eligibility_status"];
     dialogue_phase: string;
-    policy_stage?: "intake" | "app_selection" | "installation";
+    policy_stage?: "intake" | "app_selection" | "installation" | "training";
     policy_section_ids?: string[];
     policy_context_token_estimate?: number;
     missing_stage_sections?: string[];

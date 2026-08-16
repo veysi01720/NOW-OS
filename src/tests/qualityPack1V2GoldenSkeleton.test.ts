@@ -255,7 +255,7 @@ describe("Quality Pack 1 V2 golden skeletons", () => {
   it("carries candidate-provided prerequisites into the next V2 prompt context", async () => {
     const deps = makeDeps([
       decision({
-        text: "Bilgilerini aldim. Layla icinde sohbetlere yaziyla cevap vererek ilerlersin; bu calisma modeli sana uygun mu?",
+        text: "Bilgilerini aldim. Onayli uygulamada sohbetlere yaziyla cevap vererek ilerlersin; bu calisma modeli sana uygun mu?",
         intent: "candidate_next_step",
         actions: ["acknowledge_information", "explain_work_model", "request_work_model_acceptance"],
         statePatch: { work_model_disclosed: true, work_model_acceptance: "pending" },
@@ -263,10 +263,11 @@ describe("Quality Pack 1 V2 golden skeletons", () => {
         nextAction: "request_work_model_acceptance",
       }),
       decision({
-        text: "Evet, az once verdigin yas, cinsiyet ve saat bilgilerini dikkate alarak devam ediyorum.",
+        text: "Evet, az once verdigin yas, cinsiyet ve saat bilgilerini dikkate alarak devam ediyorum. Telefon tipini ve uygun uygulamayi netlestirelim.",
         intent: "candidate_next_step",
-        actions: ["answer_user_question"],
+        actions: ["answer_user_question", "record_work_model_acceptance", "ask_selected_app", "ask_phone_type"],
         facts: ["male_candidate_work_model", "candidate_work_steps_chat_based"],
+        nextAction: "ask_selected_app",
       }),
     ]);
 
@@ -325,13 +326,13 @@ describe("Quality Pack 1 V2 golden skeletons", () => {
         text: liveDuplicateReply,
         intent: "candidate_next_step",
         actions: ["answer_user_question"],
-        facts: ["candidate_work_steps_chat_based"],
+        facts: ["structured_app_job_definition_layla"],
       }),
       decision({
         text: repairedReply,
         intent: "candidate_next_step",
         actions: ["answer_user_question", "handle_user_frustration"],
-        facts: ["candidate_work_steps_chat_based"],
+        facts: ["structured_app_job_definition_layla"],
       }),
     ], {
       current_state: "READY_FOR_INSTALLATION",

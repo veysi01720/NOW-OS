@@ -43,14 +43,19 @@ describe("structured knowledge publish", () => {
   it("parses all approved policy sections into the structured schema", () => {
     const sections = parsePolicySectionsFromMarkdown(validAppFactsMarkdown(true));
     expect(sections).toEqual(expect.objectContaining({
+      first_contact_boundary: expect.stringContaining("First contact fixture"),
+      source_identity_tone: expect.stringContaining("Source fixture"),
       routing_matrix: expect.stringContaining("Routing matrix fixture"),
       application_independence: expect.stringContaining("Application independence fixture"),
       profile_bio_photo_rules: expect.stringContaining("Profile fixture"),
       memory_rules: expect.stringContaining("Memory fixture"),
       eligibility_rejection: expect.stringContaining("Eligibility fixture"),
+      installation_process: expect.stringContaining("Installation process fixture"),
       installation_permission: expect.stringContaining("Installation fixture"),
+      installation_proof_retry: expect.stringContaining("Installation proof fixture"),
       privacy_payment_support: expect.stringContaining("Privacy fixture"),
       followup_closure_group_rules: expect.stringContaining("Follow-up fixture"),
+      owner_training_routing: expect.stringContaining("Training routing fixture"),
     }));
   });
 
@@ -78,14 +83,19 @@ describe("structured knowledge publish", () => {
 
   it("parses policy headings across Turkish, ASCII, and mojibake variants", () => {
     const variants = [
+      "Kurulum Sureci",
       "Uygulama Yonlendirme Matrisi",
       "Uygulama Bagimsizligi",
       "Profil, Bio ve Fotograf Kurallari",
       "BELLEK VE TEKRAR SORMAMA",
+      "Ilk Temas Siniri",
+      "KAYNAK KIMLIK VE TON",
       "Uygunluk ve Red",
       "Kurulum Izni",
+      "Uygulama Ozel Kurulum Kaniti ve Retry",
       "Gizlilik, Odeme ve Teknik Destek",
       "Takip, Kapanis ve Grup Operasyonlari",
+      "Owner Uzerinden Dinamik Egitim Yonlendirme",
     ];
     let markdown = validAppFactsMarkdown(true);
     let headingIndex = 0;
@@ -95,14 +105,19 @@ describe("structured knowledge publish", () => {
       return `## ${variants[policyHeadingIndex++]}`;
     });
     expect(parsePolicySectionsFromMarkdown(markdown)).toEqual(expect.objectContaining({
+      first_contact_boundary: expect.any(String),
+      source_identity_tone: expect.any(String),
       routing_matrix: expect.any(String),
       application_independence: expect.any(String),
       profile_bio_photo_rules: expect.any(String),
       memory_rules: expect.any(String),
       eligibility_rejection: expect.any(String),
+      installation_process: expect.any(String),
       installation_permission: expect.any(String),
+      installation_proof_retry: expect.any(String),
       privacy_payment_support: expect.any(String),
       followup_closure_group_rules: expect.any(String),
+      owner_training_routing: expect.any(String),
     }));
   });
 
@@ -112,14 +127,19 @@ describe("structured knowledge publish", () => {
     expect(result.status).toBe("published");
     const structured = JSON.parse(readFileSync(resolve(dir, "app_facts_structured.json"), "utf8"));
     expect(Object.keys(structured.policy_sections)).toEqual(expect.arrayContaining([
+      "first_contact_boundary",
+      "source_identity_tone",
       "routing_matrix",
       "application_independence",
       "profile_bio_photo_rules",
       "memory_rules",
       "eligibility_rejection",
+      "installation_process",
       "installation_permission",
+      "installation_proof_retry",
       "privacy_payment_support",
       "followup_closure_group_rules",
+      "owner_training_routing",
     ]));
     expect(structured.general_work_model).toEqual(expect.objectContaining({
       app_independent: true,

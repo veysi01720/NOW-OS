@@ -2,6 +2,8 @@
   "version": "1.0",
   "source_file": "training_content.md",
   "structured_file": "training_content_structured.json",
+  "source_hash": "3a6a6ea85b885a997dff1ee6b9c50021a995a7b1143dbe1e567a63f58b22b718",
+  "structured_hash": "865294f18f3f2d32dbb729ac6d70738c3e82bbfa1e65d64e5c745a3e980cddaa",
   "classification": "training",
   "active_in_candidate_context": false,
   "owner_review_required": true,

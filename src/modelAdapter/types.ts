@@ -41,7 +41,7 @@ export interface ModelAdapterInput {
     };
     inferredIntent?: string | null;
     candidatePhone?: string | null;
-    policyStage?: "intake" | "app_selection" | "installation";
+    policyStage?: "intake" | "app_selection" | "installation" | "training";
     policySectionIds?: string[];
     policyContextTokenEstimate?: number;
     policyPromptTextPresent?: boolean;

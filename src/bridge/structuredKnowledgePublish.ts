@@ -281,14 +281,19 @@ export function publishStructuredKnowledgeSources(options: {
 }
 
 const POLICY_SECTION_ALIASES: Record<keyof StructuredPolicySections, string[]> = {
+  first_contact_boundary: ["ilk temas siniri"],
+  source_identity_tone: ["kaynak kimlik ve ton"],
   routing_matrix: ["uygulama yonlendirme matrisi"],
   application_independence: ["uygulama bagimsizligi"],
   profile_bio_photo_rules: ["profil bio ve fotograf kurallari", "profil bio fotograf kurallari"],
   memory_rules: ["bellek ve tekrar sormama", "bellek tekrar sormama"],
   eligibility_rejection: ["uygunluk ve red"],
+  installation_process: ["kurulum sureci"],
   installation_permission: ["kurulum izni"],
+  installation_proof_retry: ["uygulama ozel kurulum kaniti ve retry"],
   privacy_payment_support: ["gizlilik odeme ve teknik destek"],
   followup_closure_group_rules: ["takip kapanis ve grup operasyonlari", "takip kapanis grup operasyonlari"],
+  owner_training_routing: ["owner uzerinden dinamik egitim yonlendirme"],
 };
 
 export function normalizeHeading(value: string): string {

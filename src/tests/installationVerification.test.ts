@@ -95,7 +95,7 @@ describe("installation verification media boundary", () => {
     expect(stateStore.states.get("905333333333")?.current_state).toBe("INSTALLATION_IN_PROGRESS");
     expect(stateStore.states.get("905333333333")?.installation_status).toBe("in_progress");
     expect(deps.sender.sends.at(-1)?.text).toContain("kontrol ediliyor");
-    expect(deps.sender.sends).toHaveLength(2);
+    expect(deps.sender.sends).toHaveLength(3);
 
     const ownerResult = await handleIncomingMessage(ownerMessage("görsel 3333 onay"), deps);
     expect(ownerResult.status).toBe("sent");
