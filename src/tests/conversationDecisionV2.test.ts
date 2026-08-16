@@ -20,7 +20,15 @@ import { inferConversationIntent } from "../intelligence/conversation/Conversati
 
 const defaultKnowledgeDir = mkdtempSync(join(tmpdir(), "nowos-conversation-v2-facts-"));
 writeValidKnowledgeBankFixture(defaultKnowledgeDir);
-afterAll(() => rmSync(defaultKnowledgeDir, { recursive: true, force: true }));
+const previousKnowledgeBankDir = process.env.KNOWLEDGE_BANK_DIR;
+beforeAll(() => {
+  process.env.KNOWLEDGE_BANK_DIR = defaultKnowledgeDir;
+});
+afterAll(() => {
+  if (previousKnowledgeBankDir === undefined) delete process.env.KNOWLEDGE_BANK_DIR;
+  else process.env.KNOWLEDGE_BANK_DIR = previousKnowledgeBankDir;
+  rmSync(defaultKnowledgeDir, { recursive: true, force: true });
+});
 
 const PREVIOUS_WORK_MODEL_REPLY =
   "Bilgilerini aldım. Onaylı uygulamada mesajlaşma ağırlıklı ve kamera açmadan ilerleyen çalışma modelini açıklıyorum. Kuruluma geçmeden önce bu çalışma modelinin sana uygun olduğunu netleştirelim. Uygun mu?";

@@ -13,7 +13,15 @@ import { writeValidKnowledgeBankFixture } from "./fixtures/knowledgeBankFixture.
 
 const knowledgeBankDir = mkdtempSync(join(tmpdir(), "nowos-intake-regression-facts-"));
 writeValidKnowledgeBankFixture(knowledgeBankDir);
-afterAll(() => rmSync(knowledgeBankDir, { recursive: true, force: true }));
+const previousKnowledgeBankDir = process.env.KNOWLEDGE_BANK_DIR;
+beforeAll(() => {
+  process.env.KNOWLEDGE_BANK_DIR = knowledgeBankDir;
+});
+afterAll(() => {
+  if (previousKnowledgeBankDir === undefined) delete process.env.KNOWLEDGE_BANK_DIR;
+  else process.env.KNOWLEDGE_BANK_DIR = previousKnowledgeBankDir;
+  rmSync(knowledgeBankDir, { recursive: true, force: true });
+});
 
 class TestUserStateStore {
   public states = new Map<string, UserState>();
