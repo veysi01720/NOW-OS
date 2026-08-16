@@ -144,6 +144,16 @@ describe("ModelExecutionService adapter selection", () => {
       modelAdapterCanaryMode: "off",
       canaryAdapter: responsesFixture(),
     });
+    const startupSnapshot = service.snapshot();
+
+    expect(startupSnapshot.model_adapter_current_decision).toEqual({
+      use_adapter_layer: true,
+      reason: "enabled_global",
+      canary_scope: "off",
+    });
+    expect(startupSnapshot.model_adapter_selected_adapter).toBe("responses_adapter");
+    expect(startupSnapshot.model_adapter_provider).toBe("openai_responses");
+    expect(startupSnapshot.responses_api_used).toBe(false);
 
     const output = await service.execute(modelInput({
       model_adapter_layer_enabled: true,

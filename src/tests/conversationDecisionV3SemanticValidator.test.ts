@@ -213,6 +213,31 @@ describe("ConversationDecisionV3 semantic validator", () => {
     expect(iphone.layer_1_reason_codes).not.toContain("STATE_PATCH_CURRENT_MESSAGE_EVIDENCE_MISMATCH");
   });
 
+  it("rejects assumed app, phone, and acceptance patches without current-message evidence", () => {
+    const base: Partial<ConversationDecisionV3SemanticContext> = {
+      latest_message: "Erkek hesabi mi acacagim?",
+      allowed_actions: ["acknowledge_information", "answer_user_question"],
+    };
+
+    expectRejected(validateConversationDecisionV3Semantics(decision({
+      next_action: "update_candidate_state",
+      chosen_actions: ["acknowledge_information"],
+      patch: { selected_app: "Layla" },
+    }), context(base)), "STATE_PATCH_CURRENT_MESSAGE_EVIDENCE_MISMATCH");
+
+    expectRejected(validateConversationDecisionV3Semantics(decision({
+      next_action: "update_candidate_state",
+      chosen_actions: ["acknowledge_information"],
+      patch: { phone_type: "android" },
+    }), context(base)), "STATE_PATCH_CURRENT_MESSAGE_EVIDENCE_MISMATCH");
+
+    expectRejected(validateConversationDecisionV3Semantics(decision({
+      next_action: "update_candidate_state",
+      chosen_actions: ["acknowledge_information"],
+      patch: { work_model_acceptance: "accepted" },
+    }), context(base)), "STATE_PATCH_CURRENT_MESSAGE_EVIDENCE_MISMATCH");
+  });
+
   it("enforces approved app state patches and deterministic unapproved app vocabulary in replies", () => {
     expectRejected(validateConversationDecisionV3Semantics(decision({
       next_action: "update_candidate_state",

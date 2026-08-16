@@ -200,16 +200,20 @@ export class ModelExecutionService {
     this.canaryAdapter = initialFlags?.canaryAdapter;
     this.logger = initialFlags?.logger;
     if (initialFlags) {
+      const initialAdapter = initialFlags.canaryAdapter;
+      const globalAdapterAvailable = initialFlags.modelAdapterLayerEnabled && initialAdapter !== undefined;
       this.lastGlobalEnabled = initialFlags.modelAdapterLayerEnabled;
       this.lastCanaryMode = initialFlags.modelAdapterCanaryMode;
       this.lastConfiguredCanaryMode = initialFlags.modelAdapterCanaryMode;
       this.lastTimeoutEnabled = initialFlags.modelExecutionTimeoutEnabled === true;
       this.lastTimeoutConfigured = initialFlags.modelExecutionTimeoutMsConfigured === true;
       this.lastDecision = {
-        useAdapterLayer: initialFlags.modelAdapterLayerEnabled,
-        adapterName: "assistant_adapter",
-        provider: "openai_assistant",
-        reason: initialFlags.modelAdapterLayerEnabled ? "enabled_global" : "disabled_mode_off",
+        useAdapterLayer: globalAdapterAvailable,
+        adapterName: initialAdapter?.name === "ResponsesAdapter" ? "responses_adapter" : "assistant_adapter",
+        provider: initialAdapter?.provider ?? "openai_assistant",
+        reason: initialFlags.modelAdapterLayerEnabled
+          ? (globalAdapterAvailable ? "enabled_global" : "denied_adapter_unavailable")
+          : "disabled_mode_off",
         canaryScope: initialFlags.modelAdapterCanaryMode === "off" ? "off" : initialFlags.modelAdapterCanaryMode,
       };
     }
@@ -353,7 +357,6 @@ export class ModelExecutionService {
     });
     if (
       decision.useAdapterLayer
-      && (input.metadata.featureFlags.model_adapter_canary_intents?.length ?? 0) > 0
       && !this.canaryAdapter
     ) {
       decision = {

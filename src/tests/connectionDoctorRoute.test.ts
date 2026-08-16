@@ -1,6 +1,7 @@
 import Fastify from "fastify";
 import { registerConnectionDoctorRoute } from "../server.js";
 import type { ConnectionHealthSnapshot } from "../observability/connectionHealthMonitor.js";
+import type { ModelExecutionRuntimeSnapshot } from "../modelAdapter/modelExecutionService.js";
 
 describe("connection doctor route", () => {
   it("returns sanitized connection health fields", async () => {
@@ -212,6 +213,74 @@ describe("connection doctor route", () => {
       state_writes_allowed: false,
     });
     expect(response.body).not.toMatch(/@s\.whatsapp\.net|@g\.us|905\d{9}|secret provider content/i);
+    await app.close();
+  });
+
+  it("mirrors the active global Responses route in its derived status fields", async () => {
+    const app = Fastify({ logger: false });
+    const modelAdapterSnapshot = {
+      model_execution_admission: { max_concurrent: 64, active: 0, queued: 0, completed: 2 },
+      model_adapter_layer_global_enabled: true,
+      model_adapter_canary_mode: "off",
+      model_adapter_canary_mode_configured: "tenant_allowlist",
+      model_adapter_canary_scope_supported: true,
+      model_adapter_current_decision: { use_adapter_layer: true, reason: "enabled_global", canary_scope: "none" },
+      model_adapter_selected_adapter: "responses_adapter",
+      model_adapter_provider: "openai_responses",
+      model_adapter_last_success_at: "2026-08-17T00:00:00.000Z",
+      model_adapter_last_error_class: "none",
+      model_execution_last_error_code: "none",
+      model_execution_timeout_supported: true,
+      model_execution_timeout_enabled: false,
+      model_execution_timeout_ms_configured: false,
+      model_execution_cancellation_supported: true,
+      model_execution_error_normalization: true,
+      adapter_abort_propagation_supported: false,
+      late_result_ignored: false,
+      model_adapter_rollback_method: "FLAG_OFF",
+      assistant_id_changed: false,
+      provider_changed: true,
+      responses_api_used: true,
+      automatic_stop_code_active: true,
+      canary_stop_latched: false,
+      canary_stop_reason: null,
+      canary_approval_valid: false,
+      canary_reservation_count: 0,
+      canary_terminal_observation_count: 0,
+      canary_terminal_window_target: 20,
+      canary_terminal_window_progress: 0,
+      canary_terminal_window_complete: false,
+      canary_window_started_at: null,
+      canary_last_terminal_at: null,
+      canary_result_totals: {
+        unsafe_claim_count: 0,
+        safe_fallback_count: 0,
+        validator_reject_count: 0,
+        schema_or_parse_reject_count: 0,
+        final_provider_failure_count: 0,
+        model_origin_accepted_count: 2,
+      },
+    } satisfies ModelExecutionRuntimeSnapshot;
+
+    registerConnectionDoctorRoute(app, { snapshot: () => ({}) }, { modelAdapterSnapshot: () => modelAdapterSnapshot });
+
+    const response = await app.inject({ method: "GET", url: "/healthz/connection-doctor" });
+
+    expect(response.statusCode).toBe(200);
+    expect(response.json().model_adapter_contract).toMatchObject({
+      active_adapter_name: "responses_adapter",
+      adapter_layer_enabled: true,
+      adapter_canary_mode: "off",
+    });
+    expect(response.json().adapter_canary).toMatchObject({
+      adapter_global_default: true,
+      ready_for_adapter_default_on: true,
+    });
+    expect(response.json().safety).toMatchObject({
+      provider_changed: true,
+      responses_api_used: true,
+    });
+
     await app.close();
   });
 });

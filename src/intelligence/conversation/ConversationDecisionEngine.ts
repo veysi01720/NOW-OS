@@ -190,6 +190,14 @@ export function buildDecisionPrompt(context: ConversationDecisionContext, repair
     repairInput?.reasonCodes.includes("GENERIC_CONVERSATION_CLOSER")
       ? "For GENERIC_CONVERSATION_CLOSER repair, remove the generic closing and replace it with the concrete next operational step only."
       : "",
+    repairInput?.reasonCodes.some((code) => code.startsWith("STATE_PATCH_"))
+      ? [
+          "For STATE_PATCH repair, never preserve a state patch merely because it appeared in the previous output.",
+          "Keep a state_patch field non-null only when the latest user message itself supplies that exact value, or the field is work_model_disclosed=true with reply_content evidence during WORK_MODEL_DISCLOSURE.",
+          "For a direct question that does not provide new intake, app, phone, acceptance, or work-model-disclosure evidence, set every state_patch field to null and use state_patch_evidence=[].",
+          "Do not change candidate state while answering a profile, payment, camera, account, or other informational question."
+        ].join(" ")
+      : "",
     repairInput?.reasonCodes.includes("WORK_MODEL_DISCLOSURE_ACTIONS_MISSING")
       ? [
           "For WORK_MODEL_DISCLOSURE_ACTIONS_MISSING repair, the candidate age, gender, and daily availability are already known.",
@@ -515,6 +523,7 @@ export async function executeConversationDecisionV2(input: {
   let layer2ReasonCodes: string[] = [];
   let repairAttempted = false;
   let semanticQuestionAnswered: boolean | null = null;
+  let semanticRepairReasonCodes: string[] = [];
 
   try {
     decision = buildCandidateToneBoundaryDecision(context);
@@ -559,6 +568,9 @@ export async function executeConversationDecisionV2(input: {
         layer2Result = modelResult.semanticValidation.layer_2_result;
         layer2ReasonCodes = modelResult.semanticValidation.layer_2_reason_codes;
         semanticQuestionAnswered = modelResult.semanticValidation.semantic_question_answered;
+        if (!modelResult.semanticValidation.ok) {
+          semanticRepairReasonCodes = modelResult.semanticValidation.reason_codes;
+        }
         for (const reasonCode of modelResult.semanticValidation.unknown_reason_codes) {
           input.logger.warn({
             event_type: "CONVERSATION_VALIDATOR_UNKNOWN_REASON_CODE",
@@ -587,6 +599,69 @@ export async function executeConversationDecisionV2(input: {
     mutationSource = "provider_unavailable";
   }
 
+  // A shape-valid Responses decision can carry a bad state patch while its reply is
+  // otherwise useful. Do not apply it, but give the model one bounded chance to
+  // remove the unsupported patch before falling back.
+  if (!decision && semanticRepairReasonCodes.length > 0 && modelCallCount > 0) {
+    try {
+      repairAttempted = true;
+      modelCallCount += 1;
+      input.logger.info({
+        event_type: "CONVERSATION_DECISION_V3_SEMANTIC_REPAIR_REQUESTED",
+        correlation_id: context.request_id,
+        reason_codes: semanticRepairReasonCodes,
+        raw_text_logged: false,
+      });
+      const repairResult = await runModelDecision({
+        modelExecutionService: input.modelExecutionService,
+        backendContext: input.backendContext,
+        context,
+        conversationId: input.conversationId,
+        env: input.env,
+        repairInput: {
+          previousRawText: rawModelOutput,
+          reasonCodes: semanticRepairReasonCodes,
+        },
+      });
+      logMissingPolicyNormalization(input.logger, context.request_id, repairResult.normalization);
+      if (repairResult.semanticValidation) {
+        layer1Result = repairResult.semanticValidation.layer_1_result;
+        layer1ReasonCodes = repairResult.semanticValidation.layer_1_reason_codes;
+        layer2Result = repairResult.semanticValidation.layer_2_result;
+        layer2ReasonCodes = repairResult.semanticValidation.layer_2_reason_codes;
+        semanticQuestionAnswered = repairResult.semanticValidation.semantic_question_answered;
+        for (const reasonCode of repairResult.semanticValidation.unknown_reason_codes) {
+          input.logger.warn({
+            event_type: "CONVERSATION_VALIDATOR_UNKNOWN_REASON_CODE",
+            reason_code: reasonCode,
+            fail_closed_layer: "layer_1",
+            correlation_id: context.request_id,
+            warning: "unknown_reason_code_fail_closed",
+          });
+        }
+      }
+      if (repairResult.decision) {
+        decision = repairResult.decision;
+        rawModelOutput = repairResult.rawText;
+        replyMutatedAfterModel = true;
+        mutationSource = "model_repair";
+      } else {
+        decision = buildDeterministicSafetyDecision(context, "invalid_model_decision");
+        replyMutatedAfterModel = true;
+        mutationSource = "deterministic_safety_response";
+      }
+    } catch (error) {
+      input.logger.warn({
+        event_type: "CONVERSATION_DECISION_V3_SEMANTIC_REPAIR_MODEL_ERROR",
+        correlation_id: context.request_id,
+        error_class: error instanceof Error ? error.name : "unknown",
+      });
+      decision = buildDeterministicSafetyDecision(context, "provider_unavailable");
+      replyMutatedAfterModel = true;
+      mutationSource = "deterministic_transport_failure";
+    }
+  }
+
   if (decision) {
     const validation = validateConversationDecision(decision, context);
     validationReasons = validation.reason_codes;
@@ -600,7 +675,7 @@ export async function executeConversationDecisionV2(input: {
     });
     if (!validation.ok || !quality.ok) {
       const repairReasons = [...new Set([...validation.reason_codes, ...quality.reason_codes])];
-      if (modelCallCount > 0) {
+      if (modelCallCount > 0 && !repairAttempted) {
         try {
           repairAttempted = true;
           modelCallCount += 1;
@@ -616,6 +691,13 @@ export async function executeConversationDecisionV2(input: {
             }
           });
           logMissingPolicyNormalization(input.logger, context.request_id, repairResult.normalization);
+          if (repairResult.semanticValidation) {
+            layer1Result = repairResult.semanticValidation.layer_1_result;
+            layer1ReasonCodes = repairResult.semanticValidation.layer_1_reason_codes;
+            layer2Result = repairResult.semanticValidation.layer_2_result;
+            layer2ReasonCodes = repairResult.semanticValidation.layer_2_reason_codes;
+            semanticQuestionAnswered = repairResult.semanticValidation.semantic_question_answered;
+          }
           if (repairResult.decision) {
             const repairValidation = validateConversationDecision(repairResult.decision, context);
             const repairQuality = validateSemanticQuality(repairResult.decision.reply.text, context);

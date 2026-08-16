@@ -16,7 +16,7 @@ import { validateProductionEnv } from "./config/envValidator.js";
 import { PersistentSocialLeadStore } from "./store/socialLeadStore.js";
 import { FileWhatsAppLearningStore } from "./store/whatsappLearningStore.js";
 import { FileWhatsAppVisualResearchStore } from "./store/whatsappVisualResearchStore.js";
-import { ModelExecutionService } from "./modelAdapter/modelExecutionService.js";
+import { ModelExecutionService, type ModelExecutionRuntimeSnapshot } from "./modelAdapter/modelExecutionService.js";
 import { createOpenAIResponsesAdapter } from "./modelAdapter/ResponsesAdapter.js";
 import { ResponsesShadowService, type ResponsesShadowSnapshot } from "./modelAdapter/responsesShadowService.js";
 import { ConnectionHealthMonitor } from "./observability/connectionHealthMonitor.js";
@@ -66,11 +66,12 @@ export function registerConnectionDoctorRoute(
   flags: {
     behaviorOrchestratorEnabled?: boolean;
     responsesShadowSnapshot?: () => ResponsesShadowSnapshot;
-    modelAdapterSnapshot?: () => unknown;
+    modelAdapterSnapshot?: () => ModelExecutionRuntimeSnapshot;
   } = {},
 ) {
   app.get("/healthz/connection-doctor", async (_req: unknown, reply: any) => {
     const behaviorEnabled = flags.behaviorOrchestratorEnabled === true;
+    const modelAdapterStatus = flags.modelAdapterSnapshot?.();
     reply.send({
       status: "ok",
       service: "now-os",
@@ -105,7 +106,7 @@ export function registerConnectionDoctorRoute(
         rollback_mode: "flag_off",
         production_canary_ready: false,
       },
-      model_adapter: flags.modelAdapterSnapshot?.() ?? {
+      model_adapter: modelAdapterStatus ?? {
         model_adapter_layer_global_enabled: false,
         model_adapter_canary_mode: "off",
         model_adapter_canary_mode_configured: "off",
@@ -150,9 +151,9 @@ export function registerConnectionDoctorRoute(
       model_adapter_contract: {
         model_adapter_contract_version: "1.0",
         model_adapter_contract_tests_available: true,
-        active_adapter_name: "assistant_adapter",
-        adapter_layer_enabled: false,
-        adapter_canary_mode: "off",
+        active_adapter_name: modelAdapterStatus?.model_adapter_selected_adapter ?? "assistant_adapter",
+        adapter_layer_enabled: modelAdapterStatus?.model_adapter_layer_global_enabled ?? false,
+        adapter_canary_mode: modelAdapterStatus?.model_adapter_canary_mode ?? "off",
         provider_specific_details_exposed: false,
       },
       model_execution_resilience: {
@@ -169,20 +170,21 @@ export function registerConnectionDoctorRoute(
       adapter_canary: {
         live_owner_canary_status: "OWNER_SKIPPED",
         synthetic_adapter_canary_status: "REPLAY_HARNESS_AVAILABLE",
-        adapter_global_default: false,
-        ready_for_adapter_default_on: false,
+        adapter_global_default: modelAdapterStatus?.model_adapter_layer_global_enabled ?? false,
+        ready_for_adapter_default_on: modelAdapterStatus?.model_adapter_layer_global_enabled === true
+          && modelAdapterStatus.model_adapter_selected_adapter === "responses_adapter",
         ready_for_responses_adapter_design: true,
         rollback_method: "FLAG_OFF",
       },
       responses_shadow: flags.responsesShadowSnapshot?.() ?? DEFAULT_RESPONSES_SHADOW_SNAPSHOT,
       safety: {
-        provider_changed: false,
+        provider_changed: modelAdapterStatus?.provider_changed ?? false,
         assistant_id_changed: false,
         contract_version: "1.0",
         public_reply_only: true,
         raw_text_logged: false,
         full_prompt_logged: false,
-        responses_api_used: false,
+        responses_api_used: modelAdapterStatus?.responses_api_used ?? false,
       },
     });
   });
@@ -455,6 +457,14 @@ export async function buildServer() {
         model: env.openaiResponsesModel,
       })
     : undefined;
+  if (env.modelAdapterLayerEnabled && !responsesAdapter) {
+    logger.error({
+      event_type: "MODEL_ADAPTER_GLOBAL_RUNTIME_NOT_ARMED",
+      reason: "responses_model_not_configured",
+      raw_text_logged: false,
+    });
+    throw new Error("MODEL_ADAPTER_LAYER_ENABLED requires a configured Responses adapter");
+  }
 
   registerEvolutionWebhook(app, {
     env,
