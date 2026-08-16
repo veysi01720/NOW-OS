@@ -5,7 +5,7 @@
 - Terra/Responses is the global model route; V2/Assistants is retired from active traffic.
 - Stage-based policy context is active for intake, app selection, and installation.
 - Owner knowledge transfer uses `#bilgi`, `#bekleyenler`, `#onayla <ID>`, and `#uygula`; training content remains separate from candidate context.
-- The last deployed source was `58acd65`. A narrow prompt hardening change is prepared locally for app-selection state capture; it is not deployed yet.
+- The last deployed source was `b5f4718`. App-selection hardening reached `5/5` in the first post-deploy Terra chain; a matching phone-type state-capture hardening is prepared locally and is not deployed yet.
 
 ## Advertising readiness
 

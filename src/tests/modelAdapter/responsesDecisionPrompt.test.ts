@@ -129,6 +129,8 @@ describe("Responses decision context boundary", () => {
     expect(instructions).toMatch(/record state_patch\.selected_app/i);
     expect(instructions).toMatch(/Do not use begin_setup before selected_app is recorded/i);
     expect(instructions).toMatch(/never ask which app the candidate was sent to/i);
+    expect(instructions).toMatch(/For phone type, when candidate_state\.phone_type is null/i);
+    expect(instructions).toMatch(/record state_patch\.phone_type/i);
     expect(instructions).toMatch(/backend validators independently compute final quality/i);
   });
 
