@@ -24,6 +24,7 @@ export interface EnvConfig {
   ownerPhoneNumbers: string[];
   managerPhoneNumbers: string[];
   teamEscalationPhoneNumbers: string[];
+  socialChannelsEnabled?: boolean;
   approvedApps: string[];
   approvedAppsOverride?: string[];
   dashboardAdminToken: string;
@@ -150,6 +151,7 @@ export function loadEnv(): EnvConfig {
     ownerPhoneNumbers: [...new Set([...parseCsv(process.env.OWNER_PHONE_NUMBERS), ...parseCsv(process.env.MANAGER_PHONE_NUMBERS)])],
     managerPhoneNumbers: [],
     teamEscalationPhoneNumbers: parseCsv(process.env.TEAM_ESCALATION_PHONE_NUMBERS ?? process.env.TEAM_ESCALATION_PHONE),
+    socialChannelsEnabled: process.env.SOCIAL_CHANNELS_ENABLED === "true",
     approvedApps: deriveApprovedApps(structuredFacts, approvedAppsOverride),
     approvedAppsOverride,
     dashboardAdminToken: process.env.DASHBOARD_ADMIN_TOKEN ?? "",

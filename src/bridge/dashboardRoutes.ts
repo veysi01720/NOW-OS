@@ -1134,6 +1134,16 @@ export function registerDashboardRoutes(app: FastifyInstance, deps: DashboardDep
     }
 
     const platform = body.platform || 'instagram';
+
+    if ((platform === 'instagram' || platform === 'tiktok') && deps.env.socialChannelsEnabled === false) {
+      return reply.code(410).send({
+        error: 'Social channels are frozen',
+        platform,
+        active_channel: 'whatsapp',
+        accepted: false,
+        reason: 'SOCIAL_CHANNELS_FROZEN',
+      });
+    }
     const source_type = body.source_type || 'manual_json';
     const campaign = body.campaign_safe_ref || '';
     
