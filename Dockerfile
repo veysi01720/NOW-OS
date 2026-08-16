@@ -31,7 +31,9 @@ RUN mkdir -p data/knowledge_bank \
 # are the ones actually baked into this image.
 RUN npm run build \
   && node scripts/generate-build-provenance.mjs --test-result "$TEST_RESULT_REFERENCE" \
-  && node scripts/verify-build-provenance.mjs --manifest build/provenance/source-manifest.json
+  && node scripts/verify-build-provenance.mjs --manifest build/provenance/source-manifest.json \
+  && npm prune --omit=dev \
+  && npm cache clean --force
 
 # now_os.source_commit / source_tree_hash / package_lock_hash / dist_tree_hash /
 # workspace_identity_hash / provenance_manifest_hash labels are stamped
