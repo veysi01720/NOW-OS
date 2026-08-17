@@ -25,6 +25,7 @@ export interface ResponsesAdapterOptions {
 }
 
 const DEFAULT_RESPONSES_REQUEST_TIMEOUT_MS = 45_000;
+export const RESPONSES_MAX_OUTPUT_TOKENS = 4_000;
 
 function extractOutputText(response: Record<string, unknown>): string {
   if (typeof response.output_text === "string") return response.output_text;
@@ -145,6 +146,7 @@ export class ResponsesAdapter implements IModelAdapter {
           strict: true,
         },
       },
+      max_output_tokens: RESPONSES_MAX_OUTPUT_TOKENS,
     };
 
     const controller = new AbortController();

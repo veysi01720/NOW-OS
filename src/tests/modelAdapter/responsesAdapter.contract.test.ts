@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { ResponsesAdapter } from "../../modelAdapter/ResponsesAdapter.js";
+import { RESPONSES_MAX_OUTPUT_TOKENS, ResponsesAdapter } from "../../modelAdapter/ResponsesAdapter.js";
 import type { BackendContextPayloadV1 } from "../../contracts/backendContextPayload.js";
 import type { ModelAdapterInput } from "../../modelAdapter/types.js";
 import {
@@ -149,6 +149,7 @@ describe("ResponsesAdapter canonical contract", () => {
     expect(calls).toHaveLength(1);
     expect(calls[0]).toMatchObject({
       text: { format: { type: "json_schema", name: CONVERSATION_DECISION_V3_SCHEMA_NAME, strict: true } },
+      max_output_tokens: RESPONSES_MAX_OUTPUT_TOKENS,
     });
     expect(calls[0]).not.toHaveProperty("timeout_ms");
     expect(validateConversationDecisionV3Shape(parsed).ok).toBe(true);
