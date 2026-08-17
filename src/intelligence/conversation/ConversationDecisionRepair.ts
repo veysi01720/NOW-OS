@@ -681,6 +681,17 @@ export function replyMentionsFemaleProfileRule(reply: string): boolean {
   return /(kadin|female).{0,100}(profil|foto|fotograf|photo).{0,100}(acilir|acilmasi|kullanilir|kullanilmasi|olusturulur|olusturulmasi)|(profil|foto|fotograf|photo).{0,100}(kadin|female).{0,100}(acilir|acilmasi|kullanilir|kullanilmasi|olusturulur|olusturulmasi)/u.test(text);
 }
 
+function removeDeferredFemaleProfileRule(reply: string): string {
+  const parts = reply.split(/(?<=[.!?])\s+/u);
+  const filtered = parts.filter((part) => {
+    const text = normalize(part).replace(/\u0131/gu, "i").replace(/\u0130/gu, "i");
+    const mentionsFemaleProfile = /(kadin|female).{0,100}(profil|foto|fotograf|photo)|(profil|foto|fotograf|photo).{0,100}(kadin|female)/u.test(text);
+    const defersRule = /(ayrica|sonra|daha sonra|ileride).{0,80}(anlat|netles|acikla)|acik onayla anlatilir/u.test(text);
+    return !(mentionsFemaleProfile && defersRule);
+  });
+  return (filtered.join(" ").trim() || reply.trim()).replace(/\s+/g, " ");
+}
+
 export function completeDecisionWithRequiredProfileRule(
   decision: ConversationDecision,
   context: ConversationDecisionContext,
@@ -697,7 +708,7 @@ export function completeDecisionWithRequiredProfileRule(
       ...decision,
       reply: {
         ...decision.reply,
-        text: `${decision.reply.text.trim()}${completion}`,
+        text: `${removeDeferredFemaleProfileRule(decision.reply.text)}${completion}`,
       },
       policy_facts_used: [...new Set([
         ...decision.policy_facts_used,

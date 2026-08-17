@@ -737,7 +737,7 @@ describe("Conversation Decision V2 candidate route", () => {
     const incompleteModelReply =
       "Onayli uygulamada profil hazirlanir ve uygulamadaki sohbetlere yaziyla cevap vererek ilerlersin. Bu calisma modeli sana uygunsa uygun yazman yeterli.";
     const incompleteRepairReply =
-      "Bilgilerini aldim; profil hazirlanir ve sohbetlere yaziyla cevap verilir. Bu model sana uygunsa uygun yaz.";
+      "Bilgilerini aldim. Erkek adaylar icin kadin profil/fotograf kurali ayrica acik onayla anlatilir. Bu model sana uygun mu?";
     const testDeps = deps([
       decision({
         intent: { primary: "candidate_next_step", secondary: [], confidence: 0.95 },
@@ -749,7 +749,7 @@ describe("Conversation Decision V2 candidate route", () => {
       }),
       decision({
         intent: { primary: "candidate_next_step", secondary: [], confidence: 0.95 },
-        reply: { text: incompleteRepairReply, language: "tr", tone: "natural_concise", contains_question: false },
+        reply: { text: incompleteRepairReply, language: "tr", tone: "natural_concise", contains_question: true },
         chosen_actions: ["answer_user_question", "explain_work_model", "request_work_model_acceptance"],
         state_patch: { work_model_disclosed: true, work_model_acceptance: "pending" },
         policy_facts_used: ["male_candidate_work_model", "work_model_acceptance_required", "candidate_work_steps_chat_based"],
