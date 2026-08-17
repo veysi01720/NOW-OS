@@ -36,6 +36,10 @@ import { ZipIngestionStore } from "./bridge/zipIngestion/store.js";
 import { registerReviewRoutes } from "./bridge/reviewRoutes.js";
 import { validateKnowledgeAtStartup } from "./bridge/knowledgeStartupGuard.js";
 import { InstallationVerificationReviewStore } from "./store/installationVerificationReviewStore.js";
+import {
+  assertSingleProductionModelResponseContract,
+  CANONICAL_MODEL_RESPONSE_CONTRACT,
+} from "./modelAdapter/modelResponseContractGuard.js";
 
 const DEFAULT_RESPONSES_SHADOW_SNAPSHOT: ResponsesShadowSnapshot = {
   enabled: false,
@@ -149,7 +153,7 @@ export function registerConnectionDoctorRoute(
         },
       },
       model_adapter_contract: {
-        model_adapter_contract_version: "1.0",
+        model_adapter_contract_version: CANONICAL_MODEL_RESPONSE_CONTRACT,
         model_adapter_contract_tests_available: true,
         active_adapter_name: modelAdapterStatus?.model_adapter_selected_adapter ?? "assistant_adapter",
         adapter_layer_enabled: modelAdapterStatus?.model_adapter_layer_global_enabled ?? false,
@@ -180,7 +184,7 @@ export function registerConnectionDoctorRoute(
       safety: {
         provider_changed: modelAdapterStatus?.provider_changed ?? false,
         assistant_id_changed: false,
-        contract_version: "1.0",
+        contract_version: CANONICAL_MODEL_RESPONSE_CONTRACT,
         public_reply_only: true,
         raw_text_logged: false,
         full_prompt_logged: false,
@@ -210,6 +214,7 @@ export function isRuntimeLockConflict(
 export async function buildServer() {
   const env = loadEnv();
   validateProductionEnv(env);
+  assertSingleProductionModelResponseContract(env);
 
   if (process.env.NODE_ENV !== "test") {
     const knowledgeValidation = validateKnowledgeAtStartup();

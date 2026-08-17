@@ -10,6 +10,8 @@ import { InMemoryMessageDedupeStore } from "../storage/messageDedupeStore.js";
 import { InMemoryThreadStore } from "../storage/threadStore.js";
 import { defaultUserState, type UserStateStore } from "../storage/types.js";
 import type { NormalizedIncomingMessage } from "../bridge/normalizeEvolutionMessage.js";
+import type { ModelExecutionService } from "../modelAdapter/modelExecutionService.js";
+import type { ModelAdapterInput } from "../modelAdapter/types.js";
 import {
   createSilentLogger,
   createTestEnv,
@@ -52,6 +54,95 @@ function deps(response: string) {
     userRunLock: new UserRunLock(),
     logger: createSilentLogger()
   };
+}
+
+function conversationDecisionV3(input: {
+  role: "candidate" | "owner" | "manager" | "group";
+  reply?: string;
+  nextAction?: "reply_only" | "ask_missing_info";
+  chosenActions?: string[];
+}) {
+  return JSON.stringify({
+    decision_version: "3.1",
+    intent: { primary: "test_intent", secondary: [], confidence: 0.9 },
+    role: input.role,
+    direct_question: { present: false, question_summary: null, answered_in_reply: true },
+    reply: {
+      text: input.reply ?? "V3 ortak parser cevabi",
+      language: "tr",
+      tone: "natural_concise",
+      contains_question: false,
+    },
+    next_action: input.nextAction ?? "reply_only",
+    chosen_actions: input.chosenActions ?? ["answer_user_question"],
+    state_patch: {
+      age: null,
+      gender: null,
+      daily_hours: null,
+      work_model_acceptance: null,
+      selected_app: null,
+      phone_type: null,
+      work_model_disclosed: null,
+      preferred_work_mode: null,
+      video_allowed: null,
+    },
+    state_patch_evidence: [],
+    missing_fields: [],
+    policy_facts_used: [],
+    requires_escalation: false,
+    escalation_reason: null,
+    risk_flags: [],
+    quality_signals: {
+      answered_latest_message: true,
+      used_relevant_state: true,
+      did_not_repeat_known_info: true,
+      asked_only_one_clear_question: true,
+      reply_is_natural_turkish: true,
+      no_generic_closer: true,
+      no_invented_policy: true,
+      correct_role_boundary: true,
+    },
+    self_check: {
+      answered_latest_message: true,
+      asked_known_information_again: false,
+      invented_policy: false,
+      offered_setup_too_early: false,
+      used_generic_closing: false,
+    },
+  });
+}
+
+function v3ModelExecutionService(calls: ModelAdapterInput[] = []): ModelExecutionService {
+  return {
+    evaluateCanaryDecisionForMessage: () => ({
+      useAdapterLayer: true,
+      adapterName: "responses_adapter",
+      provider: "openai_responses",
+      reason: "enabled_global",
+      canaryScope: "off",
+    }),
+    finalizeCanaryObservation: () => null,
+    execute: async (input: ModelAdapterInput) => {
+      calls.push(input);
+      return {
+        normalizedResponse: null,
+        rawText: conversationDecisionV3({
+          role: input.senderRole === "owner" || input.senderRole === "manager" ? input.senderRole : "candidate",
+          reply: `${input.senderRole} V3 ortak parser cevabi`,
+          nextAction: input.senderRole === "candidate" ? "ask_missing_info" : "reply_only",
+          chosenActions: input.senderRole === "candidate"
+            ? ["ask_missing_age", "ask_missing_gender", "ask_missing_daily_hours"]
+            : ["answer_user_question"],
+        }),
+        providerTrace: {
+          provider: "openai_responses",
+          adapter: "responses_adapter",
+          response_contract_version: "conversation_decision_v3",
+        },
+        rawProviderResponseStored: false as const,
+      };
+    },
+  } as unknown as ModelExecutionService;
 }
 
 function selectedAppStateStore(selectedApp: string): UserStateStore {
@@ -536,6 +627,56 @@ describe("handleIncomingMessage", () => {
     );
 
     expect(testDeps.assistantClient.runCalls[0]?.content).toContain('"sender_role":"owner"');
+  });
+
+  it("routes candidate, owner, and manager production traffic through the shared V3 parser", async () => {
+    const calls: ModelAdapterInput[] = [];
+    const logger = createSilentLogger();
+    const baseDeps = {
+      ...deps("{}"),
+      env: createTestEnv({
+        conversationDecisionV2Enabled: true,
+        modelAdapterLayerEnabled: true,
+        openaiResponsesModel: "gpt-4.1",
+      }),
+      modelExecutionService: v3ModelExecutionService(calls),
+      logger,
+      userStateStore: new MutableUserStateStore(),
+    };
+
+    const candidate = await handleIncomingMessage(message({ text: "Selam", message_id: "v3-candidate" }), baseDeps);
+    const owner = await handleIncomingMessage(message({
+      sender_id: "905111111111",
+      phone_number: "905111111111",
+      remote_jid: "905111111111@s.whatsapp.net",
+      text: "Durum nedir?",
+      message_id: "v3-owner",
+    }), baseDeps);
+    const manager = await handleIncomingMessage(message({
+      sender_id: "905222222222",
+      phone_number: "905222222222",
+      remote_jid: "905222222222@s.whatsapp.net",
+      text: "Kisa ozet ver",
+      message_id: "v3-manager",
+    }), baseDeps);
+
+    expect(candidate.status).toBe("sent");
+    expect(owner.status).toBe("sent");
+    expect(manager.status).toBe("sent");
+    expect(calls.map((call) => call.senderRole)).toEqual(["candidate", "owner", "owner"]);
+    expect(baseDeps.sender.sends).toHaveLength(3);
+    expect(baseDeps.sender.sends[0]?.text).toBe("candidate V3 ortak parser cevabi");
+    expect(baseDeps.sender.sends[1]?.text).toContain("owner V3 ortak parser cevabi");
+    expect(baseDeps.sender.sends[2]?.text).toContain("owner V3 ortak parser cevabi");
+    expect(logger.events).toEqual(expect.arrayContaining([
+      expect.objectContaining({ event_type: "CONVERSATION_MODEL_ROUTE_SELECTED", model_route: "conversation_decision_v2", sender_role: "candidate" }),
+      expect.objectContaining({ event_type: "CONVERSATION_MODEL_ROUTE_SELECTED", model_route: "conversation_decision_v2", sender_role: "owner" }),
+      expect.objectContaining({ event_type: "CONVERSATION_MODEL_ROUTE_SELECTED", model_route: "conversation_decision_v2", sender_role: "owner" }),
+    ]));
+    expect(logger.events).not.toEqual(expect.arrayContaining([
+      expect.objectContaining({ event_type: "ASSISTANT_RESPONSE_INVALID" }),
+    ]));
+    expect(baseDeps.assistantClient.runCalls).toHaveLength(0);
   });
 
   it("keeps group mode behavior with approved app guard enabled", async () => {

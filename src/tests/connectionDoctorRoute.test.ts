@@ -125,7 +125,7 @@ describe("connection doctor route", () => {
           },
         },
         model_adapter_contract: {
-          model_adapter_contract_version: "1.0",
+          model_adapter_contract_version: "conversation_decision_v3",
           model_adapter_contract_tests_available: true,
           active_adapter_name: "assistant_adapter",
           adapter_layer_enabled: false,
@@ -154,7 +154,7 @@ describe("connection doctor route", () => {
         safety: {
           provider_changed: false,
           assistant_id_changed: false,
-          contract_version: "1.0",
+          contract_version: "conversation_decision_v3",
           public_reply_only: true,
           raw_text_logged: false,
           full_prompt_logged: false,

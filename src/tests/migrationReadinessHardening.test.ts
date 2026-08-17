@@ -148,13 +148,13 @@ describe("Package 04B migration readiness hardening", () => {
       chatType: "private",
       conversationDecisionV2Enabled: true,
       behaviorEligible: true,
-    })).toBe("assistant_response_v1_behavior");
+    })).toBe("conversation_decision_v2");
     expect(resolveConversationModelRoute({
       senderRole: "manager",
       chatType: "private",
       conversationDecisionV2Enabled: true,
       behaviorEligible: false,
-    })).toBe("assistant_response_v1_legacy");
+    })).toBe("conversation_decision_v2");
   });
 
   it("requires healthy reachability and inbound observation before Responses shadow", () => {

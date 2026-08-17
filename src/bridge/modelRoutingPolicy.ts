@@ -11,11 +11,7 @@ export function resolveConversationModelRoute(input: {
   conversationDecisionV2Enabled: boolean;
   behaviorEligible: boolean;
 }): ConversationModelRoute {
-  if (
-    input.senderRole === "candidate" &&
-    input.chatType === "private" &&
-    input.conversationDecisionV2Enabled
-  ) {
+  if (input.conversationDecisionV2Enabled) {
     return "conversation_decision_v2";
   }
   return input.behaviorEligible

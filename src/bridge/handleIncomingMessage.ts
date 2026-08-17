@@ -1672,9 +1672,20 @@ export async function handleIncomingMessage(
           source: "conversation_decision_v2",
           authority: authorityContext,
         });
-         const outboundReply = ownerAnswerRequired
+         let outboundReply = ownerAnswerRequired
            ? selectOwnerAnswerPendingReply(message, deps)
            : decisionResult.finalReply;
+         if (
+           !ownerAnswerRequired &&
+           (backendContext.sender_role === "owner" || backendContext.sender_role === "manager")
+         ) {
+           const ownerReply = sanitizePrivilegedReplyAddress(outboundReply, backendContext.sender_role);
+           outboundReply = applyOwnerTone(ownerReply, {
+             context: reportIntent ? "daily_report" : "owner_command",
+             seed: message.message_id,
+             recipientRole: backendContext.sender_role === "owner" ? "owner" : "manager",
+           });
+         }
          const replySent = await sendReply(message, outboundReply, deps, latencyTracker);
         if (!replySent) {
           recordEvent(deps, {

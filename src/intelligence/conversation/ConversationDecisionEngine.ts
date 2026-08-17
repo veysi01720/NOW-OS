@@ -6,14 +6,7 @@ import type { NormalizedIncomingMessage } from "../../bridge/normalizeEvolutionM
 import type { ModelExecutionService } from "../../modelAdapter/modelExecutionService.js";
 import { buildRawErrorDiagnosticFields } from "../../modelAdapter/modelExecutionService.js";
 import type { ModelAdapterInput } from "../../modelAdapter/types.js";
-import {
-  validateConversationDecisionV3Shape,
-  type ConversationDecisionV3,
-} from "./ConversationDecisionV3Schema.js";
-import {
-  buildConversationDecisionV3SemanticContext,
-  validateConversationDecisionV3Semantics,
-} from "./ConversationDecisionV3SemanticValidator.js";
+import { validateConversationDecisionV3Semantics } from "./ConversationDecisionV3SemanticValidator.js";
 import type { ConversationDecision, ConversationDecisionContext } from "./ConversationDecisionSchema.js";
 import { buildConversationDecisionContext } from "./ConversationContextBuilder.js";
 import {
@@ -30,11 +23,8 @@ import { parseConversationDecision, validateConversationDecision } from "./Conve
 import { validateSemanticQuality } from "../quality/SemanticQualityGuard.js";
 import { validateAndApplyStatePatch } from "../candidate/StatePatchValidator.js";
 import { recordDecisionTrace } from "./DecisionTraceRecorder.js";
-import {
-  normalizeConversationDecisionV3MissingPolicy,
-  type ConversationDecisionV3PolicyNormalizationResult,
-} from "./ConversationDecisionV3PolicyNormalizer.js";
-import { mapConversationDecisionV3ToBackendDecision } from "./ConversationDecisionV3Mapper.js";
+import type { ConversationDecisionV3PolicyNormalizationResult } from "./ConversationDecisionV3PolicyNormalizer.js";
+import { parseConversationDecisionV3Response } from "./ConversationDecisionV3Parser.js";
 import { splitValidatorReasonCodes } from "./ConversationValidatorReasonCatalog.js";
 
 export interface ConversationDecisionEngineResult {
@@ -473,30 +463,17 @@ async function runModelDecision(input: {
   const modelOutput = await input.modelExecutionService.execute(adapterInput);
 
   if (modelOutput.providerTrace?.provider === "openai_responses") {
-    let value: unknown;
-    try {
-      value = JSON.parse(modelOutput.rawText);
-    } catch {
-      return { decision: null, rawText: modelOutput.rawText, normalization: null, semanticValidation: null };
-    }
-    const shape = validateConversationDecisionV3Shape(value);
-    const normalization = shape.ok
-      ? normalizeConversationDecisionV3MissingPolicy(value as ConversationDecisionV3, adapterInput)
-      : null;
-    const evaluatedValue = normalization?.decision ?? value;
-    const semantics = validateConversationDecisionV3Semantics(
-      evaluatedValue,
-      buildConversationDecisionV3SemanticContext(adapterInput),
-    );
-    if (!shape.ok || !semantics.ok) {
-      return { decision: null, rawText: modelOutput.rawText, normalization, semanticValidation: semantics };
-    }
-    const v3 = evaluatedValue as ConversationDecisionV3;
-    const decision = mapConversationDecisionV3ToBackendDecision(
-      v3,
-      input.repairInput ? "conversation_decision_v2_model_repair" : "conversation_decision_v2_model",
-    );
-    return { decision, rawText: modelOutput.rawText, normalization, semanticValidation: semantics };
+    const parsed = parseConversationDecisionV3Response({
+      rawText: modelOutput.rawText,
+      adapterInput,
+      origin: input.repairInput ? "conversation_decision_v2_model_repair" : "conversation_decision_v2_model",
+    });
+    return {
+      decision: parsed.ok ? parsed.decision : null,
+      rawText: modelOutput.rawText,
+      normalization: parsed.normalization,
+      semanticValidation: parsed.semanticValidation,
+    };
   }
 
   const decision = parseConversationDecision(modelOutput.rawText);

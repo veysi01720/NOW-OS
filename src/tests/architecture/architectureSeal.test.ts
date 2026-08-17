@@ -4,10 +4,13 @@ import { readdirSync, statSync } from "node:fs";
 import { join } from "node:path";
 import { loadEnv } from "../../config/env.js";
 import { buildAssistantRunContent } from "../../assistant/assistantRun.js";
-import { parseAssistantResponseV1 } from "../../contracts/assistantResponseContract.js";
 import { createTestEnv } from "../testDoubles.js";
 import { isInboundDualWriteEnabled, isOutboundShadowEnabled, productionSafeModeDefaults } from "../../reliability/queueModes.js";
 import { runGoldenConversationEvaluation } from "../../behavior/goldenConversations.js";
+import {
+  CANONICAL_MODEL_RESPONSE_CONTRACT,
+  PRODUCTION_RESPONSE_PARSER_ROUTES,
+} from "../../modelAdapter/modelResponseContractGuard.js";
 
 function source(path: string): string {
   return readFileSync(join(process.cwd(), path), "utf8");
@@ -61,13 +64,14 @@ describe("architecture seal invariants", () => {
     expect(contextBuilder).not.toContain("publishLocalKnowledgeToOpenAI");
   });
 
-  it("preserves contract v1, public reply only, and raw output fallback guard", () => {
+  it("locks production model response parsing to the shared V3 decision contract", () => {
     const handleIncoming = source("src/bridge/handleIncomingMessage.ts");
-    const contract = parseAssistantResponseV1('{"contract_version":"1.0","reply":"ok","internal_boss_note":"operator"}');
 
-    expect(contract.ok).toBe(true);
-    expect(handleIncoming).toContain("parseAssistantResponseV1");
-    expect(handleIncoming).toContain("parsed.value.reply");
+    expect(new Set(PRODUCTION_RESPONSE_PARSER_ROUTES.map((route) => route.contract))).toEqual(
+      new Set([CANONICAL_MODEL_RESPONSE_CONTRACT]),
+    );
+    expect(handleIncoming).toContain('modelRoute === "conversation_decision_v2"');
+    expect(source("src/server.ts")).toContain("assertSingleProductionModelResponseContract(env)");
     expect(handleIncoming).not.toContain("sendReply(message, rawAssistantResponse");
     expect(buildAssistantRunContent as unknown).toBeDefined();
   });

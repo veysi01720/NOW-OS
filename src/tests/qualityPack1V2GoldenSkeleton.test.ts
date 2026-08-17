@@ -572,10 +572,10 @@ describe("Quality Pack 1 V2 golden skeletons", () => {
 
   it("captures the owner tone override in the legacy Assistants prompt until live examples define assertions", async () => {
     const deps = makeDeps([
-      JSON.stringify({
-        contract_version: "1.0",
-        reply: "Bunu inceleme kuyruguna aldim. Onaylaninca aktif olacak.",
-        internal_boss_note: "",
+      decision({
+        text: "Bunu inceleme kuyruguna aldim. Onaylaninca aktif olacak.",
+        intent: "owner_instruction",
+        actions: ["answer_user_question"],
       }),
     ]);
 
@@ -592,17 +592,17 @@ describe("Quality Pack 1 V2 golden skeletons", () => {
 
   it("removes the hardcoded owner title from public owner replies", async () => {
     const deps = makeDeps([
-      JSON.stringify({
-        contract_version: "1.0",
-        reply: "Şef, bekleyen önerileri kontrol ettim.",
-        internal_boss_note: "",
+      decision({
+        text: "Sef, bekleyen onerileri kontrol ettim.",
+        intent: "owner_status",
+        actions: ["answer_user_question"],
       }),
     ]);
 
     await handleIncomingMessage(ownerMessage("Bugun durum ne?", "owner-title"), deps);
 
     expect(deps.sender.sends).toHaveLength(1);
-    expect(deps.sender.sends[0]?.text).toBe("bekleyen önerileri kontrol ettim.");
+    expect(normalizedText(deps.sender.sends[0]?.text ?? "")).toContain("bekleyen onerileri kontrol ettim");
     expect(deps.sender.sends[0]?.text).not.toMatch(/\b(Şef|şef|Sef|sef)\b/u);
   });
 
