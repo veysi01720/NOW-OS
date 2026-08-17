@@ -115,6 +115,21 @@ function hasUnsupportedCameraAccountProfileRequirement(text: string): boolean {
   );
 }
 
+function hasLegalisticPolicyTone(text: string, context: ConversationDecisionContext): boolean {
+  if (context.role !== "candidate") return false;
+  const policyTopic =
+    /(profil|foto|fotograf|kimlik|taklit|kamera|hesap|kazanc|kazan|odeme|para|link|indir|davet|ajans|kod|kurulum|yas|uygunluk|garanti|dogrulanmis|doğrulanmış|policy|kural)/u.test(text)
+    || ["payment_question", "account_profile_question", "app_fact_question", "installation_question", "ask_job_definition", "ask_how_work_is_done"].includes(context.latest_message.inferred_intent ?? "");
+  if (!policyTopic) return false;
+
+  return (
+    /(sahte\s+kimlik|izinsiz.{0,30}(taklit|bilgi|kisi)|yasak(li)?|suclu|suçlu|hukuki|yasal\s+uyari)/u.test(text) ||
+    /\buydur(ma|mam|muyor|mayalim|mayalım|mak)\b/u.test(text) ||
+    /(iddia\s+edemem|kesin\s+bir\s+kural\s+iddia\s+edemem|dogrulanmis\s+(bilgi|kural).{0,30}(bulunmuyor|yok)|doğrulanmış\s+(bilgi|kural).{0,30}(bulunmuyor|yok))/u.test(text) ||
+    /(bu\s+konuda\s+bilgim\s+yok|bilgi\s+bankasinda\s+yayinli\s+degil|bilgi\s+bankasında\s+yayınlı\s+değil)/u.test(text)
+  );
+}
+
 export function validateSemanticQuality(reply: string, context: ConversationDecisionContext): SemanticQualityResult {
   const text = normalize(reply);
   const reasons: string[] = [];
@@ -135,6 +150,9 @@ export function validateSemanticQuality(reply: string, context: ConversationDeci
   }
   if (hasUnsupportedCameraAccountProfileRequirement(text)) {
     reasons.push("UNSUPPORTED_POLICY_FACT");
+  }
+  if (hasLegalisticPolicyTone(text, context)) {
+    reasons.push("POLICY_TONE_TOO_LEGALISTIC");
   }
   if (requiresFemaleProfileRule(context) && !replyMentionsFemaleProfileRule(reply)) {
     reasons.push("REQUIRED_PROFILE_RULE_OMITTED");

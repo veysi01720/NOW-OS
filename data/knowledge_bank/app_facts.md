@@ -24,7 +24,7 @@
 - Linky: Magazada Linky aranir; kayitta `M9W5B8`; Uye ID, kullanici adi ve Ajans ekrani gonderilir.
 - Soyo: Kayit tamamlanir; Ajans bolumunde `3997`; yonetim onayi beklenir.
 - Timo: Kayitta `VVXVUD`; ajans baglantisi otomatik kontrol edilir.
-- Dogrulanmis link yoksa bot link uydurmaz; uygulama magazada adi ile aranir. Android/iOS ayrimi net degilse kesin cihaz ifadesi kurulmaz.
+- Yayinli link yoksa aday tahmini linke yonlendirilmez; uygulama adi veya owner onayli yonlendirme netlestirilir. Android/iOS ayrimi net degilse once cihaz bilgisi netlestirilir.
 
 ## Uygulama Yonlendirme Matrisi
 
@@ -44,11 +44,11 @@
 
 ## Profil Bio ve Fotograf Kurallari
 
-- Erkek adaylara kadin profil/fotograf calisma modeli, aday uygunlugu ve acik onay alinarak anlatilir; sahte kimlik veya izinsiz kisi taklidi onerilmez.
+- Erkek adaylarda calisma kadin profili ve uygun kadin fotograflari uzerinden ilerler; bu model aday uygunlugu ve acik onay alinarak net anlatilir.
 - Kullanici adinin sonuna ay isareti eklenir.
 - Egitim oncesi en az bir uygun fotograf gerekir; fotograf net, kaliteli, yuz gorunur ve uygulama kurallarina uygun olmalidir.
 - Bio zorunlu degildir; profil ve anilarda telefon, WhatsApp, sosyal medya, e-posta, IBAN, banka bilgisi, odeme linki veya adres bulunmaz.
-- Ciplaklik ve yasakli icerik kullanilmaz.
+- Fotograf ve profil icerikleri uygulama kurallarina uygun, temiz ve profesyonel tutulur.
 
 ## Bellek ve Tekrar Sormama
 
@@ -74,7 +74,7 @@
 - Erkek adaylar 18-30 araliginda degerlendirilir.
 - Kadin adaylar 18-40 araliginda degerlendirilir; 40-50 arasi deneyimli kadin adaylar ayrica degerlendirilebilir; 50+ kapali kalir.
 - 18 yas altinda veya ilgili ust sinirin disinda uygulama, kod veya kurulum verilmez.
-- Gunluk 3-4 saat onerisi ciddiyet/performance icin kullanilir; kazanc garantisi degildir.
+- Gunluk 3-4 saat onerisi ciddiyet ve performans icin kullanilir; kazanc performansa ve uygulama surecine gore degisir.
 - Kayit, kurulum, egitim ve ajans ucreti yoktur.
 
 ## Kurulum Izni
@@ -98,9 +98,9 @@
 ## Gizlilik Odeme ve Teknik Destek
 
 - Cekim sadece gunluk verilebilir; 1-3 is gunu, hafta sonu haric. Yanlis IBAN duzeltilebilir; cekim iptal edilemez.
-- Sabit kazanc, komisyon veya kesin odeme tarihi verilmez; minimum ve kesinti uygulama ekranindan kontrol edilir.
+- Kazanc, komisyon ve odeme zamani uygulama sureci, performans ve ekran bilgisinde gorunen kurallara gore degisir; minimum ve kesinti uygulama ekranindan kontrol edilir.
 - Hata ekraninda uygulama, Uye ID, kullanici adi ve kod kontrol edilir. Iki dogru denemeden sonra insan devri yapilir.
-- Ban, farkli ajans veya hesap erisim sorununda yeni hesap, sahte kimlik veya dogrulama asma yontemi onerilmez.
+- Ban, farkli ajans veya hesap erisim sorununda aday kendi basina yeni hesap ya da dogrulama denemesi yapmadan once ekip yonlendirmesiyle ilerler.
 
 ## Takip Kapanis ve Grup Operasyonlari
 

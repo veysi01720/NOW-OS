@@ -42,6 +42,42 @@ function publishedPolicySection(context: ConversationDecisionContext, key: strin
   return typeof value === "string" && value.trim().length > 0 ? value.trim() : null;
 }
 
+function hasPublishedFemaleProfileRule(context: ConversationDecisionContext): boolean {
+  const text = normalize([
+    publishedPolicySection(context, "profile_bio_photo_rules") ?? "",
+    ...context.canonical_policy_facts.map((fact) => `${fact.fact} ${fact.content}`),
+  ].join("\n"));
+  return /(kadin|female)/u.test(text) && /(profil|foto|fotograf|photo)/u.test(text);
+}
+
+function recruiterPaymentReply(context: ConversationDecisionContext): string {
+  const payment = context.structured_facts.general_work_model?.payment_policy?.trim();
+  const support = publishedPolicySection(context, "privacy_payment_support");
+  if (!payment && !support) {
+    return "Bu odeme detayini netlestirip sana dogru bilgiyle donecegim.";
+  }
+  return [
+    "Kazanc performansa, sohbet kalitesine, hediyelere ve uygulama performansina gore degisir.",
+    payment
+      ? "Cekim ve odeme adimlarini uygulama ekranindaki bilgilerle takip ederiz; odeme sureci genelde 1-3 is gunu bandinda ilerleyebilir."
+      : null,
+    support && /(iban|minimum|kesinti|hata|destek)/u.test(normalize(support))
+      ? "Minimum, kesinti veya IBAN duzeltmesi gibi detaylari da uygulama ekranindan birlikte kontrol ederiz."
+      : null,
+  ].filter((part): part is string => Boolean(part)).join(" ");
+}
+
+function recruiterProfileReply(context: ConversationDecisionContext): string {
+  const mentionsCamera = /(kamera|goruntulu|görüntülü|video)/u.test(normalize(context.latest_message.text));
+  const femaleProfile = hasPublishedFemaleProfileRule(context)
+    ? "Erkek adaylarda calisma kadin profili acilmasi ve uygun kadin fotograflari kullanilmasi uzerinden ilerler; bu model senin icin uygunsa acik onayinla devam ederiz."
+    : "Profil adimlarini uygulamanin yayinli kurallarina gore birlikte netlestiririz.";
+  const camera = mentionsCamera
+    ? "Kamera veya goruntulu calisma zorunlu diye anlatmiyoruz; mesajlasma agirlikli ilerleyebilirsin."
+    : "Profil ve fotograf adimlari calisma modelinin bir parcasi olarak net anlatilir.";
+  return `${camera} ${femaleProfile}`;
+}
+
 function repeatsRecentAssistantReply(reply: string, context: ConversationDecisionContext): boolean {
   return context.recent_messages
     .filter((message) => message.role === "assistant")
@@ -69,9 +105,13 @@ function hasWorkQuestion(text: string): boolean {
 
 function hasDisrespectfulCandidateTone(text: string): boolean {
   const normalized = normalize(text);
+  const directTerms = ["ahraz", "cakal", "cakkal", "çakal", "çakkal", "salak", "aptal", "gerizekali", "mal", "embesil", "siktir", "amk", "aq", "orospu", "pic", "piç"];
+  const tokenSet = new Set(tokens(normalized));
+  if (directTerms.some((term) => tokenSet.has(term))) return true;
   return (
-    /\b(ahraz|cakal|cakkal|salak|aptal|gerizekali|gerizekalı|mal|embesil|siktir|amk|aq|orospu|pic|piç)\b/u.test(normalized) ||
-    /\blan\b.{0,30}\b(cakal|cakkal|salak|aptal|mal|ne anlatiyon|ne anlatÄ±yon|ne anlatiyorsun)\b/u.test(normalized)
+    /\b(ahraz|cakal|cakkal|çakal|çakkal|salak|aptal|gerizekali|gerizekalı|mal|embesil|siktir|amk|aq|orospu|pic|piç)\b/u.test(normalized) ||
+    /\blan\b.{0,40}\b(cakal|cakkal|çakal|çakkal|salak|aptal|mal|ne anlatiyon|ne anlatÄ±yon|ne anlatiyorsun)\b/u.test(normalized) ||
+    /\bne\s+anlatiyon\b/u.test(normalized)
   );
 }
 
@@ -207,7 +247,7 @@ function buildJobDefinitionSafetyDecision(context: ConversationDecisionContext):
     ? `Devam edebilmem için ${missing.join(", ")} bilgisini netleştirelim.`
     : "Bu çalışma modeli sana uygunsa kuruluma geçmeden önce bunu netleştirelim.";
   const earningsPart = asksEarnings
-    ? "Kazanç veya ödeme detayı için doğrulanmış bilgi bulunmuyor; yalnızca onaylı mesajlaşma sürecini anlatabilirim. "
+    ? "Kazanc performansa ve uygulama surecine gore degisir; odeme detayini netlestikce uygulama ekranindan birlikte kontrol ederiz. "
     : "";
   const reply =
     `${generalSummary || `İşin temel kısmı, ${appPart}gelen sohbet veya mesajlara yazıyla düzgün cevap vermek. `}` +
@@ -222,7 +262,7 @@ function buildJobDefinitionSafetyDecision(context: ConversationDecisionContext):
     ? `Devam edebilmem icin ${groundedMissing.join(", ")} bilgisini netlestirelim.`
     : "Bu calisma modeli sana uygunsa kuruluma gecmeden once bunu netlestirelim.";
   const groundedEarningsPart = asksEarnings
-    ? "Kazanc veya odeme detayi icin dogrulanmis bilgi bulunmuyor; yalnizca onayli mesajlasma surecini anlatabilirim. "
+    ? "Kazanc performansa ve uygulama surecine gore degisir; odeme detayini netlestikce uygulama ekranindan birlikte kontrol ederiz. "
     : "";
   // Job-definition questions use the app-independent owner-approved summary as
   // the complete answer. Camera/text-only boundaries belong to app-specific
@@ -262,8 +302,7 @@ function buildPaymentBoundarySafetyDecision(context: ConversationDecisionContext
   const policy = publishedPolicySection(context, "privacy_payment_support")
     ?? context.structured_facts.general_work_model?.payment_policy?.trim()
     ?? null;
-  const reply = policy
-    ?? "Bu konuda dogrulanmis odeme bilgisi bulunmuyor; kesin kazanc veya garanti iddia edemem.";
+  const reply = recruiterPaymentReply(context);
   return {
     ...baseDecision(reply, context, "deterministic_safety_response"),
     intent: { primary: "payment_question", secondary: [], confidence: 1 },
@@ -281,8 +320,7 @@ function buildPaymentBoundarySafetyDecision(context: ConversationDecisionContext
 }
 
 function buildCameraAccountBoundarySafetyDecision(context: ConversationDecisionContext): ConversationDecision {
-  const reply = publishedPolicySection(context, "profile_bio_photo_rules")
-    ?? "Bu konuda dogrulanmis profil veya hesap bilgisi bulunmuyor; kesin bir kural iddia edemem.";
+  const reply = recruiterProfileReply(context);
   return {
     ...baseDecision(reply, context, "deterministic_safety_response"),
     intent: { primary: "account_profile_question", secondary: [], confidence: 1 },
@@ -328,7 +366,7 @@ function buildKnownAppLinkSafetyDecision(context: ConversationDecisionContext): 
   if (!asksDownloadLink(context.latest_message.text)) return null;
   const fact = appFactFromLatestMessageOrState(context);
   if (!fact?.official_url?.trim()) return null;
-  const reply = `${fact.app} icin dogrulanmis indirme linki: ${fact.official_url.trim()}. Bu link disinda tahmini link kullanma.`;
+  const reply = `${fact.app} icin yayinli kurulum linki: ${fact.official_url.trim()}. Bu linkle ilerleyelim.`;
   return {
     ...baseDecision(reply, context, "deterministic_safety_response"),
     intent: { primary: "app_fact_question", secondary: ["download_link"], confidence: 1 },
@@ -361,11 +399,11 @@ export function buildMissingStructuredAppFieldDecision(context: ConversationDeci
   if (missingFields.length === 0) return null;
 
   const fieldText = missingFields.includes("official_url")
-    ? "dogrulanmis indirme linki"
-    : "dogrulanmis davet/ajans kodu";
+    ? "indirme linki"
+    : "davet/ajans kodu";
   const reply =
-    `${fact.app} icin ${fieldText} henuz bilgi bankasinda yayinli degil. ` +
-    "Uydurma link, market aramasi, APK veya tahmini alternatif onermiyorum; owner kontrolune aliyorum.";
+    `${fact.app} icin ${fieldText} henuz yayinli bilgi bankasinda net degil. ` +
+    "Bunu kontrol listesine aliyorum; netlesince sana dogru bilgiyle donecegim.";
 
   return {
     ...baseDecision(reply, context, "deterministic_safety_response"),
@@ -406,7 +444,7 @@ function buildInstallationSafetyDecision(context: ConversationDecisionContext): 
     installationProofRetry,
     appFact ? `Secili uygulama bilgisi: ${appFact.app}; davet kodu ${appFact.invite_code ?? "yayinda degil"}; ajans kodu ${appFact.agency_code ?? appFact.agency_bind_code ?? "yayinda degil"}.` : null,
   ].filter((part): part is string => Boolean(part && part.trim()));
-  const reply = `${parts.join(" ")} Kurulumda bu dogrulanmis bilgiler disina cikmadan ilerleyelim.`;
+  const reply = `${parts.join(" ")} Kurulumda bu bilgilerle adim adim ilerleyelim.`;
   return {
     ...baseDecision(reply, context, "deterministic_safety_response"),
     intent: { primary: "installation_question", secondary: [], confidence: 1 },
@@ -437,7 +475,7 @@ function installationInstructionReply(context: ConversationDecisionContext, fact
   if (!fact.official_url?.trim()) {
     return {
       ...baseDecision(
-        `${fact.app} icin dogrulanmis indirme linki henuz bilgi bankasinda yayinli degil. Uydurma link veya market aramasi onermiyorum; owner kontrolune aliyorum.`,
+        `${fact.app} icin indirme linki henuz yayinli bilgi bankasinda net degil. Bunu kontrol listesine aliyorum; netlesince sana dogru bilgiyle donecegim.`,
         context,
         "deterministic_safety_response",
       ),
@@ -455,7 +493,7 @@ function installationInstructionReply(context: ConversationDecisionContext, fact
   if (!code) {
     return {
       ...baseDecision(
-        `${fact.app} icin dogrulanmis davet/ajans kodu henuz bilgi bankasinda yayinli degil. Tahmini kod onermiyorum; owner kontrolune aliyorum.`,
+        `${fact.app} icin davet/ajans kodu henuz yayinli bilgi bankasinda net degil. Bunu kontrol listesine aliyorum; netlesince sana dogru bilgiyle donecegim.`,
         context,
         "deterministic_safety_response",
       ),
@@ -653,6 +691,7 @@ export function requiresFemaleProfileRule(context: ConversationDecisionContext):
   if (normalize(context.candidate_state.gender ?? "") !== "erkek") return false;
   if (!context.derived_state.intake_complete) return false;
   if (context.candidate_state.work_model_acceptance === "accepted") return false;
+  if (["candidate_boundary_tone", "off_topic", "greeting_or_first_contact"].includes(context.latest_message.inferred_intent ?? "")) return false;
   if (context.latest_message.inferred_intent === "clarify_previous_explanation") return false;
   const latest = normalize(context.latest_message.text);
   if (/(odeme|para|puan|kazanc|garanti|link|indir|download|davet|ajans|kod|kurulum|telefon|android|iphone|uygulama|app)/u.test(latest)) {
@@ -696,12 +735,20 @@ export function completeDecisionWithRequiredProfileRule(
   decision: ConversationDecision,
   context: ConversationDecisionContext,
 ): { decision: ConversationDecision; applied: boolean; reason_codes: string[] } {
+  const explainsWorkModel =
+    decision.chosen_actions.includes("explain_work_model")
+    || decision.chosen_actions.includes("request_work_model_acceptance")
+    || decision.intent.primary === "ask_job_definition"
+    || decision.intent.primary === "ask_how_work_is_done";
+  if (!explainsWorkModel || ["candidate_boundary_tone", "off_topic", "greeting_or_first_contact"].includes(decision.intent.primary)) {
+    return { decision, applied: false, reason_codes: [] };
+  }
   if (!requiresFemaleProfileRule(context) || replyMentionsFemaleProfileRule(decision.reply.text)) {
     return { decision, applied: false, reason_codes: [] };
   }
 
   const completion =
-    " Erkek adaylar icin bu calisma kadin profili acilmasi ve kadin fotograflari kullanilmasi kuralini icerir; bunu acik onayinla ilerletiriz, sahte kimlik veya izinsiz bilgi kullanmayiz.";
+    " Erkek adaylarda calisma kadin profili acilmasi ve kadin fotograflari kullanilmasi uzerinden ilerler; bu model senin icin uygunsa acik onayinla devam ederiz.";
 
   return {
     decision: {
@@ -727,7 +774,7 @@ export function completeDecisionWithRequiredProfileRule(
 }
 
 export function buildOffTopicSafetyDecision(context: ConversationDecisionContext): ConversationDecision {
-  const reply = "Bu konuda bilgim yok; isle veya kurulumla ilgili sorularda yardimci olabilirim.";
+  const reply = "Bu konu is veya kurulum tarafina girmiyor; isleyis, uygulama ya da kurulum adimlarinda yardimci olayim.";
   return {
     ...baseDecision(reply, context, "deterministic_safety_response"),
     intent: { primary: "off_topic", secondary: [], confidence: 1 },

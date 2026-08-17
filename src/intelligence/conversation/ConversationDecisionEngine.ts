@@ -151,6 +151,7 @@ export function buildDecisionPrompt(context: ConversationDecisionContext, repair
     "If a structured_facts app field is null, empty, or absent, treat it as missing official knowledge. Do not invent links, store-search instructions, APK suggestions, invite codes, or alternate routes for that missing field.",
     "When a missing structured app field is needed to answer the latest question, say it is not published in verified knowledge and request owner review instead of guessing.",
     "Treat canonical_policy_facts as atomic facts, not as a ready-made reply.",
+    "Candidate-facing tone rule: apply every policy boundary, but explain it like a warm recruiter describing the job. Do not sound like a legal warning, rule sheet, accusation, or refusal notice. Avoid candidate-facing phrases such as sahte kimlik, izinsiz taklit, yasak, uydurmak, iddia edemem, or dogrulanmis bilgi bulunmuyor. Rephrase the same meaning as normal work information: e.g. kazanc performansa gore degisir; kamera zorunlu diye anlatilmiyor; eksik linki netlestirip donecegim.",
     "Do not ask known age/gender/daily_hours again.",
     "For app selection, when candidate_state.selected_app is null and the latest message contains an approved app name or approved alias from structured_facts.app_facts, resolve it to the exact canonical allowed_apps value and record state_patch.selected_app with current_message evidence (evidence_ref=null). Include acknowledge_information when allowed and use next_action=update_candidate_state. Do not use begin_setup before selected_app is recorded. If no approved app evidence is present, ask for an approved app; never ask which app the candidate was sent to.",
     "For phone type, when candidate_state.phone_type is null and the latest message contains Android/android/andorid/androit or iPhone/iphone/iphon/ayfon, normalize it to android or ios, record state_patch.phone_type with current_message evidence (evidence_ref=null), include acknowledge_information when allowed, and use next_action=update_candidate_state. Do not use begin_setup before phone_type is recorded; otherwise ask for phone type.",
@@ -224,11 +225,14 @@ export function buildDecisionPrompt(context: ConversationDecisionContext, repair
     repairInput?.reasonCodes.includes("RECENT_REPLY_REPEATED")
       ? "For RECENT_REPLY_REPEATED repair, do not reuse the previous reply. Acknowledge the latest user message and give a fresh, specific answer in different words."
       : "",
+    repairInput?.reasonCodes.includes("POLICY_TONE_TOO_LEGALISTIC")
+      ? "For POLICY_TONE_TOO_LEGALISTIC repair, keep the policy meaning but rewrite reply.text in warm recruiter language. Do not use legal/prohibition/refusal wording such as sahte kimlik, izinsiz taklit, yasak, uydurmak, iddia edemem, or dogrulanmis bilgi bulunmuyor. Present the same boundary as job information and the next helpful step."
+      : "",
     repairInput?.reasonCodes.some((code) => code.startsWith("KNOWN_"))
       ? "For KNOWN_* repair, remove every repeated question for fields already present in known_candidate_facts.do_not_ask_fields. Continue from the known state instead: selected_app known means no app-name question; phone_type known means no Android/iPhone question; work_model_acceptance=accepted means no suitability/confirmation question."
       : "",
     repairInput?.reasonCodes.includes("REQUIRED_PROFILE_RULE_OMITTED")
-      ? "For REQUIRED_PROFILE_RULE_OMITTED repair, state the male-candidate profile/photo rule directly. Do not say it will be explained later. The reply must explicitly say that male candidates use/open a female profile and female photos, with consent and without unauthorized identity use."
+      ? "For REQUIRED_PROFILE_RULE_OMITTED repair, state the male-candidate profile/photo rule directly as job information. Do not say it will be explained later. The reply must explicitly say that male candidates use/open a female profile and female photos, and ask whether that model is suitable, without accusatory/legal wording."
       : "",
     repairInput ? "<previous_model_output>" : "",
     repairInput ? repairInput.previousRawText : "",
