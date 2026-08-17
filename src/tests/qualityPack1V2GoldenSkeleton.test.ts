@@ -747,6 +747,21 @@ describe("Quality Pack 1 V2 golden skeletons", () => {
     );
   });
 
+  it("escalates app-like link or code questions when no structured app fact exists", async () => {
+    expect(inferConversationIntent("NovaChat kodunu verir misin?")).toBe("app_fact_question");
+    const deps = makeDeps(["not-json", "still-not-json"], workModelAcceptanceState());
+
+    await handleIncomingMessage(candidateMessage("NovaChat kodunu verir misin?", "unknown-app-code-escalation"), deps);
+
+    const candidateReply = deps.sender.sends.find((item) => item.message.phone_number === CANDIDATE_PHONE)?.text ?? "";
+    expect(normalizedText(candidateReply)).toMatch(/kontrol|donecegim/iu);
+    expect(normalizedText(candidateReply)).not.toContain("novachat");
+    expect(deps.humanHandoffStore.list()).toHaveLength(1);
+    expect(deps.humanHandoffStore.list()[0]?.reason_code).toBe("structured_app_field_missing");
+    expect(deps.sender.sends.some((item) => item.message.phone_number === OWNER_PHONE)).toBe(true);
+    expect(deps.assistantClient.runCalls).toHaveLength(0);
+  });
+
   it("logs a failed handoff instead of claiming success when the store is unavailable", async () => {
     const deps = makeDeps(["not-json", "still-not-json"], workModelAcceptanceState());
     const noStoreDeps: HandleIncomingMessageDeps = { ...deps, humanHandoffStore: undefined };

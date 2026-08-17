@@ -236,7 +236,7 @@ describe("Package 13 candidate first-contact canary", () => {
 
     expect(greetingIntent).toBe("greeting_or_first_contact");
     expect(firstContactIntent).toBe("candidate_first_contact");
-    expect(unknownAppIntent).toBeNull();
+    expect(unknownAppIntent).toBe("app_fact_question");
 
     expect(selection({ inferredIntent: greetingIntent }).useAdapterLayer).toBe(true);
     expect(selection({ inferredIntent: firstContactIntent }).useAdapterLayer).toBe(true);

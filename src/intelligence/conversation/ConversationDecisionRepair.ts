@@ -200,6 +200,25 @@ function asksInviteOrAgencyCode(text: string): boolean {
   return /(davet|invite|ajans|agency|kod|code)/u.test(normalize(text));
 }
 
+function mentionsUnknownAppLikeTerm(context: ConversationDecisionContext): boolean {
+  const known = new Set<string>();
+  for (const fact of approvedAppFacts(context)) {
+    for (const value of [fact.app, fact.android_name, fact.ios_name, ...fact.aliases]) {
+      if (value) known.add(normalize(value));
+    }
+  }
+  const common = new Set([
+    "davet", "invite", "ajans", "agency", "kod", "code", "link", "url", "indir", "indirme",
+    "nereden", "verir", "misin", "musun", "nedir", "var", "uygulama", "app", "platform",
+  ]);
+  const tokens = normalize(context.latest_message.text).match(/\b[a-z0-9]{3,}\b/gu) ?? [];
+  return tokens.some((token) =>
+    !common.has(token)
+    && !known.has(token)
+    && /(chat|star|live|meet|talk|date|app)$/u.test(token)
+  );
+}
+
 function asksAppCatalogOrRouting(text: string): boolean {
   return /(hangi uygulamalar|uygulamalar var|hangi app|hangi platform|hangi uygulama|uygulama oner|uygulama Ã¶ner|android.*uygun|iphone.*uygun|ios.*uygun)/u.test(normalize(text));
 }
@@ -389,7 +408,36 @@ export function buildMissingStructuredAppFieldDecision(context: ConversationDeci
   if (!asksLink && !asksCode) return null;
 
   const fact = appFactFromLatestMessageOrState(context);
-  if (!fact) return null;
+  if (!fact) {
+    if (!mentionsUnknownAppLikeTerm(context)) return null;
+    const fieldText = asksLink ? "indirme linki" : "davet/ajans kodu";
+    const reply =
+      `Bu uygulama icin ${fieldText} yayinli bilgi bankasinda net degil. ` +
+      "Bunu kontrol listesine aliyorum; netlesince sana dogru bilgiyle donecegim.";
+
+    return {
+      ...baseDecision(reply, context, "deterministic_safety_response"),
+      intent: { primary: "app_fact_question", secondary: ["unknown_app_or_platform", asksLink ? "official_url" : "invite_code"], confidence: 1 },
+      direct_question: {
+        present: true,
+        question_summary: "Aday bilgi bankasinda eslesmeyen bir uygulama icin link veya kod soruyor",
+        answered_in_reply: true,
+      },
+      chosen_actions: ["answer_user_question"],
+      policy_facts_used: context.canonical_policy_facts.map((policyFact) => policyFact.id),
+      next_action: "escalate_missing_info",
+      requires_escalation: true,
+      escalation_reason: "structured_app_field_missing",
+      risk_flags: ["structured_app_field_missing", "unknown_app_or_platform"],
+      self_check: {
+        answered_latest_message: true,
+        asked_known_information_again: false,
+        invented_policy: false,
+        offered_setup_too_early: false,
+        used_generic_closing: false,
+      },
+    };
+  }
 
   const missingFields: string[] = [];
   if (asksLink && !fact.official_url?.trim()) missingFields.push("official_url");

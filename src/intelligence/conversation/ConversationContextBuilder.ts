@@ -18,6 +18,19 @@ function asksConcreteOperationalFact(normalized: string): boolean {
   return /(link|url|download|indir|yukle|davet|invite|ajans|agency|kod|code|kurulum|kuruluma|kuracagim|sure|ne kadar|odeme ne zaman|puan|iban|minimum|kesinti|hangi uygulama|uygulamalar var|kamera|profil|hesap|android|iphone|ios|layla|nivi|tanchat|tanstar|linky|soyo|timo|amar)/u.test(normalized);
 }
 
+function mentionsAppLikeUnknownTerm(normalized: string): boolean {
+  const tokens = normalized.match(/\b[a-z0-9]{3,}\b/gu) ?? [];
+  const common = new Set([
+    "davet", "invite", "ajans", "agency", "kod", "code", "link", "url", "indir", "indirme",
+    "nereden", "verir", "misin", "musun", "nedir", "var", "uygulama", "app", "platform",
+  ]);
+  return tokens.some((token) =>
+    !common.has(token)
+    && !/(layla|nivi|tanchat|tanstar|linky|soyo|timo|amar)/u.test(token)
+    && /(chat|star|live|meet|talk|date|app)$/u.test(token)
+  );
+}
+
 function looksLikeRhetoricalBanter(normalized: string): boolean {
   if (asksConcreteOperationalFact(normalized)) return false;
 
@@ -63,8 +76,8 @@ export function inferConversationIntent(text: string): string | null {
     if (normalized.includes("erkek hes") || normalized.includes("erkek prof")) return "account_profile_question";
     return "ask_how_work_is_done";
   }
-  if (/(indir|indirme|link|url|download|nereden yukle)/u.test(normalized)
-    && /(layla|nivi|tanchat|tanstar|linky|soyo|timo|amar|uygulama|app|platform)/u.test(normalized)) {
+  if (/(indir|indirme|link|url|download|nereden yukle|davet|invite|ajans|agency|kod|code)/u.test(normalized)
+    && (/(layla|nivi|tanchat|tanstar|linky|soyo|timo|amar|uygulama|app|platform)/u.test(normalized) || mentionsAppLikeUnknownTerm(normalized))) {
     return "app_fact_question";
   }
   if (/(hangi uygulamalar|uygulamalar var|hangi app|hangi platform|hangi uygulama|uygulama oner)/u.test(normalized)) {
