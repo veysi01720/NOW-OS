@@ -673,12 +673,12 @@ export function requiresFemaleProfileRule(context: ConversationDecisionContext):
 }
 
 export function replyMentionsFemaleProfileRule(reply: string): boolean {
-  const text = normalize(reply);
+  const text = normalize(reply).replace(/\u0131/gu, "i").replace(/\u0130/gu, "i");
   const hasFemaleProfile = /(kadin|female).{0,80}(profil|foto|fotograf|photo)|(profil|foto|fotograf|photo).{0,80}(kadin|female)/u.test(text);
   if (!hasFemaleProfile) return false;
   const defersRule = /(ayrica|sonra|daha sonra|ileride).{0,60}(anlat|netles|acikla)|acik onayla anlatilir/u.test(text);
   if (defersRule) return false;
-  return /(kadin|female).{0,100}(profil|foto|fotograf|photo).{0,100}(acil|açil|kullan|olustur|hazirlan)|(profil|foto|fotograf|photo).{0,100}(kadin|female).{0,100}(acil|açil|kullan|olustur|hazirlan)/u.test(text);
+  return /(kadin|female).{0,100}(profil|foto|fotograf|photo).{0,100}(acilir|acilmasi|kullanilir|kullanilmasi|olusturulur|olusturulmasi)|(profil|foto|fotograf|photo).{0,100}(kadin|female).{0,100}(acilir|acilmasi|kullanilir|kullanilmasi|olusturulur|olusturulmasi)/u.test(text);
 }
 
 export function completeDecisionWithRequiredProfileRule(
