@@ -1,4 +1,5 @@
 import type { ConversationDecisionContext } from "../conversation/ConversationDecisionSchema.js";
+import { replyMentionsFemaleProfileRule, requiresFemaleProfileRule } from "../conversation/ConversationDecisionRepair.js";
 
 export interface SemanticQualityResult {
   ok: boolean;
@@ -62,7 +63,7 @@ function hasGenericConversationCloser(text: string): boolean {
   return /((baska|başka)\s+((sormak\s+istedigin|sormak\s+istediğin|sorun|merak\s+ettigin|merak\s+ettiğin)|(bir\s+sey|bir\s+şey)|(ne\s+ogrenmek|ne\s+öğrenmek))|yardimci\s+olabilecegim\s+baska|yardımcı\s+olabileceğim\s+başka|detay\s+ister\s+misin).{0,40}(var\s+mi|var\s+mı|ister\s+misin|\?)/u.test(text);
 }
 
-const KNOWN_APP_NAMES = ["layla", "soyo", "amar", "timo", "linky"];
+const KNOWN_APP_NAMES = ["layla", "soyo", "amar", "timo", "linky", "tanchat", "tanstar"];
 
 function mentionedApps(text: string): string[] {
   return KNOWN_APP_NAMES.filter((app) => new RegExp(`(^|\\b)${app}($|\\b)`, "u").test(text));
@@ -134,6 +135,9 @@ export function validateSemanticQuality(reply: string, context: ConversationDeci
   }
   if (hasUnsupportedCameraAccountProfileRequirement(text)) {
     reasons.push("UNSUPPORTED_POLICY_FACT");
+  }
+  if (requiresFemaleProfileRule(context) && !replyMentionsFemaleProfileRule(reply)) {
+    reasons.push("REQUIRED_PROFILE_RULE_OMITTED");
   }
   if (!appMentionGrounded(text, context)) {
     reasons.push("UNGROUNDED_APP_SELECTION");

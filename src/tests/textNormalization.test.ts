@@ -33,4 +33,10 @@ describe("natural-language fast hints", () => {
     expect(detectModelAcceptance("reddet")).toBe("rejected");
     expect(detectModelAcceptance("hayir, uygun degil")).toBe("rejected");
   });
+
+  it("does not treat clarification as work-model acceptance", () => {
+    expect(detectModelAcceptance("Tam anlamadim")).toBeNull();
+    expect(detectModelAcceptance("tam anlamadım")).toBeNull();
+    expect(detectModelAcceptance("kamerasiz olur mu")).toBeNull();
+  });
 });

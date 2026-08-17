@@ -284,7 +284,12 @@ export function detectPhoneType(text: string): { phone_type: "android" | "ios" |
 export function detectModelAcceptance(text: string): "accepted" | "rejected" | null {
   const normalizedText = normalizeText(text);
   if (matchesNormalizedHint(normalizedText, ["uygun degil", "istemiyorum", "hayir", "vazgectim", "kabul etmiyorum", "olmaz", "red", "reddet"], { strict: true })) return "rejected";
-  if (matchesNormalizedHint(normalizedText, ["kabul", "uygun", "uygundur", "tamam", "tmm", "olur", "evet", "evt", "ok", "baslayalim", "anladim"], { forbidden: ["olmaz", "hayir", "istemiyorum", "vazgectim", "reddet"] })) {
+  if (/\b(anlamadim|anlamiyorum|anlamadim|anlasilmadi|nasil yani|ne demek)\b/u.test(normalizedText)) return null;
+  if (/\?|\b(mi|mu|mı|mü|nasil|ne|hangi|nereden)\b/u.test(normalizedText)) return null;
+  const forbidden = ["olmaz", "hayir", "istemiyorum", "vazgectim", "reddet"];
+  const strictShortAcceptance = matchesNormalizedHint(normalizedText, ["tmm", "ok", "evt"], { strict: true, forbidden });
+  const fuzzyAcceptance = matchesNormalizedHint(normalizedText, ["kabul", "uygun", "uygundur", "tamam", "olur", "evet", "baslayalim", "anladim"], { forbidden });
+  if (strictShortAcceptance || fuzzyAcceptance) {
     return "accepted";
   }
   return null;

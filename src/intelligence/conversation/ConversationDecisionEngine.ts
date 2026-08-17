@@ -16,7 +16,14 @@ import {
 } from "./ConversationDecisionV3SemanticValidator.js";
 import type { ConversationDecision, ConversationDecisionContext } from "./ConversationDecisionSchema.js";
 import { buildConversationDecisionContext } from "./ConversationContextBuilder.js";
-import { buildCandidateToneBoundaryDecision, buildDeterministicSafetyDecision, buildOffTopicSafetyDecision } from "./ConversationDecisionRepair.js";
+import {
+  buildCandidateToneBoundaryDecision,
+  buildCapturedModelAcceptanceDecision,
+  buildDeterministicSafetyDecision,
+  buildMissingStructuredAppFieldDecision,
+  buildOffTopicSafetyDecision,
+  completeDecisionWithRequiredProfileRule,
+} from "./ConversationDecisionRepair.js";
 import { parseConversationDecision, validateConversationDecision } from "./ConversationDecisionValidator.js";
 import { validateSemanticQuality } from "../quality/SemanticQualityGuard.js";
 import { validateAndApplyStatePatch } from "../candidate/StatePatchValidator.js";
@@ -136,6 +143,8 @@ export function buildDecisionPrompt(context: ConversationDecisionContext, repair
     "The following grounded policy text is present in this prompt and must be used when it answers the latest question:",
     ...context.canonical_policy_facts.map((fact) => `[${fact.id}] ${fact.content}`),
     "structured_facts is backend-owned official grounding. Copy approved app names, iPhone names, codes, and capabilities exactly; never invent or override it with model knowledge.",
+    "If a structured_facts app field is null, empty, or absent, treat it as missing official knowledge. Do not invent links, store-search instructions, APK suggestions, invite codes, or alternate routes for that missing field.",
+    "When a missing structured app field is needed to answer the latest question, say it is not published in verified knowledge and request owner review instead of guessing.",
     "Treat canonical_policy_facts as atomic facts, not as a ready-made reply.",
     "Do not ask known age/gender/daily_hours again.",
     "For app selection, when candidate_state.selected_app is null and the latest message contains an approved app name or approved alias from structured_facts.app_facts, resolve it to the exact canonical allowed_apps value and record state_patch.selected_app with current_message evidence (evidence_ref=null). Include acknowledge_information when allowed and use next_action=update_candidate_state. Do not use begin_setup before selected_app is recorded. If no approved app evidence is present, ask for an approved app; never ask which app the candidate was sent to.",
@@ -536,6 +545,30 @@ export async function executeConversationDecisionV2(input: {
         model_call_count: 0,
       });
     }
+    if (!decision) {
+      decision = buildMissingStructuredAppFieldDecision(context);
+      if (decision) {
+        mutationSource = "structured_app_field_missing";
+        input.logger.info({
+          event_type: "CONVERSATION_DECISION_V2_FAST_PATH_SELECTED",
+          correlation_id: context.request_id,
+          fast_path: "structured_app_field_missing",
+          model_call_count: 0,
+        });
+      }
+    }
+    if (!decision) {
+      decision = buildCapturedModelAcceptanceDecision(context);
+      if (decision) {
+        mutationSource = "deterministic_model_acceptance_captured";
+        input.logger.info({
+          event_type: "CONVERSATION_DECISION_V2_FAST_PATH_SELECTED",
+          correlation_id: context.request_id,
+          fast_path: "model_acceptance_captured",
+          model_call_count: 0,
+        });
+      }
+    }
     if (!decision && context.latest_message.inferred_intent === "off_topic" && context.role === "candidate" && context.channel === "private") {
       decision = buildOffTopicSafetyDecision(context);
       mutationSource = "deterministic_off_topic_response";
@@ -707,9 +740,16 @@ export async function executeConversationDecisionV2(input: {
               twoLayerValidatorEnabled: input.env.twoLayerValidatorEnabled === true,
               semanticQuestionAnswered,
             });
+            const repairReasonCodes = [...new Set([
+              ...repairValidation.reason_codes,
+              ...repairQuality.reason_codes,
+            ])];
+            const onlyProfileRuleCompletionMissing =
+              repairReasonCodes.length > 0
+              && repairReasonCodes.every((code) => code === "REQUIRED_PROFILE_RULE_OMITTED");
             validationReasons = [...repairReasons, ...repairValidation.reason_codes];
             qualityReasons = [...quality.reason_codes, ...repairQuality.reason_codes];
-            if (repairLegacyChecks.accepted) {
+            if (repairLegacyChecks.accepted || onlyProfileRuleCompletionMissing) {
               decision = repairResult.decision;
               replyMutatedAfterModel = true;
               mutationSource = "model_repair";
@@ -744,6 +784,16 @@ export async function executeConversationDecisionV2(input: {
       context.canonical_policy_facts.length === 0 ? "policy_missing" : "invalid_model_decision"
     );
     mutationSource = "deterministic_safety_response";
+  }
+
+  const profileCompletion = completeDecisionWithRequiredProfileRule(decision, context);
+  if (profileCompletion.applied) {
+    decision = profileCompletion.decision;
+    qualityReasons = [...new Set([...qualityReasons, ...profileCompletion.reason_codes])];
+    replyMutatedAfterModel = replyMutatedAfterModel || modelCallCount > 0;
+    mutationSource = mutationSource
+      ? `${mutationSource}+deterministic_reply_completion`
+      : "deterministic_reply_completion";
   }
 
   const statePatch = validateAndApplyStatePatch(

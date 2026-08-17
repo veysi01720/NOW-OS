@@ -279,7 +279,7 @@ describe("Quality Pack 1 V2 golden skeletons", () => {
     ]));
   });
 
-  it("carries candidate-provided prerequisites into the next V2 prompt context", async () => {
+  it("carries candidate-provided prerequisites through deterministic acceptance capture", async () => {
     const deps = makeDeps([
       decision({
         text: "Bilgilerini aldim. Onayli uygulamada sohbetlere yaziyla cevap vererek ilerlersin; bu calisma modeli sana uygun mu?",
@@ -301,16 +301,20 @@ describe("Quality Pack 1 V2 golden skeletons", () => {
     await handleIncomingMessage(candidateMessage("27 erkek gunde 4 saat", "prereq-1"), deps);
     await handleIncomingMessage(candidateMessage("Tamam devam", "prereq-2"), deps);
 
-    const secondPrompt = latestRunContent(deps);
-    const decisionContext = extractJsonBlock(secondPrompt, "conversation_decision_context_json");
-
-    expect(decisionContext.candidate_state).toEqual(expect.objectContaining({
+    const state = deps.userStateStore.states.get(CANDIDATE_PHONE);
+    expect(state).toEqual(expect.objectContaining({
       age: 27,
       gender: "erkek",
       daily_hours: 4,
+      model_acceptance: "accepted",
     }));
-    expect(decisionContext.derived_state.intake_complete).toBe(true);
-    expect(decisionContext.facts_extracted_from_current_message).toContain("model_acceptance");
+    expect(deps.logger.events).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        event_type: "CONVERSATION_DECISION_V2_FAST_PATH_SELECTED",
+        fast_path: "model_acceptance_captured",
+        model_call_count: 0,
+      }),
+    ]));
   });
 
   it("repairs a live work-model parrot reply instead of sending the same answer again", async () => {
@@ -639,7 +643,7 @@ describe("Quality Pack 1 V2 golden skeletons", () => {
     await handleIncomingMessage(candidateMessage("TanChat indirme linki nedir?", "missing-link-escalation"), deps);
 
     expect(deps.humanHandoffStore.list()).toHaveLength(1);
-    expect(deps.humanHandoffStore.list()[0]?.reason_code).toBe("conversational_escalation_claim");
+    expect(deps.humanHandoffStore.list()[0]?.reason_code).toBe("structured_app_field_missing");
     expect(deps.humanHandoffStore.findPendingOwnerQuery()?.notification_status).toBe("sent");
     const candidateReply = deps.sender.sends.find((item) => item.message.phone_number === CANDIDATE_PHONE)?.text ?? "";
     expect(normalizedText(candidateReply)).toContain("kontrol");
@@ -649,7 +653,7 @@ describe("Quality Pack 1 V2 golden skeletons", () => {
       expect.arrayContaining([
         expect.objectContaining({
           event_type: "HUMAN_HANDOFF_RECORDED",
-          reason_code: "conversational_escalation_claim",
+          reason_code: "structured_app_field_missing",
         }),
         expect.objectContaining({
           event_type: "OWNER_ANSWER_REQUIRED_NOTIFICATION_SENT",
@@ -669,7 +673,7 @@ describe("Quality Pack 1 V2 golden skeletons", () => {
       expect.arrayContaining([
         expect.objectContaining({
           event_type: "HUMAN_HANDOFF_RECORD_FAILED",
-          reason_code: "conversational_escalation_claim",
+          reason_code: "structured_app_field_missing",
           failure_reason: "HANDOFF_STORE_UNAVAILABLE",
         }),
       ]),

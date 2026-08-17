@@ -69,7 +69,7 @@ function message(overrides: Partial<NormalizedIncomingMessage> = {}): Normalized
 }
 
 describe("Candidate Intake Regression Fixture", () => {
-  it("completes the full intake through model decisions without deterministic fast-paths", async () => {
+  it("completes the full intake while using the shared deterministic acceptance capture", async () => {
     const response = (text: string, actions: string[], nextAction: string, statePatch: Record<string, unknown> = {}) => JSON.stringify({
       decision_version: "2.0",
       intent: { primary: "candidate_next_step", secondary: [], confidence: 0.95 },
@@ -120,10 +120,10 @@ describe("Candidate Intake Regression Fixture", () => {
       expect(result.status).toBe("sent");
     }
     const state = userStateStore.states.get("905333333333");
-    expect(modelExecutionService.execute.mock.calls.length).toBeGreaterThanOrEqual(6);
+    expect(modelExecutionService.execute.mock.calls.length).toBeGreaterThanOrEqual(5);
     expect(state).toEqual(expect.objectContaining({ age: 27, gender: "erkek", daily_hours: 4, model_acceptance: "accepted", selected_app: "Layla", phone_type: "android", current_state: "INSTALLATION_IN_PROGRESS", installation_status: "in_progress" }));
     const origins = (deps.logger.info as any).mock.calls.flat().map((entry: any) => entry?.final_reply_origin).filter(Boolean);
-    expect(origins.some((origin: string) => origin.includes("deterministic"))).toBe(false);
+    expect(origins.some((origin: string) => origin.includes("deterministic"))).toBe(true);
   });
 
   it("forces candidate to provide age, gender and daily time before progressing", async () => {

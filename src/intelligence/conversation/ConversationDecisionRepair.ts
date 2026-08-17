@@ -143,8 +143,21 @@ function appFactFromLatestMessage(context: ConversationDecisionContext) {
   ) ?? null;
 }
 
+function appFactFromLatestMessageOrState(context: ConversationDecisionContext) {
+  return appFactFromLatestMessage(context)
+    ?? approvedAppFacts(context).find((fact) =>
+      context.candidate_state.selected_app !== null
+      && normalize(fact.app) === normalize(context.candidate_state.selected_app)
+    )
+    ?? null;
+}
+
 function asksDownloadLink(text: string): boolean {
   return /(indir|indirme|link|url|nereden yukle|nereden yÃ¼kle|download)/u.test(normalize(text));
+}
+
+function asksInviteOrAgencyCode(text: string): boolean {
+  return /(davet|invite|ajans|agency|kod|code)/u.test(normalize(text));
 }
 
 function asksAppCatalogOrRouting(text: string): boolean {
@@ -313,7 +326,7 @@ function buildAppCatalogSafetyDecision(context: ConversationDecisionContext): Co
 
 function buildKnownAppLinkSafetyDecision(context: ConversationDecisionContext): ConversationDecision | null {
   if (!asksDownloadLink(context.latest_message.text)) return null;
-  const fact = appFactFromLatestMessage(context);
+  const fact = appFactFromLatestMessageOrState(context);
   if (!fact?.official_url?.trim()) return null;
   const reply = `${fact.app} icin dogrulanmis indirme linki: ${fact.official_url.trim()}. Bu link disinda tahmini link kullanma.`;
   return {
@@ -329,6 +342,52 @@ function buildKnownAppLinkSafetyDecision(context: ConversationDecisionContext): 
     next_action: "none",
     requires_escalation: false,
     escalation_reason: null,
+  };
+}
+
+export function buildMissingStructuredAppFieldDecision(context: ConversationDecisionContext): ConversationDecision | null {
+  const asksLink = asksDownloadLink(context.latest_message.text);
+  const asksCode = asksInviteOrAgencyCode(context.latest_message.text);
+  if (!asksLink && !asksCode) return null;
+
+  const fact = appFactFromLatestMessageOrState(context);
+  if (!fact) return null;
+
+  const missingFields: string[] = [];
+  if (asksLink && !fact.official_url?.trim()) missingFields.push("official_url");
+  if (asksCode && !fact.invite_code?.trim() && !fact.agency_bind_code?.trim() && !fact.agency_code?.trim()) {
+    missingFields.push("invite_code");
+  }
+  if (missingFields.length === 0) return null;
+
+  const fieldText = missingFields.includes("official_url")
+    ? "dogrulanmis indirme linki"
+    : "dogrulanmis davet/ajans kodu";
+  const reply =
+    `${fact.app} icin ${fieldText} henuz bilgi bankasinda yayinli degil. ` +
+    "Uydurma link, market aramasi, APK veya tahmini alternatif onermiyorum; owner kontrolune aliyorum.";
+
+  return {
+    ...baseDecision(reply, context, "deterministic_safety_response"),
+    intent: { primary: "app_fact_question", secondary: missingFields, confidence: 1 },
+    direct_question: {
+      present: true,
+      question_summary: `Aday ${fact.app} icin eksik dogrulanmis alan soruyor`,
+      answered_in_reply: true,
+    },
+    chosen_actions: ["answer_user_question"],
+    policy_facts_used: context.canonical_policy_facts.map((policyFact) => policyFact.id),
+    next_action: "escalate_missing_info",
+    requires_escalation: true,
+    escalation_reason: "structured_app_field_missing",
+    risk_flags: ["structured_app_field_missing"],
+    self_check: {
+      answered_latest_message: true,
+      asked_known_information_again: false,
+      invented_policy: false,
+      offered_setup_too_early: false,
+      used_generic_closing: false,
+    },
   };
 }
 
@@ -367,6 +426,8 @@ function buildInstallationSafetyDecision(context: ConversationDecisionContext): 
 function buildGroundedSafetyDecision(context: ConversationDecisionContext): ConversationDecision | null {
   if (asksPaymentOrGuarantee(context.latest_message.text)) return buildPaymentBoundarySafetyDecision(context);
   if (asksCameraAccountOrProfile(context.latest_message.text)) return buildCameraAccountBoundarySafetyDecision(context);
+  const missingStructuredField = buildMissingStructuredAppFieldDecision(context);
+  if (missingStructuredField) return missingStructuredField;
   const link = buildKnownAppLinkSafetyDecision(context);
   if (link) return link;
   const appCatalog = buildAppCatalogSafetyDecision(context);
@@ -388,10 +449,135 @@ function buildGroundedSafetyDecision(context: ConversationDecisionContext): Conv
 function shouldEscalateMissingVerifiedDetail(context: ConversationDecisionContext, reason: "invalid_model_decision" | "provider_unavailable" | "policy_missing"): boolean {
   if (reason === "policy_missing" || !hasAnyCanonicalPolicyFact(context)) return true;
   if (asksDownloadLink(context.latest_message.text)) {
-    const fact = appFactFromLatestMessage(context);
+    const fact = appFactFromLatestMessageOrState(context);
     return Boolean(fact && !fact.official_url?.trim());
   }
   return false;
+}
+
+export function buildCapturedModelAcceptanceDecision(context: ConversationDecisionContext): ConversationDecision | null {
+  if (context.role !== "candidate" || context.channel !== "private") return null;
+  if (!context.facts_extracted_from_current_message.includes("model_acceptance")) return null;
+  if (context.candidate_state.work_model_acceptance !== "accepted") return null;
+
+  const missingApp = context.candidate_state.selected_app === null;
+  const missingPhone = context.candidate_state.phone_type === null;
+  const selectedApp = context.candidate_state.selected_app;
+  const phoneType = context.candidate_state.phone_type;
+
+  let reply = "Calisma modelini kabul ettigini aldim.";
+  const requestedActions: ConversationDecisionAction[] = ["acknowledge_information"];
+  let nextAction: ConversationDecision["next_action"] = "none";
+  let containsQuestion = false;
+
+  if (missingApp && missingPhone) {
+    reply += " Simdi onayli uygulamayi ve telefon tipini netlestirelim: hangi uygulama ve telefonun Android mi iPhone mu?";
+    requestedActions.push("ask_selected_app", "ask_phone_type");
+    nextAction = "ask_selected_app";
+    containsQuestion = true;
+  } else if (missingApp) {
+    reply += " Simdi hangi onayli uygulamayla ilerleyecegini yazar misin?";
+    requestedActions.push("ask_selected_app");
+    nextAction = "ask_selected_app";
+    containsQuestion = true;
+  } else if (missingPhone) {
+    reply += ` ${selectedApp ?? "Secili uygulama"} icin devam edebiliriz; telefonun Android mi iPhone mu?`;
+    requestedActions.push("ask_phone_type");
+    nextAction = "ask_phone_type";
+    containsQuestion = true;
+  } else {
+    reply += ` ${selectedApp ?? "Secili uygulama"} ve ${phoneType ?? "telefon"} bilgisi de kayitli; kurulum adimina gecebiliriz.`;
+    requestedActions.push("provide_installation_instruction");
+    nextAction = "begin_setup";
+  }
+
+  const allowed = new Set(context.allowed_actions);
+  const chosenActions = requestedActions.filter((action) => allowed.has(action));
+  if (!chosenActions.includes("answer_user_question")) chosenActions.unshift("answer_user_question");
+
+  return {
+    ...baseDecision(reply, context, "deterministic_safety_response"),
+    intent: { primary: "candidate_next_step", secondary: ["model_acceptance_captured"], confidence: 1 },
+    direct_question: {
+      present: false,
+      question_summary: null,
+      answered_in_reply: true,
+    },
+    reply: {
+      text: reply,
+      language: "tr",
+      tone: "natural_concise",
+      contains_question: containsQuestion,
+    },
+    chosen_actions: [...new Set(chosenActions)],
+    state_patch: {},
+    policy_facts_used: context.canonical_policy_facts.map((fact) => fact.id),
+    next_action: nextAction,
+    requires_escalation: false,
+    escalation_reason: null,
+  };
+}
+
+export function requiresFemaleProfileRule(context: ConversationDecisionContext): boolean {
+  if (normalize(context.candidate_state.gender ?? "") !== "erkek") return false;
+  if (!context.derived_state.intake_complete) return false;
+  if (context.candidate_state.work_model_acceptance === "accepted") return false;
+  if (context.latest_message.inferred_intent === "clarify_previous_explanation") return false;
+  const latest = normalize(context.latest_message.text);
+  if (/(odeme|para|puan|kazanc|garanti|link|indir|download|davet|ajans|kod|kurulum|telefon|android|iphone|uygulama|app)/u.test(latest)) {
+    return false;
+  }
+  const workModelContext =
+    context.derived_state.dialogue_phase === "WORK_MODEL_DISCLOSURE"
+    || context.derived_state.dialogue_phase === "WORK_MODEL_ACCEPTANCE"
+    || context.latest_message.inferred_intent === "ask_job_definition"
+    || context.latest_message.inferred_intent === "ask_how_work_is_done"
+    || context.facts_extracted_from_current_message.some((field) => field === "age" || field === "gender" || field === "daily_hours");
+  if (!workModelContext) return false;
+  const factText = normalize([
+    ...context.canonical_policy_facts.map((fact) => `${fact.fact} ${fact.content}`),
+    context.structured_facts.policy_sections?.profile_bio_photo_rules ?? "",
+  ].join("\n"));
+  return /(kadin|female)/u.test(factText) && /(profil|foto|fotograf|photo)/u.test(factText);
+}
+
+export function replyMentionsFemaleProfileRule(reply: string): boolean {
+  const text = normalize(reply);
+  return /(kadin|female).{0,80}(profil|foto|fotograf|photo)|(profil|foto|fotograf|photo).{0,80}(kadin|female)/u.test(text);
+}
+
+export function completeDecisionWithRequiredProfileRule(
+  decision: ConversationDecision,
+  context: ConversationDecisionContext,
+): { decision: ConversationDecision; applied: boolean; reason_codes: string[] } {
+  if (!requiresFemaleProfileRule(context) || replyMentionsFemaleProfileRule(decision.reply.text)) {
+    return { decision, applied: false, reason_codes: [] };
+  }
+
+  const completion =
+    " Erkek adaylarda kadin profil/fotograf kurali ayrica acik onayla anlatilir; sahte kimlik veya izinsiz bilgi kullanmadan ilerlenir.";
+
+  return {
+    decision: {
+      ...decision,
+      reply: {
+        ...decision.reply,
+        text: `${decision.reply.text.trim()}${completion}`,
+      },
+      policy_facts_used: [...new Set([
+        ...decision.policy_facts_used,
+        ...context.canonical_policy_facts
+          .map((fact) => fact.id)
+          .filter((id) => id.includes("profile") || id.includes("work_model") || id.includes("male")),
+      ])],
+      self_check: {
+        ...decision.self_check,
+        invented_policy: false,
+      },
+    },
+    applied: true,
+    reason_codes: ["REQUIRED_PROFILE_RULE_OMITTED"],
+  };
 }
 
 export function buildOffTopicSafetyDecision(context: ConversationDecisionContext): ConversationDecision {

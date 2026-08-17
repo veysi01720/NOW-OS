@@ -1538,9 +1538,22 @@ export async function handleIncomingMessage(
            && decisionResult.context.structured_facts?.policy_sections !== null;
          const conversationalEscalation = decisionResult.decision.requires_escalation
            && decisionResult.decision.escalation_reason === "conversational_escalation_claim";
+         const structuredFieldEscalation = decisionResult.decision.requires_escalation
+           && decisionResult.decision.escalation_reason === "structured_app_field_missing";
          let ownerAnswerRequired = false;
          if (policyContextGap) {
            ownerAnswerRequired = await holdOperationalQuestionForOwner(deps, message);
+         }
+         if (!ownerAnswerRequired && structuredFieldEscalation) {
+           if (!deps.humanHandoffStore) {
+             recordHumanHandoff(deps, message, "structured_app_field_missing");
+           } else {
+             ownerAnswerRequired = await holdOperationalQuestionForOwner(deps, message, {
+               force: true,
+               reasonCode: "structured_app_field_missing",
+               failureReason: "structured_app_field_missing",
+             });
+           }
          }
          if (!ownerAnswerRequired && conversationalEscalation) {
            ownerAnswerRequired = await holdOperationalQuestionForOwner(deps, message, {
