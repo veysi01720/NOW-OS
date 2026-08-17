@@ -23,6 +23,7 @@ import {
   buildDeterministicSafetyDecision,
   buildMissingStructuredAppFieldDecision,
   buildOffTopicSafetyDecision,
+  buildRhetoricalBanterSafetyDecision,
   completeDecisionWithRequiredProfileRule,
 } from "./ConversationDecisionRepair.js";
 import { parseConversationDecision, validateConversationDecision } from "./ConversationDecisionValidator.js";
@@ -150,6 +151,8 @@ export function buildDecisionPrompt(context: ConversationDecisionContext, repair
     "structured_facts is backend-owned official grounding. Copy approved app names, iPhone names, codes, and capabilities exactly; never invent or override it with model knowledge.",
     "If a structured_facts app field is null, empty, or absent, treat it as missing official knowledge. Do not invent links, store-search instructions, APK suggestions, invite codes, or alternate routes for that missing field.",
     "When a missing structured app field is needed to answer the latest question, say it is not published in verified knowledge and request owner review instead of guessing.",
+    "Escalate only for a concrete factual/operational question whose relevant structured_facts or policy section is truly missing. Do not escalate rhetorical, joking, teasing, philosophical, or vibe-check messages.",
+    "If latest_message.inferred_intent is rhetorical_or_banter, do not request owner review and do not say you are checking with the team. Deflect warmly and naturally without promising wealth, payment, or certainty; you may say earnings depend on effort, time, process, and fit, then steer back to the next useful work step.",
     "Treat canonical_policy_facts as atomic facts, not as a ready-made reply.",
     "Candidate-facing tone rule: apply every policy boundary, but explain it like a warm recruiter describing the job. Do not sound like a legal warning, rule sheet, accusation, or refusal notice. Avoid candidate-facing phrases such as sahte kimlik, izinsiz taklit, yasak, uydurmak, iddia edemem, or dogrulanmis bilgi bulunmuyor. Rephrase the same meaning as normal work information: e.g. kazanc performansa gore degisir; kamera zorunlu diye anlatilmiyor; eksik linki netlestirip donecegim.",
     "Do not ask known age/gender/daily_hours again.",
@@ -266,6 +269,11 @@ function hasRecentWorkModelAcceptanceQuestion(context: ConversationDecisionConte
   return context.recent_messages
     .slice(-4)
     .some((message) => message.role === "assistant" && /(calisma modeli|bu model).*(uygun|kabul)/iu.test(message.text));
+}
+
+function isHandoffStyleReply(reply: string): boolean {
+  const normalized = normalizeForRepeatCheck(reply);
+  return /(kontrol\s+ediyorum|kontrol\s+listesine|donecegim|dönecegim|doneceğim|döneceğim|ekip|owner|arda)/u.test(normalized);
 }
 
 /* Retired intake fast-path implementations are intentionally kept only in
@@ -657,6 +665,16 @@ export async function executeConversationDecisionV2(input: {
     });
     decision = buildDeterministicSafetyDecision(context, "provider_unavailable");
     mutationSource = "provider_unavailable";
+  }
+
+  if (
+    decision
+    && context.latest_message.inferred_intent === "rhetorical_or_banter"
+    && (decision.requires_escalation || isHandoffStyleReply(decision.reply.text))
+  ) {
+    decision = buildRhetoricalBanterSafetyDecision(context);
+    replyMutatedAfterModel = replyMutatedAfterModel || modelCallCount > 0;
+    mutationSource = "rhetorical_banter_escalation_guard";
   }
 
   // A shape-valid Responses decision can carry a bad state patch while its reply is

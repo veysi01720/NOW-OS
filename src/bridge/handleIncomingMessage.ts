@@ -362,7 +362,7 @@ async function notifyInstallationOwner(deps: HandleIncomingMessageDeps, text: st
 
 function isOperationalUnknownQuestion(message: NormalizedIncomingMessage): boolean {
   const intent = inferConversationIntent(message.text);
-  if (intent === "off_topic" || intent === "account_profile_question" || intent === "payment_question") return false;
+  if (intent === "off_topic" || intent === "rhetorical_or_banter" || intent === "account_profile_question" || intent === "payment_question") return false;
   const normalized = message.text.toLocaleLowerCase("tr-TR").normalize("NFKD").replace(/\p{M}/gu, "").replace(/ı/g, "i");
   if (/(?:garanti|kesin kazanc|odeme|para|puan|kamera|goruntulu|video|profil|hesap)/u.test(normalized)) return false;
   if (/(?:hangi|uygulamalar?\s+var)/u.test(normalized)) return false;
@@ -1585,6 +1585,7 @@ export async function handleIncomingMessage(
            && decisionResult.context.structured_facts?.policy_sections !== null;
          const conversationalEscalation = decisionResult.decision.requires_escalation
            && decisionResult.decision.escalation_reason === "conversational_escalation_claim";
+         const rhetoricalOrBanter = decisionResult.context.latest_message.inferred_intent === "rhetorical_or_banter";
          const structuredFieldEscalation = decisionResult.decision.requires_escalation
            && decisionResult.decision.escalation_reason === "structured_app_field_missing";
          let ownerAnswerRequired = false;
@@ -1602,7 +1603,7 @@ export async function handleIncomingMessage(
              });
            }
          }
-         if (!ownerAnswerRequired && conversationalEscalation) {
+         if (!ownerAnswerRequired && conversationalEscalation && !rhetoricalOrBanter) {
            ownerAnswerRequired = await holdOperationalQuestionForOwner(deps, message, {
              force: true,
              reasonCode: "conversational_escalation_claim",
@@ -1615,6 +1616,7 @@ export async function handleIncomingMessage(
          }
          if (
            !ownerAnswerRequired &&
+           !rhetoricalOrBanter &&
            decisionResult.decision.requires_escalation &&
           decisionResult.decision.escalation_reason === "conversational_escalation_claim"
         ) {

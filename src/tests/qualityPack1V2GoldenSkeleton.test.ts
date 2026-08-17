@@ -18,6 +18,7 @@ import {
 } from "./testDoubles.js";
 import { writeValidKnowledgeBankFixture } from "./fixtures/knowledgeBankFixture.js";
 import { PersistentHumanHandoffStore } from "../store/humanHandoffStore.js";
+import { inferConversationIntent } from "../intelligence/conversation/ConversationContextBuilder.js";
 
 const CANDIDATE_PHONE = "905550000001";
 const OWNER_PHONE = "905111111111";
@@ -57,6 +58,8 @@ function decision(input: {
   facts?: string[];
   nextAction?: string;
   direct?: boolean;
+  requiresEscalation?: boolean;
+  escalationReason?: string | null;
 }): string {
   return JSON.stringify({
     decision_version: "2.0",
@@ -76,8 +79,8 @@ function decision(input: {
     state_patch: input.statePatch ?? {},
     policy_facts_used: input.facts ?? [],
     next_action: input.nextAction ?? "none",
-    requires_escalation: false,
-    escalation_reason: null,
+    requires_escalation: input.requiresEscalation ?? false,
+    escalation_reason: input.escalationReason ?? null,
     risk_flags: [],
     self_check: {
       answered_latest_message: true,
@@ -673,6 +676,45 @@ describe("Quality Pack 1 V2 golden skeletons", () => {
       expect(deps.sender.sends.some((item) => item.message.phone_number === OWNER_PHONE), scenario.id).toBe(false);
       expect(deps.logger.events, scenario.id).not.toEqual(expect.arrayContaining([
         expect.objectContaining({ event_type: "OWNER_ANSWER_REQUIRED_NOTIFICATION_SENT" }),
+      ]));
+    }
+  });
+
+  it("deflects rhetorical or banter questions without owner handoff even if the model asks for escalation", async () => {
+    const scenarios = [
+      "Sen bizi zengin edecen mi",
+      "Bu is beni kral yapar mi",
+      "Beni de sevecen mi bot",
+      "Koseyi donecek miyiz burada?",
+      "Hayatim degisecek mi simdi",
+    ];
+
+    for (const [index, text] of scenarios.entries()) {
+      expect(inferConversationIntent(text), text).toBe("rhetorical_or_banter");
+      const deps = makeDeps([
+        decision({
+          text: "Bunu kontrol ediyorum; ekipten netlestirip donecegim.",
+          intent: "candidate_next_step",
+          actions: ["answer_user_question"],
+          direct: true,
+          requiresEscalation: true,
+          escalationReason: "conversational_escalation_claim",
+        }),
+      ], workModelAcceptanceState());
+
+      await handleIncomingMessage(candidateMessage(text, `rhetorical-banter-${index}`), deps);
+
+      const candidateReply = deps.sender.sends.find((item) => item.message.phone_number === CANDIDATE_PHONE)?.text ?? "";
+      expect(candidateReply, text).not.toBe("");
+      expect(normalizedText(candidateReply), text).not.toMatch(/kontrol|ekip|owner|arda|donecegim|dönecegim/iu);
+      expect(deps.humanHandoffStore.list(), text).toHaveLength(0);
+      expect(deps.sender.sends.some((item) => item.message.phone_number === OWNER_PHONE), text).toBe(false);
+      expect(deps.logger.events, text).toEqual(expect.arrayContaining([
+        expect.objectContaining({
+          event_type: "CONVERSATION_DECISION_V2_TRACE",
+          intent: "rhetorical_or_banter",
+          mutation_source: "rhetorical_banter_escalation_guard",
+        }),
       ]));
     }
   });

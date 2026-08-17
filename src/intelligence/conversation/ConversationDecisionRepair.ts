@@ -581,6 +581,9 @@ export function buildCapturedAppOrPhoneProgressDecision(
 }
 
 function buildGroundedSafetyDecision(context: ConversationDecisionContext): ConversationDecision | null {
+  if (context.latest_message.inferred_intent === "rhetorical_or_banter") {
+    return buildRhetoricalBanterSafetyDecision(context);
+  }
   if (asksPaymentOrGuarantee(context.latest_message.text)) return buildPaymentBoundarySafetyDecision(context);
   if (asksCameraAccountOrProfile(context.latest_message.text)) return buildCameraAccountBoundarySafetyDecision(context);
   const missingStructuredField = buildMissingStructuredAppFieldDecision(context);
@@ -691,7 +694,7 @@ export function requiresFemaleProfileRule(context: ConversationDecisionContext):
   if (normalize(context.candidate_state.gender ?? "") !== "erkek") return false;
   if (!context.derived_state.intake_complete) return false;
   if (context.candidate_state.work_model_acceptance === "accepted") return false;
-  if (["candidate_boundary_tone", "off_topic", "greeting_or_first_contact"].includes(context.latest_message.inferred_intent ?? "")) return false;
+  if (["candidate_boundary_tone", "off_topic", "greeting_or_first_contact", "rhetorical_or_banter"].includes(context.latest_message.inferred_intent ?? "")) return false;
   if (context.latest_message.inferred_intent === "clarify_previous_explanation") return false;
   const latest = normalize(context.latest_message.text);
   if (/(odeme|para|puan|kazanc|garanti|link|indir|download|davet|ajans|kod|kurulum|telefon|android|iphone|uygulama|app)/u.test(latest)) {
@@ -740,7 +743,7 @@ export function completeDecisionWithRequiredProfileRule(
     || decision.chosen_actions.includes("request_work_model_acceptance")
     || decision.intent.primary === "ask_job_definition"
     || decision.intent.primary === "ask_how_work_is_done";
-  if (!explainsWorkModel || ["candidate_boundary_tone", "off_topic", "greeting_or_first_contact"].includes(decision.intent.primary)) {
+  if (!explainsWorkModel || ["candidate_boundary_tone", "off_topic", "greeting_or_first_contact", "rhetorical_or_banter"].includes(decision.intent.primary)) {
     return { decision, applied: false, reason_codes: [] };
   }
   if (!requiresFemaleProfileRule(context) || replyMentionsFemaleProfileRule(decision.reply.text)) {
@@ -844,6 +847,35 @@ export function buildCandidateToneBoundaryDecision(context: ConversationDecision
     next_action: "none",
     requires_escalation: false,
     escalation_reason: null,
+  };
+}
+
+export function buildRhetoricalBanterSafetyDecision(context: ConversationDecisionContext): ConversationDecision {
+  const latest = normalize(context.latest_message.text);
+  const reply = /(sevec|sevecek|seviyor|asik|evlen|mutlu)/u.test(latest)
+    ? "O taraf bende yok; ben isi ve adimlari net anlatirim. Uygunsa sureci birlikte ilerletiriz."
+    : "Buyuk soz vermeyeyim; gelir hedefe, zamana ve performansa gore degisir. Ben sana isi net anlatirim, uygunsa adim adim ilerleriz.";
+
+  return {
+    ...baseDecision(reply, context, "deterministic_safety_response"),
+    intent: { primary: "rhetorical_or_banter", secondary: [], confidence: 1 },
+    direct_question: {
+      present: true,
+      question_summary: "Aday retorik, saka veya laf atma tonunda bir yorum yapiyor",
+      answered_in_reply: true,
+    },
+    reply: {
+      text: reply,
+      language: "tr",
+      tone: "natural_concise",
+      contains_question: false,
+    },
+    chosen_actions: ["answer_user_question"],
+    policy_facts_used: context.canonical_policy_facts.map((fact) => fact.id),
+    next_action: "none",
+    requires_escalation: false,
+    escalation_reason: null,
+    risk_flags: [],
   };
 }
 

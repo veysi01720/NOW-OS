@@ -14,9 +14,33 @@ function normalize(value: string): string {
     .replace(/\u0130/gu, "i");
 }
 
+function asksConcreteOperationalFact(normalized: string): boolean {
+  return /(link|url|download|indir|yukle|davet|invite|ajans|agency|kod|code|kurulum|kuruluma|kuracagim|sure|ne kadar|odeme ne zaman|puan|iban|minimum|kesinti|hangi uygulama|uygulamalar var|kamera|profil|hesap|android|iphone|ios|layla|nivi|tanchat|tanstar|linky|soyo|timo|amar)/u.test(normalized);
+}
+
+function looksLikeRhetoricalBanter(normalized: string): boolean {
+  if (asksConcreteOperationalFact(normalized)) return false;
+
+  const questionLike =
+    normalized.includes("?")
+    || /\b(mi|mu|miyim|miyiz|misin|musun|miydin|miydik|miyiz)\b/u.test(normalized);
+  if (!questionLike) return false;
+
+  const selfOrBotDirected = /\b(sen|siz|bot|beni|bana|bizi|hepimizi|burayi|bu is|burada|hayatim)\b/u.test(normalized);
+  const exaggeratedOrSocialOutcome =
+    /(zengin|koseyi\s+don|kral|patron|ucur|hayat.{0,20}degis|sevec|sevecek|seviyor|asik|evlen|mutlu\s+ed|adam\s+eder|kurtar)/u.test(normalized);
+  const philosophicalOrVibe =
+    /(hayal|ruya|saka|dalga|ciddi\s+misin|bize\s+yarar\s+mi|olur\s+mu\s+boyle)/u.test(normalized);
+
+  return (selfOrBotDirected && exaggeratedOrSocialOutcome) || philosophicalOrVibe;
+}
+
 export function inferConversationIntent(text: string): string | null {
   const normalized = normalize(text);
 
+  if (looksLikeRhetoricalBanter(normalized)) {
+    return "rhetorical_or_banter";
+  }
   if (/(reklam.*bilgi|daha fazla bilgi)/u.test(normalized)) {
     return "ask_how_work_is_done";
   }
