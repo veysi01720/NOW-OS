@@ -18,6 +18,7 @@ import type { ConversationDecision, ConversationDecisionContext } from "./Conver
 import { buildConversationDecisionContext } from "./ConversationContextBuilder.js";
 import {
   buildCandidateToneBoundaryDecision,
+  buildCapturedAppOrPhoneProgressDecision,
   buildCapturedModelAcceptanceDecision,
   buildDeterministicSafetyDecision,
   buildMissingStructuredAppFieldDecision,
@@ -139,6 +140,10 @@ export function buildDecisionPrompt(context: ConversationDecisionContext, repair
     }),
     "Answer the latest user message first.",
     "Use only canonical_policy_facts, structured_facts, candidate_state, and the latest user message.",
+    "known_candidate_facts is authoritative and consolidated from persistent candidate_state on every turn:",
+    context.known_candidate_facts?.summary ?? "Confirmed candidate facts are available in candidate_state.",
+    "Never ask again for fields listed in known_candidate_facts.do_not_ask_fields. If selected_app is known, do not ask the candidate for the application name. If phone_type is known, do not ask Android/iPhone again. If work_model_acceptance=accepted, do not ask the candidate to confirm the work model again.",
+    "When selected_app and phone_type are both known, continue with setup/installation guidance from structured_facts instead of asking for app, phone, or another confirmation.",
     `Policy stage: ${context.derived_state.policy_stage ?? "unknown"}. Policy sections selected: ${context.derived_state.policy_section_ids?.join(",") || "none"}. Estimated policy tokens: ${context.derived_state.policy_context_token_estimate ?? 0}.`,
     "The following grounded policy text is present in this prompt and must be used when it answers the latest question:",
     ...context.canonical_policy_facts.map((fact) => `[${fact.id}] ${fact.content}`),
@@ -218,6 +223,12 @@ export function buildDecisionPrompt(context: ConversationDecisionContext, repair
       : "",
     repairInput?.reasonCodes.includes("RECENT_REPLY_REPEATED")
       ? "For RECENT_REPLY_REPEATED repair, do not reuse the previous reply. Acknowledge the latest user message and give a fresh, specific answer in different words."
+      : "",
+    repairInput?.reasonCodes.some((code) => code.startsWith("KNOWN_"))
+      ? "For KNOWN_* repair, remove every repeated question for fields already present in known_candidate_facts.do_not_ask_fields. Continue from the known state instead: selected_app known means no app-name question; phone_type known means no Android/iPhone question; work_model_acceptance=accepted means no suitability/confirmation question."
+      : "",
+    repairInput?.reasonCodes.includes("REQUIRED_PROFILE_RULE_OMITTED")
+      ? "For REQUIRED_PROFILE_RULE_OMITTED repair, state the male-candidate profile/photo rule directly. Do not say it will be explained later. The reply must explicitly say that male candidates use/open a female profile and female photos, with consent and without unauthorized identity use."
       : "",
     repairInput ? "<previous_model_output>" : "",
     repairInput ? repairInput.previousRawText : "",
@@ -565,6 +576,18 @@ export async function executeConversationDecisionV2(input: {
           event_type: "CONVERSATION_DECISION_V2_FAST_PATH_SELECTED",
           correlation_id: context.request_id,
           fast_path: "model_acceptance_captured",
+          model_call_count: 0,
+        });
+      }
+    }
+    if (!decision) {
+      decision = buildCapturedAppOrPhoneProgressDecision(context, input.capturedFields);
+      if (decision) {
+        mutationSource = "deterministic_known_fact_progress";
+        input.logger.info({
+          event_type: "CONVERSATION_DECISION_V2_FAST_PATH_SELECTED",
+          correlation_id: context.request_id,
+          fast_path: "known_fact_progress",
           model_call_count: 0,
         });
       }

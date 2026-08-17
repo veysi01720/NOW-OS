@@ -42,7 +42,7 @@ export function validStructuredAppFactsJson(): string {
         invite_code: "8UNHAWUFC",
         agency_bind_code: null,
         agency_code: null,
-        official_url: null,
+        official_url: "https://example.test/layla",
         status: "owner_approved",
         aliases: ["NIVI"],
         capabilities: { text_only: true, video_required: false },

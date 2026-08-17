@@ -68,6 +68,16 @@ export interface ConversationDecisionContext {
     selected_app: string | null;
     phone_type: string | null;
   };
+  known_candidate_facts?: {
+    confirmed_fields: Array<{
+      field: "age" | "gender" | "daily_hours" | "work_model_acceptance" | "selected_app" | "phone_type";
+      value: string | number;
+      source: "candidate_state";
+    }>;
+    missing_fields: string[];
+    do_not_ask_fields: string[];
+    summary: string;
+  };
   derived_state: {
     intake_complete: boolean;
     eligibility_status: UserState["eligibility_status"];

@@ -12,6 +12,7 @@ import { getConversationKey } from "./buildBackendContext.js";
 import type { NormalizedIncomingMessage } from "./normalizeEvolutionMessage.js";
 import { resolveAuthorityContext, type AuthorityContext } from "./authorityContext.js";
 import { applyUserStateTransition } from "../storage/userStateTransitionBoundary.js";
+import type { MemoryStore } from "../storage/memoryStore.js";
 import { findNormalizedHint, matchesNormalizedHint, normalizeUserText } from "../utils/textNormalization.js";
 
 export type CandidateCurrentState =
@@ -262,6 +263,36 @@ export function detectApprovedApp(text: string, allowedApps: string[]): string |
   return findNormalizedHint(text, allowedApps, (app) => app, { strict: false });
 }
 
+function mentionedApprovedApps(text: string, allowedApps: string[]): string[] {
+  return allowedApps.filter((app) => matchesNormalizedHint(text, [app], { strict: false }));
+}
+
+function looksLikeSingleAppRecommendation(reply: string, app: string): boolean {
+  const normalized = normalizeText(reply);
+  const appName = normalizeText(app);
+  if (!normalized.includes(appName)) return false;
+  if (/(indirme linki|kurulum baglantisi|kurulum linki|davet kodu|ajans kodu|kurulum adim)/u.test(normalized)) {
+    return false;
+  }
+  return /(ilerle|devam|oner|oneri|uygun uygulama|onayli uygulama|teyit|ister misin|edelim mi|secelim|secildi|baslayalim)/u.test(normalized);
+}
+
+function detectConfirmedRecommendedApp(input: {
+  text: string;
+  allowedApps: string[];
+  conversationKey: string;
+  memoryStore?: MemoryStore;
+}): string | null {
+  if (detectModelAcceptance(input.text) !== "accepted") return null;
+  const memory = input.memoryStore?.get(input.conversationKey);
+  const lastReply = memory?.last_5_bot_replies.at(-1);
+  if (!lastReply) return null;
+  const mentioned = [...new Set(mentionedApprovedApps(lastReply, input.allowedApps))];
+  if (mentioned.length !== 1) return null;
+  const app = mentioned[0];
+  return looksLikeSingleAppRecommendation(lastReply, app) ? app : null;
+}
+
 export function detectPhoneType(text: string): { phone_type: "android" | "ios" | null; ambiguous: boolean } {
   const hasAndroid = matchesNormalizedHint(text, ["android", "samsung", "xiaomi", "huawei", "oppo", "vivo", "redmi", "realme"]);
   const hasIphone = matchesNormalizedHint(text, ["iphone", "ios", "apple", "iphon", "ayfon"]);
@@ -364,6 +395,7 @@ export function applyCandidateIntakeStateMachine(
   userStateStore?: UserStateStore,
   publisherStore?: PublisherStore,
   authorityContext?: AuthorityContext,
+  memoryStore?: MemoryStore,
 ): CandidateStateMachineResult {
   const authority = authorityContext ?? resolveAuthorityContext(message, env);
   const senderRole = authority.sender_role;
@@ -479,7 +511,13 @@ export function applyCandidateIntakeStateMachine(
     }
   }
 
-  const approvedApp = detectApprovedApp(message.text, env.approvedApps);
+  const approvedApp = detectApprovedApp(message.text, env.approvedApps)
+    ?? detectConfirmedRecommendedApp({
+      text: message.text,
+      allowedApps: env.approvedApps,
+      conversationKey,
+      memoryStore,
+    });
   const mentionsAppLikeTerm = /\b(tiktok|instagram|twitch|youtube|sozzy|chatrace|novachat)\b/iu.test(
     normalizeText(message.text)
   );

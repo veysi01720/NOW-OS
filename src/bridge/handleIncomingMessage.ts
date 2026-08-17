@@ -1096,6 +1096,7 @@ export async function handleIncomingMessage(
             deps.userStateStore,
             deps.publisherStore,
             authorityContext,
+            deps.memoryStore,
           )
         : ({
             applied: false,

@@ -423,6 +423,125 @@ function buildInstallationSafetyDecision(context: ConversationDecisionContext): 
   };
 }
 
+function selectedOrRecommendedAppFact(context: ConversationDecisionContext) {
+  const selected = appFactFromLatestMessageOrState(context);
+  if (selected) return selected;
+  const facts = approvedAppFacts(context);
+  return facts.find((fact) => fact.official_url?.trim() && (fact.invite_code?.trim() || fact.agency_code?.trim() || fact.agency_bind_code?.trim()))
+    ?? facts[0]
+    ?? null;
+}
+
+function installationInstructionReply(context: ConversationDecisionContext, fact: ReturnType<typeof selectedOrRecommendedAppFact>): ConversationDecision | null {
+  if (!fact) return null;
+  if (!fact.official_url?.trim()) {
+    return {
+      ...baseDecision(
+        `${fact.app} icin dogrulanmis indirme linki henuz bilgi bankasinda yayinli degil. Uydurma link veya market aramasi onermiyorum; owner kontrolune aliyorum.`,
+        context,
+        "deterministic_safety_response",
+      ),
+      intent: { primary: "app_fact_question", secondary: ["official_url"], confidence: 1 },
+      direct_question: { present: false, question_summary: null, answered_in_reply: true },
+      chosen_actions: ["answer_user_question"],
+      policy_facts_used: context.canonical_policy_facts.map((policyFact) => policyFact.id),
+      next_action: "escalate_missing_info",
+      requires_escalation: true,
+      escalation_reason: "structured_app_field_missing",
+      risk_flags: ["structured_app_field_missing"],
+    };
+  }
+  const code = fact.invite_code?.trim() ?? fact.agency_bind_code?.trim() ?? fact.agency_code?.trim() ?? null;
+  if (!code) {
+    return {
+      ...baseDecision(
+        `${fact.app} icin dogrulanmis davet/ajans kodu henuz bilgi bankasinda yayinli degil. Tahmini kod onermiyorum; owner kontrolune aliyorum.`,
+        context,
+        "deterministic_safety_response",
+      ),
+      intent: { primary: "installation_question", secondary: ["invite_code"], confidence: 1 },
+      direct_question: { present: false, question_summary: null, answered_in_reply: true },
+      chosen_actions: ["answer_user_question"],
+      policy_facts_used: context.canonical_policy_facts.map((policyFact) => policyFact.id),
+      next_action: "escalate_missing_info",
+      requires_escalation: true,
+      escalation_reason: "structured_app_field_missing",
+      risk_flags: ["structured_app_field_missing"],
+    };
+  }
+
+  const phoneLabel = context.candidate_state.phone_type === "ios" ? "iPhone" : "Android";
+  const reply =
+    `${phoneLabel} icin ${fact.app} kurulum linki: ${fact.official_url.trim()}\n\n` +
+    `Kayittan sonra Ben > Ajans > Ajansa Katil bolumune ${code} kodunu gir. ` +
+    "Ardindan profilini tamamlayip kullanici adi, Uye ID ve Ajans ekranini gosteren net gorseli gonder.";
+  return {
+    ...baseDecision(reply, context, "deterministic_safety_response"),
+    intent: { primary: "installation_question", secondary: ["known_facts_complete"], confidence: 1 },
+    direct_question: { present: false, question_summary: null, answered_in_reply: true },
+    reply: { text: reply, language: "tr", tone: "natural_concise", contains_question: false },
+    chosen_actions: ["answer_user_question", "provide_installation_instruction"],
+    policy_facts_used: context.canonical_policy_facts.map((policyFact) => policyFact.id),
+    next_action: "begin_setup",
+    requires_escalation: false,
+    escalation_reason: null,
+  };
+}
+
+export function buildCapturedAppOrPhoneProgressDecision(
+  context: ConversationDecisionContext,
+  capturedFields: string[],
+): ConversationDecision | null {
+  if (context.role !== "candidate" || context.channel !== "private") return null;
+  const appCaptured = capturedFields.includes("selected_app");
+  const phoneCaptured = capturedFields.includes("phone_type");
+  if (!appCaptured && !phoneCaptured) return null;
+  if (context.candidate_state.work_model_acceptance !== "accepted") return null;
+
+  const missingApp = context.candidate_state.selected_app === null;
+  const missingPhone = context.candidate_state.phone_type === null;
+
+  if (!missingApp && !missingPhone) {
+    return installationInstructionReply(context, selectedOrRecommendedAppFact(context));
+  }
+
+  if (!missingApp && missingPhone) {
+    const reply = `${context.candidate_state.selected_app} bilgisini aldim. Kurulum icin telefonun Android mi iPhone mu?`;
+    return {
+      ...baseDecision(reply, context, "deterministic_safety_response"),
+      intent: { primary: "candidate_next_step", secondary: ["selected_app_captured"], confidence: 1 },
+      direct_question: { present: false, question_summary: null, answered_in_reply: true },
+      reply: { text: reply, language: "tr", tone: "natural_concise", contains_question: true },
+      chosen_actions: ["answer_user_question", "acknowledge_information", "ask_phone_type"],
+      policy_facts_used: context.canonical_policy_facts.map((policyFact) => policyFact.id),
+      next_action: "ask_phone_type",
+      requires_escalation: false,
+      escalation_reason: null,
+    };
+  }
+
+  if (missingApp && !missingPhone) {
+    const fact = selectedOrRecommendedAppFact(context);
+    if (!fact) return null;
+    const phoneLabel = context.candidate_state.phone_type === "ios" ? "iPhone" : "Android";
+    const reply =
+      `${phoneLabel} bilgisini aldim. Onayli uygulama olarak ${fact.app} ile ilerleyelim. ${fact.app} ile devam edelim mi?`;
+    return {
+      ...baseDecision(reply, context, "deterministic_safety_response"),
+      intent: { primary: "candidate_next_step", secondary: ["app_recommendation"], confidence: 1 },
+      direct_question: { present: false, question_summary: null, answered_in_reply: true },
+      reply: { text: reply, language: "tr", tone: "natural_concise", contains_question: true },
+      chosen_actions: ["answer_user_question", "acknowledge_information"],
+      policy_facts_used: context.canonical_policy_facts.map((policyFact) => policyFact.id),
+      next_action: "reply_only",
+      requires_escalation: false,
+      escalation_reason: null,
+    };
+  }
+
+  return null;
+}
+
 function buildGroundedSafetyDecision(context: ConversationDecisionContext): ConversationDecision | null {
   if (asksPaymentOrGuarantee(context.latest_message.text)) return buildPaymentBoundarySafetyDecision(context);
   if (asksCameraAccountOrProfile(context.latest_message.text)) return buildCameraAccountBoundarySafetyDecision(context);
@@ -469,17 +588,28 @@ export function buildCapturedModelAcceptanceDecision(context: ConversationDecisi
   const requestedActions: ConversationDecisionAction[] = ["acknowledge_information"];
   let nextAction: ConversationDecision["next_action"] = "none";
   let containsQuestion = false;
+  let requiresEscalation = false;
+  let escalationReason: string | null = null;
+  let riskFlags: string[] = [];
 
   if (missingApp && missingPhone) {
-    reply += " Simdi onayli uygulamayi ve telefon tipini netlestirelim: hangi uygulama ve telefonun Android mi iPhone mu?";
-    requestedActions.push("ask_selected_app", "ask_phone_type");
-    nextAction = "ask_selected_app";
+    reply += " Simdi telefon tipini netlestirelim: Android mi iPhone mu? Telefon bilgisinden sonra onayli uygulamayi ben net yonlendirecegim.";
+    requestedActions.push("ask_phone_type");
+    nextAction = "ask_phone_type";
     containsQuestion = true;
   } else if (missingApp) {
-    reply += " Simdi hangi onayli uygulamayla ilerleyecegini yazar misin?";
-    requestedActions.push("ask_selected_app");
-    nextAction = "ask_selected_app";
-    containsQuestion = true;
+    const fact = selectedOrRecommendedAppFact(context);
+    if (fact) {
+      reply += ` Onayli uygulama olarak ${fact.app} ile ilerleyelim. ${fact.app} ile devam edelim mi?`;
+      nextAction = "reply_only";
+      containsQuestion = true;
+    } else {
+      reply += " Onayli uygulama listesi su an contextte yok; owner kontrolune aliyorum.";
+      nextAction = "escalate_missing_info";
+      requiresEscalation = true;
+      escalationReason = "structured_app_field_missing";
+      riskFlags = ["structured_app_field_missing"];
+    }
   } else if (missingPhone) {
     reply += ` ${selectedApp ?? "Secili uygulama"} icin devam edebiliriz; telefonun Android mi iPhone mu?`;
     requestedActions.push("ask_phone_type");
@@ -513,8 +643,9 @@ export function buildCapturedModelAcceptanceDecision(context: ConversationDecisi
     state_patch: {},
     policy_facts_used: context.canonical_policy_facts.map((fact) => fact.id),
     next_action: nextAction,
-    requires_escalation: false,
-    escalation_reason: null,
+    requires_escalation: requiresEscalation,
+    escalation_reason: escalationReason,
+    risk_flags: riskFlags,
   };
 }
 
@@ -543,7 +674,11 @@ export function requiresFemaleProfileRule(context: ConversationDecisionContext):
 
 export function replyMentionsFemaleProfileRule(reply: string): boolean {
   const text = normalize(reply);
-  return /(kadin|female).{0,80}(profil|foto|fotograf|photo)|(profil|foto|fotograf|photo).{0,80}(kadin|female)/u.test(text);
+  const hasFemaleProfile = /(kadin|female).{0,80}(profil|foto|fotograf|photo)|(profil|foto|fotograf|photo).{0,80}(kadin|female)/u.test(text);
+  if (!hasFemaleProfile) return false;
+  const defersRule = /(ayrica|sonra|daha sonra|ileride).{0,60}(anlat|netles|acikla)|acik onayla anlatilir/u.test(text);
+  if (defersRule) return false;
+  return /(kadin|female).{0,100}(profil|foto|fotograf|photo).{0,100}(acil|açil|kullan|olustur|hazirlan)|(profil|foto|fotograf|photo).{0,100}(kadin|female).{0,100}(acil|açil|kullan|olustur|hazirlan)/u.test(text);
 }
 
 export function completeDecisionWithRequiredProfileRule(
@@ -555,7 +690,7 @@ export function completeDecisionWithRequiredProfileRule(
   }
 
   const completion =
-    " Erkek adaylarda kadin profil/fotograf kurali ayrica acik onayla anlatilir; sahte kimlik veya izinsiz bilgi kullanmadan ilerlenir.";
+    " Erkek adaylar icin bu calisma kadin profili acilmasi ve kadin fotograflari kullanilmasi kuralini icerir; bunu acik onayinla ilerletiriz, sahte kimlik veya izinsiz bilgi kullanmayiz.";
 
   return {
     decision: {

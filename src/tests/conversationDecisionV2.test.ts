@@ -670,6 +670,8 @@ describe("Conversation Decision V2 candidate route", () => {
     expect(state?.current_state).toBe("WAITING_FOR_APP");
     expect(testDeps.assistantClient.runCalls).toHaveLength(0);
     expect(testDeps.sender.sends[0]?.text).toMatch(/kabul ettigini aldim/i);
+    expect(testDeps.sender.sends[0]?.text).toMatch(/Android mi iPhone mu/i);
+    expect(testDeps.sender.sends[0]?.text).not.toMatch(/hangi onayli uygulama|hangi uygulama/iu);
     expect(testDeps.sender.sends[0]?.text).not.toMatch(/uygun demek istediysen|uygun mu/iu);
     expect(testDeps.logger.events).toEqual(
       expect.arrayContaining([
@@ -680,6 +682,55 @@ describe("Conversation Decision V2 candidate route", () => {
         }),
       ]),
     );
+  });
+
+  it("recommends a single app after phone capture and accepts the next yes without re-asking app name", async () => {
+    const testDeps = deps([], { approvedApps: ["Layla", "Soyo", "Amar", "Timo"] });
+    testDeps.userStateStore.states.set("905550000001", {
+      current_state: "WAITING_FOR_PHONE_TYPE",
+      age: 24,
+      gender: "erkek",
+      daily_hours: 7,
+      eligibility_status: "eligible",
+      work_model_disclosed: true,
+      model_acceptance: "accepted",
+      selected_app: null,
+      phone_type: null,
+      installation_status: "not_started",
+      training_status: "not_started",
+      missing_fields: ["selected_app", "phone_type"],
+      expected_next_step: "ask_selected_app_or_phone_type",
+    } as any);
+
+    await handleIncomingMessage(message("android", "known-facts-phone"), testDeps);
+
+    expect(testDeps.assistantClient.runCalls).toHaveLength(0);
+    const recommendation = testDeps.sender.sends[0]?.text ?? "";
+    expect(recommendation).toMatch(/Android bilgisini aldim/iu);
+    expect(recommendation).toMatch(/Layla ile devam edelim mi/iu);
+    expect(recommendation).not.toMatch(/hangi uygulama|uygulamanin adini|uygulamanın adını/iu);
+    expect(testDeps.userStateStore.states.get("905550000001")?.phone_type).toBe("android");
+    expect(testDeps.userStateStore.states.get("905550000001")?.selected_app).toBeNull();
+
+    testDeps.memoryStore.appendBotReply("905550000001", recommendation);
+    await handleIncomingMessage(message("Evet", "known-facts-app-confirm"), testDeps);
+
+    const state = testDeps.userStateStore.states.get("905550000001");
+    expect(state?.selected_app).toBe("Layla");
+    expect(state?.phone_type).toBe("android");
+    expect(state?.current_state).toBe("INSTALLATION_IN_PROGRESS");
+    expect(state?.missing_fields).toEqual([]);
+    expect(testDeps.assistantClient.runCalls).toHaveLength(0);
+    const setupReply = testDeps.sender.sends.at(-1)?.text ?? "";
+    expect(setupReply).toMatch(/Layla kurulum linki|Kayittan sonra/iu);
+    expect(setupReply).not.toMatch(/teyit eder misin|hangi uygulama|uygulamanin adini|uygun mu/iu);
+    expect(testDeps.logger.events).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        event_type: "CONVERSATION_DECISION_V2_FAST_PATH_SELECTED",
+        fast_path: "known_fact_progress",
+        model_call_count: 0,
+      }),
+    ]));
   });
 
   it("repairs and then deterministically appends the required female profile rule for male candidates", async () => {
@@ -711,7 +762,7 @@ describe("Conversation Decision V2 candidate route", () => {
     const structuredPath = join(knowledgeDir, "app_facts_structured.json");
     const structured = JSON.parse(readFileSync(structuredPath, "utf8"));
     structured.policy_sections.profile_bio_photo_rules =
-      "Erkek adaylarda kadin profil/fotograf kurali acikca anlatilir; sahte kimlik veya izinsiz bilgi kullanilmaz.";
+      "Erkek adaylarda kadin profili acilir ve kadin fotograflari kullanilir; sahte kimlik veya izinsiz bilgi kullanilmaz.";
     writeFileSync(structuredPath, `${JSON.stringify(structured, null, 2)}\n`, "utf8");
     process.env.KNOWLEDGE_BANK_DIR = knowledgeDir;
     testDeps.knowledgeBankDir = knowledgeDir;
@@ -727,7 +778,8 @@ describe("Conversation Decision V2 candidate route", () => {
     expect(testDeps.assistantClient.runCalls).toHaveLength(2);
     expect(testDeps.assistantClient.runCalls[1]?.content).toContain("REQUIRED_PROFILE_RULE_OMITTED");
     const reply = testDeps.sender.sends[0]?.text ?? "";
-    expect(reply).toMatch(/kadin.{0,80}(profil|foto)|foto.{0,80}kadin/iu);
+    expect(reply).toMatch(/kadin.{0,100}(profil|foto).{0,100}(acil|kullan)|foto.{0,100}kadin.{0,100}(acil|kullan)/iu);
+    expect(reply).not.toMatch(/ayrica.*anlatilir|sonra.*anlat|daha sonra.*anlat/iu);
     expect(testDeps.logger.events).toEqual(
       expect.arrayContaining([
         expect.objectContaining({

@@ -1,5 +1,6 @@
 import { applyCandidateIntakeStateMachine } from "../bridge/candidateIntakeStateMachine.js";
 import { normalizeEvolutionMessage, type NormalizedIncomingMessage } from "../bridge/normalizeEvolutionMessage.js";
+import { InMemoryStore } from "../storage/memoryStore.js";
 import { defaultUserState, type UserIdentityInput, type UserState, type UserStateStore } from "../storage/types.js";
 import { createTestEnv } from "./testDoubles.js";
 
@@ -463,6 +464,42 @@ describe("Candidate Intake State Machine", () => {
     expect(result.next_state.model_acceptance).toBe("accepted");
     expect(result.next_state.current_state).toBe("WAITING_FOR_APP");
     expect(result.captured_fields).toContain("model_acceptance");
+  });
+
+  it("captures an accepted single app recommendation from recent assistant memory", () => {
+    const store = new TestUserStateStore();
+    const memoryStore = new InMemoryStore();
+    const key = "905333333333";
+    store.states.set(key, {
+      ...defaultUserState(),
+      age: 24,
+      gender: "erkek",
+      daily_hours: 7,
+      eligibility_status: "eligible",
+      work_model_disclosed: true,
+      model_acceptance: "accepted",
+      current_state: "WAITING_FOR_APP",
+      selected_app: null,
+      phone_type: "android",
+      missing_fields: ["selected_app"],
+      expected_next_step: "ask_selected_app",
+    });
+    memoryStore.appendBotReply(key, "Android bilgisini aldim. Onayli uygulama olarak Layla ile ilerleyelim. Layla ile devam edelim mi?");
+
+    const result = applyCandidateIntakeStateMachine(
+      message({ phone_number: key, sender_id: key, remote_jid: `${key}@s.whatsapp.net`, text: "Evet" }),
+      createTestEnv({ approvedApps: ["Layla", "Soyo"] }),
+      store,
+      undefined,
+      undefined,
+      memoryStore,
+    );
+
+    expect(result.next_state.selected_app).toBe("Layla");
+    expect(result.next_state.phone_type).toBe("android");
+    expect(result.next_state.current_state).toBe("INSTALLATION_IN_PROGRESS");
+    expect(result.next_state.missing_fields).toEqual([]);
+    expect(result.captured_fields).toContain("selected_app");
   });
 
   it("does not run candidate state transitions for owner messages", () => {

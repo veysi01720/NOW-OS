@@ -56,6 +56,31 @@ export function inferConversationIntent(text: string): string | null {
   return null;
 }
 
+function buildKnownCandidateFacts(state: BackendContextPayloadV1["state"]): NonNullable<ConversationDecisionContext["known_candidate_facts"]> {
+  const confirmedFields: NonNullable<ConversationDecisionContext["known_candidate_facts"]>["confirmed_fields"] = [];
+  if (state.age !== null) confirmedFields.push({ field: "age", value: state.age, source: "candidate_state" });
+  if (state.gender !== null) confirmedFields.push({ field: "gender", value: state.gender, source: "candidate_state" });
+  if (state.daily_hours !== null) confirmedFields.push({ field: "daily_hours", value: state.daily_hours, source: "candidate_state" });
+  if (state.model_acceptance !== null && state.model_acceptance !== undefined) {
+    confirmedFields.push({ field: "work_model_acceptance", value: state.model_acceptance, source: "candidate_state" });
+  }
+  if (state.selected_app !== null) confirmedFields.push({ field: "selected_app", value: state.selected_app, source: "candidate_state" });
+  if (state.phone_type !== null) confirmedFields.push({ field: "phone_type", value: state.phone_type, source: "candidate_state" });
+
+  const missingFields = [...state.missing_fields];
+  const doNotAskFields = confirmedFields.map((item) => item.field);
+  const summary = confirmedFields.length === 0
+    ? `Confirmed candidate facts: none. Missing fields: ${missingFields.join(", ") || "none"}.`
+    : `Confirmed candidate facts: ${confirmedFields.map((item) => `${item.field}=${item.value}`).join(", ")}. Missing fields: ${missingFields.join(", ") || "none"}. Do not ask again: ${doNotAskFields.join(", ")}.`;
+
+  return {
+    confirmed_fields: confirmedFields,
+    missing_fields: missingFields,
+    do_not_ask_fields: doNotAskFields,
+    summary,
+  };
+}
+
 export function buildConversationDecisionContext(input: {
   message: NormalizedIncomingMessage;
   backendContext: BackendContextPayloadV1;
@@ -109,6 +134,7 @@ export function buildConversationDecisionContext(input: {
       selected_app: state.selected_app,
       phone_type: state.phone_type
     },
+    known_candidate_facts: buildKnownCandidateFacts(state),
     derived_state: {
       intake_complete: intakeComplete,
       eligibility_status: policy.policyMissing ? "policy_missing" : state.eligibility_status ?? "unresolved",

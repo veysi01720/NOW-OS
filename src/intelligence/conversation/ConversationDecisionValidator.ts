@@ -30,6 +30,19 @@ function isJobDefinitionIntent(intent: string | null | undefined): boolean {
   return intent === "ask_job_definition";
 }
 
+function asksSelectedAppAgain(reply: string): boolean {
+  return /(hangi|ne).{0,40}(uygulama|app|platform)|(uygulama|app|platform).{0,60}(adini|adını|yazar|soyle|söyle|sec|seç|hangisi)/u.test(reply);
+}
+
+function asksPhoneTypeAgain(reply: string): boolean {
+  return /(android|iphone|ios).{0,40}(mi|mu|mı|mü|\?)|(telefon).{0,60}(android|iphone|ios|tip)/u.test(reply);
+}
+
+function asksWorkModelConfirmationAgain(reply: string): boolean {
+  return /(calisma modeli|bu model|is modeli).{0,80}(uygun mu|teyit eder misin|kabul ediyor musun|kabul eder misin|devam edelim mi|onaylar misin|onayliyor musun)/u.test(reply)
+    || /(uygun mu|teyit eder misin|kabul ediyor musun|kabul eder misin|onaylar misin|onayliyor musun)/u.test(reply);
+}
+
 export function parseConversationDecision(rawText: string): ConversationDecision | null {
   const trimmed = rawText.trim();
   if (!trimmed.startsWith("{") || !trimmed.endsWith("}")) return null;
@@ -117,6 +130,24 @@ export function validateConversationDecision(
   }
 
   if (decision.self_check.asked_known_information_again) reasons.push("KNOWN_INFORMATION_REASKED");
+  if (
+    context.candidate_state.selected_app !== null &&
+    (decision.chosen_actions.includes("ask_selected_app") || decision.next_action === "ask_selected_app" || asksSelectedAppAgain(reply))
+  ) {
+    reasons.push("KNOWN_SELECTED_APP_REASKED");
+  }
+  if (
+    context.candidate_state.phone_type !== null &&
+    (decision.chosen_actions.includes("ask_phone_type") || decision.next_action === "ask_phone_type" || asksPhoneTypeAgain(reply))
+  ) {
+    reasons.push("KNOWN_PHONE_TYPE_REASKED");
+  }
+  if (
+    context.candidate_state.work_model_acceptance === "accepted" &&
+    asksWorkModelConfirmationAgain(reply)
+  ) {
+    reasons.push("KNOWN_WORK_MODEL_ACCEPTANCE_REASKED");
+  }
   if (decision.self_check.invented_policy) reasons.push("UNSUPPORTED_POLICY_FACT");
   if (decision.self_check.offered_setup_too_early) reasons.push("INSTALLATION_OFFERED_TOO_EARLY");
 
