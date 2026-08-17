@@ -70,6 +70,7 @@ export function rewriteReplyForQuality(input: QualityRewriteInput): QualityRewri
 
   if (input.violations.includes("authority_title_for_non_managerial_reply")) {
     reply = reply.replace(/^\s*(şef|sef|dayı|dayi|patron)[,\s:;-]*/iu, "");
+    reply = reply.replace(/^\s*Arda[,\s:;-]*/iu, "");
     reasons.push("removed_non_managerial_title");
   }
 
@@ -99,6 +100,7 @@ export function rewriteReplyForQuality(input: QualityRewriteInput): QualityRewri
 
   if (input.violations.includes("REPEATED_OWNER_ADDRESS")) {
     reply = reply.replace(/^\s*(şef|sef|dayı|dayi|patron)[,\s:;-]*/iu, "");
+    reply = reply.replace(/^\s*Arda[,\s:;-]*/iu, "");
     reasons.push("removed_repeated_owner_address");
   }
 

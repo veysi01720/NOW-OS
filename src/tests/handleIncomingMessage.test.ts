@@ -94,6 +94,8 @@ describe("handleIncomingMessage", () => {
     expect(testDeps.sender.sends.map((item) => item.text)).toContain("Bunu hemen kontrol ediyorum; birkaç dakika içinde döneceğim.");
     expect(testDeps.sender.sends.some((item) => item.message.phone_number === "905111111111")).toBe(true);
     expect(testDeps.sender.sends.some((item) => item.message.phone_number === "905222222222")).toBe(true);
+    expect(testDeps.sender.sends.find((item) => item.message.phone_number === "905111111111")?.text).toMatch(/^Arda,/u);
+    expect(testDeps.sender.sends.find((item) => item.message.phone_number === "905222222222")?.text).not.toContain("Arda");
     expect(handoffStore.findPendingOwnerQuery()?.reason_code).toBe("owner_answer_required");
 
     const owner = await handleIncomingMessage(message({ phone_number: "905111111111", sender_id: "905111111111", text: "Kodsuz devam edebilirsin.", message_id: "owner-answer" }), testDeps as any);

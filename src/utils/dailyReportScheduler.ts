@@ -5,6 +5,7 @@ import { logger } from "./logger.js";
 import type { ReportDataSource, DailyReportStore } from "../storage/types.js";
 import type { EnvConfig } from "../config/env.js";
 import { PersistentMaintenanceStore } from "../store/maintenanceStore.js";
+import { applyOwnerTone } from "../bridge/ownerTone.js";
 
 export class DailyReportSchedulerService {
   constructor(
@@ -99,7 +100,18 @@ export class DailyReportSchedulerService {
     const safeReportObj = JSON.parse(JSON.stringify(reportObj).replace(/"internal_boss_note"/g, '"redacted"'));
     
     // Format a simple text preview
-    const reportText = `[Daily Owner Report] - ${dateBucket}\nCandidates: ${safeReportObj.candidate_summary?.total_candidates || 0} (${safeReportObj.candidate_summary?.new_leads_count || 0} new)\nQueue Open: ${safeReportObj.queue_summary?.open_follow_up_count || 0} follow-ups, ${safeReportObj.queue_summary?.open_missing_info_count || 0} missing info\nMaintenance: ${safeReportObj.system_status?.maintenance_active ? "ON" : "OFF"}\n`;
+    const reportText = [
+      `${dateBucket}`,
+      `Candidates: ${safeReportObj.candidate_summary?.total_candidates || 0} (${safeReportObj.candidate_summary?.new_leads_count || 0} new)`,
+      `Queue Open: ${safeReportObj.queue_summary?.open_follow_up_count || 0} follow-ups, ${safeReportObj.queue_summary?.open_missing_info_count || 0} missing info`,
+      `Maintenance: ${safeReportObj.system_status?.maintenance_active ? "ON" : "OFF"}`,
+    ].join("\n");
+    const ownerReportText = applyOwnerTone(reportText, {
+      context: "daily_report",
+      seed: dateBucket,
+      recipientRole: "owner",
+      forceName: true,
+    });
 
     let finalStatus: "preview_created" | "sent" | "failed" | "blocked" = "preview_created";
     if (blockedReason && triggerType !== "manual_preview") {
@@ -111,7 +123,7 @@ export class DailyReportSchedulerService {
       try {
         if (this.sendWhatsAppCallback) {
           if (targetMode === "whatsapp_owner" || targetMode === "whatsapp_owner_and_manager") {
-            await this.sendWhatsAppCallback("owner", reportText);
+            await this.sendWhatsAppCallback("owner", ownerReportText);
           }
           if (targetMode === "whatsapp_manager" || targetMode === "whatsapp_owner_and_manager") {
             await this.sendWhatsAppCallback("manager", reportText);
@@ -130,7 +142,7 @@ export class DailyReportSchedulerService {
       trigger_type: triggerType,
       status: finalStatus,
       target_mode: targetMode,
-      report_preview_sanitized: reportText,
+      report_preview_sanitized: ownerReportText,
       error_sanitized: blockedReason,
       actor_role: actorRole,
       timezone: config.timezone,

@@ -96,6 +96,8 @@ describe("installation verification media boundary", () => {
     expect(stateStore.states.get("905333333333")?.installation_status).toBe("in_progress");
     expect(deps.sender.sends.at(-1)?.text).toContain("kontrol ediliyor");
     expect(deps.sender.sends).toHaveLength(3);
+    expect(deps.sender.sends.find((item) => item.message.phone_number === "905111111111")?.text).toMatch(/^Arda,/u);
+    expect(deps.sender.sends.find((item) => item.message.phone_number === "905222222222")?.text).not.toContain("Arda");
 
     const ownerResult = await handleIncomingMessage(ownerMessage("görsel 3333 onay"), deps);
     expect(ownerResult.status).toBe("sent");

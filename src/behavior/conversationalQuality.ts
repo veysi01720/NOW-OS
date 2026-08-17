@@ -27,7 +27,7 @@ const GENERIC_SERVICE_PHRASES = [
   "yoneticine danisabilirsin"
 ];
 
-const OWNER_ADDRESS_PATTERN = /\b(sef|dayi|patron)\b/iu;
+const OWNER_ADDRESS_PATTERN = /\b(sef|dayi|patron|arda)\b/iu;
 const UNSUPPORTED_REFERENCE_PATTERNS = [
   /referans\s+(paylaşabileceğimi|paylasabilecegimi|paylaşabileceğinizi|paylasabileceginizi|paylaşabilirim|paylasabilirim|gösterebilirim|gosterebilirim)/iu,
   /daha\s+önce\s+başlayanlardan\s+referans/iu,
@@ -258,7 +258,7 @@ export function validateConversationalReplyQuality(
     }
   }
   
-  if (quality.tone !== "managerial" && /^(sef|dayi|patron)\b/.test(normalizedReply)) {
+  if (quality.tone !== "managerial" && /^(sef|dayi|patron|arda)\b/.test(normalizedReply)) {
     violations.push("authority_title_for_non_managerial_reply");
   }
   if (quality.tone === "managerial" && hasOwnerAddress(reply)) {

@@ -1,5 +1,6 @@
 import type { BackendContextPayloadV1 } from "../contracts/backendContextPayload.js";
 import type { AssistantClient } from "./openaiAssistantClient.js";
+import { ownerAssistantToneGuidanceLines } from "../bridge/ownerTone.js";
 
 export function buildAssistantRunContent(backendContext: BackendContextPayloadV1): string {
   const lines = [
@@ -37,6 +38,10 @@ export function buildAssistantRunContent(backendContext: BackendContextPayloadV1
       "- Do not fabricate report data.",
       "- Use only backend_context and approved knowledge."
     );
+  }
+
+  if (backendContext.sender_role === "owner" && backendContext.chat_type === "private") {
+    lines.push("", ...ownerAssistantToneGuidanceLines());
   }
 
   if (backendContext.learning_review) {

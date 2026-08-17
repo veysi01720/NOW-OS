@@ -86,6 +86,7 @@ import {
 } from "./installationVerification.js";
 import { buildOwnerKnowledgeReviewSummary, materializeApprovedOwnerKnowledge, persistOwnerKnowledgeReviewSummary } from "./ownerKnowledgeTransfer.js";
 import { buildZipIngestionOutcomeReply, createDirectOwnerKnowledgeReview } from "./ownerKnowledgeIntake.js";
+import { applyOwnerTone, type OwnerToneContext } from "./ownerTone.js";
 
 function requiresInstallationVerification(text: string): boolean {
   const normalized = text.toLocaleLowerCase("tr-TR").normalize("NFKD").replace(/\p{M}/gu, "").replace(/Ä±/gu, "i");
@@ -299,17 +300,41 @@ function syntheticPrivateMessage(phone: string, text: string, correlationId: str
   };
 }
 
-function ownerRecipientPhones(deps: HandleIncomingMessageDeps): string[] {
-  return [...new Set([
-    ...deps.env.ownerPhoneNumbers,
-    ...deps.env.managerPhoneNumbers,
-  ].filter((phone) => phone.trim() !== ""))];
+function ownerRecipientTargets(deps: HandleIncomingMessageDeps): Array<{ phone: string; role: "owner" | "manager" }> {
+  const targets: Array<{ phone: string; role: "owner" | "manager" }> = [];
+  const seen = new Set<string>();
+  for (const phone of deps.env.ownerPhoneNumbers.filter((item) => item.trim() !== "")) {
+    if (seen.has(phone)) continue;
+    seen.add(phone);
+    targets.push({ phone, role: "owner" });
+  }
+  for (const phone of deps.env.managerPhoneNumbers.filter((item) => item.trim() !== "")) {
+    if (seen.has(phone)) continue;
+    seen.add(phone);
+    targets.push({ phone, role: "manager" });
+  }
+  return targets;
 }
 
-async function notifyTrainingOwner(deps: HandleIncomingMessageDeps, text: string, correlationId: string): Promise<void> {
-  for (const phone of ownerRecipientPhones(deps)) {
+function ownerRecipientPhones(deps: HandleIncomingMessageDeps): string[] {
+  return ownerRecipientTargets(deps).map((target) => target.phone);
+}
+
+async function notifyTrainingOwner(
+  deps: HandleIncomingMessageDeps,
+  text: string,
+  correlationId: string,
+  toneContext: OwnerToneContext = "training_gate",
+): Promise<void> {
+  for (const target of ownerRecipientTargets(deps)) {
     try {
-      await deps.sender.sendText({ message: syntheticPrivateMessage(phone, text, correlationId), text });
+      const outboundText = applyOwnerTone(text, {
+        context: toneContext,
+        seed: correlationId,
+        recipientRole: target.role,
+        forceName: target.role === "owner" && toneContext === "training_gate",
+      });
+      await deps.sender.sendText({ message: syntheticPrivateMessage(target.phone, outboundText, correlationId), text: outboundText });
     } catch (error) {
       deps.logger.warn({ event_type: "POST_INSTALL_TRAINING_OWNER_NOTIFICATION_FAILED", correlation_id: correlationId, error: redactSecrets(error instanceof Error ? error.message : String(error)) });
     }
@@ -318,9 +343,15 @@ async function notifyTrainingOwner(deps: HandleIncomingMessageDeps, text: string
 
 async function notifyInstallationOwner(deps: HandleIncomingMessageDeps, text: string, correlationId: string): Promise<boolean> {
   let sent = false;
-  for (const phone of ownerRecipientPhones(deps)) {
+  for (const target of ownerRecipientTargets(deps)) {
     try {
-      await deps.sender.sendText({ message: syntheticPrivateMessage(phone, text, correlationId), text });
+      const outboundText = applyOwnerTone(text, {
+        context: "installation_review",
+        seed: correlationId,
+        recipientRole: target.role,
+        forceName: target.role === "owner",
+      });
+      await deps.sender.sendText({ message: syntheticPrivateMessage(target.phone, outboundText, correlationId), text: outboundText });
       sent = true;
     } catch (error) {
       deps.logger.warn({ event_type: "INSTALLATION_REVIEW_OWNER_NOTIFICATION_FAILED", correlation_id: correlationId, error: redactSecrets(error instanceof Error ? error.message : String(error)), raw_text_logged: false });
@@ -399,11 +430,22 @@ async function holdOperationalQuestionForOwner(
 
   const candidateSuffix = message.phone_number.slice(-4);
   const ownerText = `Aday sorusu (${candidateSuffix}): ${result.record.owner_query?.question_sanitized ?? "[soru gizlendi]"}. Yanıt verememe nedeni: bilgi bankasında doğrulanmış karşılık yok veya doğrulanamadı. Yanıt için: cevap ${candidateSuffix} <adaya iletilecek kısa yanıt>.`;
+  const ownerTextBase = [
+    `Aday ${candidateSuffix} sunu sordu: ${result.record.owner_query?.question_sanitized ?? "[soru gizlendi]"}.`,
+    "Bilgi bankasinda dogrulanmis net karsilik bulamadim; aday tarafi beklemede.",
+    `Kisa cevap icin: cevap ${candidateSuffix} <adaya iletilecek kisa yanit>.`
+  ].join("\n");
   let notificationCount = 0;
-  const ownerRecipients = ownerRecipientPhones(deps);
-  for (const [ownerIndex, phone] of ownerRecipients.entries()) {
+  const ownerRecipients = ownerRecipientTargets(deps);
+  for (const [ownerIndex, recipient] of ownerRecipients.entries()) {
     try {
-      await deps.sender.sendText({ message: syntheticPrivateMessage(phone, ownerText, message.correlation_id), text: ownerText });
+      const ownerText = applyOwnerTone(ownerTextBase, {
+        context: "owner_answer_required",
+        seed: message.correlation_id,
+        recipientRole: recipient.role,
+        forceName: recipient.role === "owner",
+      });
+      await deps.sender.sendText({ message: syntheticPrivateMessage(recipient.phone, ownerText, message.correlation_id), text: ownerText });
       notificationCount += 1;
       deps.logger.info({
         event_type: "OWNER_ANSWER_REQUIRED_NOTIFICATION_SENT",
@@ -787,7 +829,7 @@ export async function handleIncomingMessage(
         ...reviewSummary.detected_sections.map((section) => `${section.section_id}=${section.classification}; hedef=${section.target_file}; durum=${section.status}`),
         "Aktif bilgi degistirilmedi; owner onayi bekleniyor.",
       ].join("\n");
-      await notifyTrainingOwner(deps, summaryText, message.correlation_id);
+      await notifyTrainingOwner(deps, summaryText, message.correlation_id, "knowledge_review");
       logger.info({
         event_type: "OWNER_KNOWLEDGE_REVIEW_SUMMARY_CREATED",
         correlation_id: message.correlation_id,
@@ -878,7 +920,7 @@ export async function handleIncomingMessage(
       ...reviewSummary.detected_sections.map((section) => `${section.section_id}=${section.classification}; hedef=${section.target_file}; durum=${section.status}`),
       "Aktif bilgi degistirilmedi; owner onayi bekleniyor.",
     ].join("\n");
-    await notifyTrainingOwner(deps, summaryText, message.correlation_id);
+    await notifyTrainingOwner(deps, summaryText, message.correlation_id, "knowledge_review");
     const reviewReply = directProcess.candidates.length === 1
       ? "1 bolum tespit edildi. Aktif bilgi degistirilmedi. Onayliyor musun? (evet/hayir)"
       : `${directProcess.candidates.length} bolum tespit edildi, owner onayini bekliyor. Aktif bilgi degistirilmedi.`;
@@ -1003,7 +1045,11 @@ export async function handleIncomingMessage(
         applyUserStateTransition({ store: deps.userStateStore, conversationKey, currentState: storedState, nextState: lockedState, source: "candidate_intake", authority: authorityContext });
         recordHumanHandoff(deps, message, "installation_verification_owner_review");
         const ownerText = `Kurulum görseli incelemesi: görsel ${review.candidate_phone_last4}; uygulama=${review.selected_app ?? "belirtilmedi"}; vision ipucu=${verification.status === "clear" ? "net görünüyor" : "belirsiz"}. Karar için: görsel ${review.candidate_phone_last4} onay veya görsel ${review.candidate_phone_last4} red.`;
-        const ownerSent = await notifyInstallationOwner(deps, ownerText, message.correlation_id);
+        const ownerTextBase = [
+          `Gorsel ${review.candidate_phone_last4}: uygulama=${review.selected_app ?? "belirtilmedi"}; vision ipucu=${verification.status === "clear" ? "net gorunuyor" : "belirsiz"}.`,
+          `Kararin yeterli: gorsel ${review.candidate_phone_last4} onay veya gorsel ${review.candidate_phone_last4} red.`
+        ].join("\n");
+        const ownerSent = await notifyInstallationOwner(deps, ownerTextBase, message.correlation_id);
         deps.installationVerificationReviewStore.markOwnerNotified(review.review_id);
         const teamTimer = setTimeout(async () => {
           const pending = deps.installationVerificationReviewStore?.pendingForCandidate(review.candidate_phone);
@@ -1182,7 +1228,7 @@ export async function handleIncomingMessage(
         recordHumanHandoff(deps, message, "post_install_training_gate");
         await notifyTrainingOwner(
           deps,
-          "Kurulum tamamlandi. Bu aday icin egitime geceyim mi? Owner cevabi: evet egitime gec veya hayir <numara>.",
+          "Kurulum tamamlandi; aday egitim kapisinda bekliyor. Devam edeyim mi? Cevap: evet egitime gec veya hayir <numara>.",
           message.correlation_id,
         );
         const pendingReply = await sendReply(
@@ -1945,7 +1991,19 @@ export async function handleIncomingMessage(
         sender_role: backendContext.sender_role,
       });
     }
-    const addressedReply = sanitizePrivilegedReplyAddress(ownerSuccessGuard.reply, backendContext.sender_role);
+    const staleAddressSanitizedReply = sanitizePrivilegedReplyAddress(ownerSuccessGuard.reply, backendContext.sender_role);
+    const shouldApplyOwnerReplyTone =
+      !ownerPlatformSuggestionCreated &&
+      !ownerPlatformSuggestionDuplicate &&
+      !ownerPlatformSuggestionFailed &&
+      (backendContext.sender_role === "owner" || backendContext.sender_role === "manager");
+    const addressedReply = shouldApplyOwnerReplyTone
+      ? applyOwnerTone(staleAddressSanitizedReply, {
+          context: "owner_command",
+          seed: message.message_id,
+          recipientRole: backendContext.sender_role === "owner" ? "owner" : "manager",
+        })
+      : staleAddressSanitizedReply;
     const guard = checkApprovedAppGate(addressedReply, backendContext);
 
     const replyText = guard.ok

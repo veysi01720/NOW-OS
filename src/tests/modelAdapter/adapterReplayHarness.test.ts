@@ -217,7 +217,7 @@ describe("synthetic/replay model adapter canary harness", () => {
     expect(snapshot.model_adapter_current_decision.use_adapter_layer).toBe(combo.expectedAdapter);
     expect(snapshot.provider_changed).toBe(false);
     expect(snapshot.assistant_id_changed).toBe(false);
-    expect(test.sender.sends[0]?.text).toBe("Combo ok");
+    expect(test.sender.sends[0]?.text).toContain("Combo ok");
     expect(test.sender.sends[0]?.text).not.toContain("private");
   });
 
