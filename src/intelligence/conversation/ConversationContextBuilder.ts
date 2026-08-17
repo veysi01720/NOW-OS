@@ -6,32 +6,52 @@ import { resolveCandidatePolicy } from "../candidate/CandidatePolicyResolver.js"
 import type { ConversationDecisionContext } from "./ConversationDecisionSchema.js";
 
 function normalize(value: string): string {
-  return value.toLocaleLowerCase("tr-TR").normalize("NFKD").replace(/\p{M}/gu, "").replace(/ı/gu, "i");
+  return value
+    .toLocaleLowerCase("tr-TR")
+    .normalize("NFKD")
+    .replace(/\p{M}/gu, "")
+    .replace(/\u0131/gu, "i")
+    .replace(/\u0130/gu, "i");
 }
 
 export function inferConversationIntent(text: string): string | null {
   const normalized = normalize(text);
-  if (/(^|\b)(is|iş)\s*(nedir|ne|tam olarak ne)|ne yapacagim|ne yapacağim|ne yapacam|ne yapacağım|tam olarak ne yapmam gerekiyor|nasil para kazaniliyor|nasıl para kazanılıyor|is nasil yapiliyor|iş nasıl yapılıyor|anlamadim.*(is|iş)\s*ne/u.test(normalized)) {
+
+  if (/(reklam.*bilgi|daha fazla bilgi)/u.test(normalized)) {
+    return "ask_how_work_is_done";
+  }
+  if (/(^|\b)(is)\s*(nedir|ne|tam olarak ne)|ne yapacagim|ne yapacam|tam olarak ne yapmam gerekiyor|nasil para kazaniliyor|is nasil yapiliyor|anlamadim.*is\s*ne/u.test(normalized)) {
     return "ask_job_definition";
   }
   if (/^(selam|merhaba|mrb|slm)\b/u.test(normalized)) {
-    if (/(is|iş|calisma|çalisma|çalışma|basvuru|başvuru)/u.test(normalized)) {
+    if (/(is|calisma|basvuru)/u.test(normalized)) {
       return "candidate_first_contact";
     }
     return "greeting_or_first_contact";
   }
-  if (/^(is|iş)\s*(var mi|var mı|icin|için|basvuru|başvuru)|\b(is|iş)\s*icin\s*yazdim\b/u.test(normalized)) {
+  if (/^(is)\s*(var mi|icin|basvuru)|\bis\s*icin\s*yazdim\b/u.test(normalized)) {
     return "candidate_first_contact";
   }
   if (/(anlamadim|daha acik anlat|nasil yani|ne demek|biraz acar misin|tam olarak nasil|calisma modeli nedir|calisma modelini anlamadim)/u.test(normalized)) {
     return "clarify_previous_explanation";
   }
-  if (/(nasil yapacagim|nasil yapacağim|bu isi nasil|bu işi nasil|kamera acacak miyim|mesajlasma nasil|erkek hesabi|erkek hesabı)/u.test(normalized)) {
+  if (/(nasil yapacagim|bu isi nasil|kamera acacak miyim|mesajlasma nasil|erkek hesabi)/u.test(normalized)) {
     if (normalized.includes("erkek hes") || normalized.includes("erkek prof")) return "account_profile_question";
     return "ask_how_work_is_done";
   }
-  const asksGeneralQuestion = /(^|\s|\?)(kim|ne|nerede|neden|nasil|nasÄ±l|hangi|bugun|hava)(\s|\?|$)/u.test(normalized) || normalized.includes("?");
-  const hasWorkContext = /(is|iÅŸ|calisma|çalisma|baÅŸvuru|basvuru|uygulama|kurulum|kazanc|kazan|odeme|ödeme|puan|profil|hesap|kamera|mesaj|egitim|eğitim|ilerle|yardim|yardım|destek|surec|süreç|adim|adım|bilgi|uygun|onay)/u.test(normalized);
+  if (/(indir|indirme|link|url|download|nereden yukle)/u.test(normalized)
+    && /(layla|nivi|tanchat|tanstar|linky|soyo|timo|amar|uygulama|app|platform)/u.test(normalized)) {
+    return "app_fact_question";
+  }
+  if (/(hangi uygulamalar|uygulamalar var|hangi app|hangi platform|hangi uygulama|uygulama oner)/u.test(normalized)) {
+    return "app_selection_question";
+  }
+  if (/(kurulum|kuruluma|kuracagim|kurmam|devam edebilir|davet kodu|ajans kodu|ekran onay|onay)/u.test(normalized)) {
+    return "installation_question";
+  }
+
+  const asksGeneralQuestion = /(^|\s|\?)(kim|ne|nerede|neden|nasil|hangi|bugun|hava)(\s|\?|$)/u.test(normalized) || normalized.includes("?");
+  const hasWorkContext = /(is|calisma|basvuru|uygulama|kurulum|kazanc|kazan|odeme|puan|profil|hesap|kamera|mesaj|egitim|ilerle|yardim|destek|surec|adim|bilgi|uygun|onay|link|indir|download|layla|nivi|tanchat|tanstar|linky|soyo|timo|amar|reklam)/u.test(normalized);
   if (asksGeneralQuestion && !hasWorkContext) return "off_topic";
   return null;
 }

@@ -1,4 +1,4 @@
-import { mkdtempSync, rmSync } from "node:fs";
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
@@ -145,6 +145,24 @@ function workModelAcceptanceState(): Partial<UserState> {
   };
 }
 
+function installationState(): Partial<UserState> {
+  return {
+    current_state: "INSTALLATION_IN_PROGRESS",
+    age: 27,
+    gender: "erkek",
+    daily_hours: 4,
+    eligibility_status: "eligible",
+    work_model_disclosed: true,
+    model_acceptance: "accepted",
+    selected_app: "Layla",
+    phone_type: "android",
+    installation_status: "in_progress",
+    training_status: "not_started",
+    missing_fields: [],
+    expected_next_step: "continue_installation",
+  };
+}
+
 function extractJsonBlock(content: string, tag: string): any {
   const match = content.match(new RegExp(`<${tag}>\\n([\\s\\S]*?)\\n<\\/${tag}>`));
   if (!match) throw new Error(`${tag} block missing`);
@@ -155,6 +173,15 @@ function latestRunContent(deps: { assistantClient: FakeAssistantClient }): strin
   const content = deps.assistantClient.runCalls.at(-1)?.content;
   if (!content) throw new Error("assistant run content missing");
   return content;
+}
+
+function setOfficialUrl(dir: string, app: string, url: string): void {
+  const path = join(dir, "app_facts_structured.json");
+  const parsed = JSON.parse(readFileSync(path, "utf8"));
+  const fact = parsed.app_facts.find((item: any) => item.app === app);
+  if (!fact) throw new Error(`Missing app fact: ${app}`);
+  fact.official_url = url;
+  writeFileSync(path, `${JSON.stringify(parsed, null, 2)}\n`, "utf8");
 }
 
 describe("Quality Pack 1 V2 golden skeletons", () => {
@@ -409,34 +436,28 @@ describe("Quality Pack 1 V2 golden skeletons", () => {
   });
 
   it("uses deterministic fallback variants when final safety fallback would repeat", async () => {
-    const invalidPrimaryOrRepair = decision({
-      text: "Tamam, ekip kontrol etsin.",
-      intent: "candidate_next_step",
-      actions: ["answer_user_question"],
-      facts: ["male_candidate_work_model"],
-    });
     const deps = makeDeps([
-      invalidPrimaryOrRepair,
-      invalidPrimaryOrRepair,
-      invalidPrimaryOrRepair,
-      invalidPrimaryOrRepair,
-      invalidPrimaryOrRepair,
-      invalidPrimaryOrRepair,
+      "not-json",
+      "still-not-json",
+      "not-json",
+      "still-not-json",
+      "not-json",
+      "still-not-json",
     ], workModelAcceptanceState());
 
-    await handleIncomingMessage(candidateMessage("Hangi uygulamalar var", "fallback-repeat-safety-1"), deps);
-    await handleIncomingMessage(candidateMessage("Hangi uygulamalar var", "fallback-repeat-safety-2"), deps);
-    await handleIncomingMessage(candidateMessage("Hangi uygulamalar var", "fallback-repeat-safety-3"), deps);
+    await handleIncomingMessage(candidateMessage("Bunu netlestiremedim", "fallback-repeat-safety-1"), deps);
+    await handleIncomingMessage(candidateMessage("Bunu netlestiremedim", "fallback-repeat-safety-2"), deps);
+    await handleIncomingMessage(candidateMessage("Bunu netlestiremedim", "fallback-repeat-safety-3"), deps);
 
     const replies = deps.sender.sends
       .filter((send) => send.message.phone_number === CANDIDATE_PHONE)
       .map((send) => send.text);
     expect(replies).toHaveLength(3);
-    expect(new Set(replies).size).toBe(3);
+    expect(new Set(replies).size, JSON.stringify(replies)).toBe(3);
     expect(normalizedText(replies[0] ?? "")).toContain("bunu hemen kontrol ediyorum");
     expect(normalizedText(replies[1] ?? "")).toContain("bunu kontrol ediyorum");
     expect(normalizedText(replies[2] ?? "")).toContain("sorunu aldim");
-    expect(deps.assistantClient.runCalls).toHaveLength(6);
+    expect(deps.assistantClient.runCalls).toHaveLength(3);
     const traces = deps.logger.events.filter((event) => event.event_type === "CONVERSATION_DECISION_V2_TRACE");
     expect(traces).toHaveLength(3);
     expect(traces).toEqual(expect.arrayContaining([
@@ -475,6 +496,8 @@ describe("Quality Pack 1 V2 golden skeletons", () => {
         mutation_source: "provider_unavailable",
       }),
     ]));
+    expect(deps.humanHandoffStore.findPendingOwnerQuery()).toBeNull();
+    expect(deps.sender.sends.some((item) => item.message.phone_number === OWNER_PHONE)).toBe(false);
   });
 
   it("sets a deterministic polite boundary for disrespectful candidate tone", async () => {
@@ -573,10 +596,47 @@ describe("Quality Pack 1 V2 golden skeletons", () => {
     );
   });
 
-  it("records a handoff only for generic deterministic escalation fallbacks", async () => {
+  it("does not ask owners when structured facts can answer known operational questions despite model failure", async () => {
+    setOfficialUrl(knowledgeBankDir, "Layla", "https://example.test/layla");
+    const scenarios: Array<{ id: string; text: string; state?: Partial<UserState>; expected: string[] }> = [
+      { id: "ad-info", text: "Bana reklamınız hakkında daha fazla bilgi verebilir misiniz?", expected: ["telefon", "uygulama"] },
+      { id: "payment", text: "Odeme nasil oluyor?", state: workModelAcceptanceState(), expected: ["privacy fixture"] },
+      { id: "guarantee", text: "Kesin kazanc var mi?", state: workModelAcceptanceState(), expected: ["privacy fixture"] },
+      { id: "camera", text: "Kamera acacak miyim?", state: workModelAcceptanceState(), expected: ["profile fixture"] },
+      { id: "profile", text: "Profil fotografi gerekiyor mu?", state: workModelAcceptanceState(), expected: ["profile fixture"] },
+      { id: "install-how", text: "Kurulumu nasil yapacagim?", state: installationState(), expected: ["installation process fixture"] },
+      { id: "install-approval", text: "Kuruluma devam edebilir miyim?", state: installationState(), expected: ["installation fixture"] },
+      { id: "app-list", text: "Hangi uygulamalar var?", expected: ["onayli uygulamalar", "layla"] },
+      { id: "routing", text: "Android kullaniyorum hangi uygulama uygun?", expected: ["routing matrix fixture"] },
+      { id: "known-link", text: "Layla indirme linki nedir?", state: installationState(), expected: ["https://example.test/layla"] },
+      { id: "known-code", text: "Layla davet kodu nedir?", state: installationState(), expected: ["8UNHAWUFC"] },
+    ];
+
+    for (const scenario of scenarios) {
+      const deps = makeDeps([], scenario.state);
+      deps.assistantClient.runAssistant = async (threadId: string, content: string): Promise<string> => {
+        deps.assistantClient.runCalls.push({ threadId, content });
+        throw Object.assign(new Error("credit_balance_exhausted"), { status: 429, code: "credit_balance_exhausted" });
+      };
+
+      await handleIncomingMessage(candidateMessage(scenario.text, `known-${scenario.id}`), deps);
+
+      const candidateReply = deps.sender.sends.find((item) => item.message.phone_number === CANDIDATE_PHONE)?.text ?? "";
+      const normalizedReply = normalizedText(candidateReply);
+      expect(candidateReply, scenario.id).not.toBe("");
+      for (const expected of scenario.expected) expect(normalizedReply, scenario.id).toContain(normalizedText(expected));
+      expect(deps.humanHandoffStore.findPendingOwnerQuery(), scenario.id).toBeNull();
+      expect(deps.sender.sends.some((item) => item.message.phone_number === OWNER_PHONE), scenario.id).toBe(false);
+      expect(deps.logger.events, scenario.id).not.toEqual(expect.arrayContaining([
+        expect.objectContaining({ event_type: "OWNER_ANSWER_REQUIRED_NOTIFICATION_SENT" }),
+      ]));
+    }
+  });
+
+  it("records a handoff only when the requested structured detail is truly missing", async () => {
     const deps = makeDeps(["not-json", "still-not-json"], workModelAcceptanceState());
 
-    await handleIncomingMessage(candidateMessage("Bunu netlestiremedim", "generic-escalation-fallback"), deps);
+    await handleIncomingMessage(candidateMessage("TanChat indirme linki nedir?", "missing-link-escalation"), deps);
 
     expect(deps.humanHandoffStore.list()).toHaveLength(1);
     expect(deps.humanHandoffStore.list()[0]?.reason_code).toBe("conversational_escalation_claim");
@@ -603,7 +663,7 @@ describe("Quality Pack 1 V2 golden skeletons", () => {
     const deps = makeDeps(["not-json", "still-not-json"], workModelAcceptanceState());
     const noStoreDeps: HandleIncomingMessageDeps = { ...deps, humanHandoffStore: undefined };
 
-    await handleIncomingMessage(candidateMessage("Bunu netlestiremedim", "missing-handoff-store"), noStoreDeps);
+    await handleIncomingMessage(candidateMessage("TanChat indirme linki nedir?", "missing-handoff-store"), noStoreDeps);
 
     expect(deps.logger.events).toEqual(
       expect.arrayContaining([

@@ -1533,7 +1533,8 @@ export async function handleIncomingMessage(
           modelExecutionService,
           logger,
         });
-         const policyContextGap = (decisionResult.context.derived_state.missing_stage_sections ?? []).length > 0
+         const policyContextGap = decisionResult.decision.requires_escalation
+           && (decisionResult.context.derived_state.missing_stage_sections ?? []).length > 0
            && decisionResult.context.structured_facts?.policy_sections !== null;
          const conversationalEscalation = decisionResult.decision.requires_escalation
            && decisionResult.decision.escalation_reason === "conversational_escalation_claim";
@@ -1549,7 +1550,7 @@ export async function handleIncomingMessage(
            });
          }
          if (!ownerAnswerRequired && decisionResult.origin.startsWith("deterministic_")
-           && (decisionResult.decision.requires_escalation || decisionResult.origin === "deterministic_transport_failure")) {
+           && decisionResult.decision.requires_escalation) {
            ownerAnswerRequired = await holdOperationalQuestionForOwner(deps, message);
          }
          if (

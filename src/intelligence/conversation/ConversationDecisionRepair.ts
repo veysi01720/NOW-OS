@@ -64,7 +64,7 @@ function selectRepeatSafeFallbackReply(
 
 function hasWorkQuestion(text: string): boolean {
   const normalized = normalize(text);
-  return /(nasil|ne yapacagim|hesap|profil|is|calisma|kamera|mesajlasma|anlamadim|kazanc|para|odeme|puan|garanti|kesin)/u.test(normalized);
+  return /(nasil|ne yapacagim|hesap|profil|is|calisma|reklam|bilgi|kamera|mesajlasma|anlamadim|kazanc|para|odeme|puan|garanti|kesin)/u.test(normalized);
 }
 
 function hasDisrespectfulCandidateTone(text: string): boolean {
@@ -128,6 +128,35 @@ function approvedAppFromFacts(context: ConversationDecisionContext): string | nu
     .find((value): value is string => Boolean(value));
   if (canonicalApp) return canonicalApp;
   return approved[0]?.app ?? null;
+}
+
+function approvedAppFacts(context: ConversationDecisionContext) {
+  return context.structured_facts.app_facts
+    .filter((fact) => normalize(fact.status).includes("owner_approved"));
+}
+
+function appFactFromLatestMessage(context: ConversationDecisionContext) {
+  const latest = normalize(context.latest_message.text);
+  return approvedAppFacts(context).find((fact) =>
+    [fact.app, fact.android_name, fact.ios_name, ...fact.aliases]
+      .some((value) => value && latest.includes(normalize(value)))
+  ) ?? null;
+}
+
+function asksDownloadLink(text: string): boolean {
+  return /(indir|indirme|link|url|nereden yukle|nereden yÃ¼kle|download)/u.test(normalize(text));
+}
+
+function asksAppCatalogOrRouting(text: string): boolean {
+  return /(hangi uygulamalar|uygulamalar var|hangi app|hangi platform|hangi uygulama|uygulama oner|uygulama Ã¶ner|android.*uygun|iphone.*uygun|ios.*uygun)/u.test(normalize(text));
+}
+
+function asksInstallationQuestion(text: string): boolean {
+  return /(kurulum|kuracagim|kuracaÄŸim|kurmam|devam edebilir|onay|ekran|davet kodu|ajans kodu)/u.test(normalize(text));
+}
+
+function hasAnyCanonicalPolicyFact(context: ConversationDecisionContext): boolean {
+  return context.canonical_policy_facts.some((fact) => fact.content.trim().length > 0);
 }
 
 function missingFieldActions(context: ConversationDecisionContext): ConversationDecisionAction[] {
@@ -233,8 +262,8 @@ function buildPaymentBoundarySafetyDecision(context: ConversationDecisionContext
     chosen_actions: ["answer_user_question"],
     policy_facts_used: context.canonical_policy_facts.map((fact) => fact.id),
     next_action: "none",
-    requires_escalation: true,
-    escalation_reason: "payment_policy_missing",
+    requires_escalation: policy === null,
+    escalation_reason: policy === null ? "payment_policy_missing" : null,
   };
 }
 
@@ -255,6 +284,114 @@ function buildCameraAccountBoundarySafetyDecision(context: ConversationDecisionC
     requires_escalation: false,
     escalation_reason: null,
   };
+}
+
+function buildAppCatalogSafetyDecision(context: ConversationDecisionContext): ConversationDecision | null {
+  if (!asksAppCatalogOrRouting(context.latest_message.text)) return null;
+  const facts = approvedAppFacts(context);
+  const routing = publishedPolicySection(context, "routing_matrix");
+  if (facts.length === 0 && !routing) return null;
+  const appList = facts.map((fact) => fact.app).join(", ");
+  const reply = routing
+    ? `${routing} Onayli uygulamalar: ${appList || "yayinda onayli uygulama listesi bulunmuyor"}.`
+    : `Onayli uygulamalar: ${appList}. Uygulamayi cihaz ve uygunluk bilgilerine gore netlestiririz.`;
+  return {
+    ...baseDecision(reply, context, "deterministic_safety_response"),
+    intent: { primary: "app_selection_question", secondary: [], confidence: 1 },
+    direct_question: {
+      present: true,
+      question_summary: "Aday onayli uygulama veya yonlendirme bilgisini soruyor",
+      answered_in_reply: true,
+    },
+    chosen_actions: ["answer_user_question"],
+    policy_facts_used: context.canonical_policy_facts.map((fact) => fact.id),
+    next_action: "none",
+    requires_escalation: false,
+    escalation_reason: null,
+  };
+}
+
+function buildKnownAppLinkSafetyDecision(context: ConversationDecisionContext): ConversationDecision | null {
+  if (!asksDownloadLink(context.latest_message.text)) return null;
+  const fact = appFactFromLatestMessage(context);
+  if (!fact?.official_url?.trim()) return null;
+  const reply = `${fact.app} icin dogrulanmis indirme linki: ${fact.official_url.trim()}. Bu link disinda tahmini link kullanma.`;
+  return {
+    ...baseDecision(reply, context, "deterministic_safety_response"),
+    intent: { primary: "app_fact_question", secondary: ["download_link"], confidence: 1 },
+    direct_question: {
+      present: true,
+      question_summary: "Aday onayli uygulama indirme linkini soruyor",
+      answered_in_reply: true,
+    },
+    chosen_actions: ["answer_user_question"],
+    policy_facts_used: context.canonical_policy_facts.map((fact) => fact.id),
+    next_action: "none",
+    requires_escalation: false,
+    escalation_reason: null,
+  };
+}
+
+function buildInstallationSafetyDecision(context: ConversationDecisionContext): ConversationDecision | null {
+  if (!asksInstallationQuestion(context.latest_message.text)) return null;
+  const installationProcess = publishedPolicySection(context, "installation_process");
+  const installationPermission = publishedPolicySection(context, "installation_permission");
+  const installationProofRetry = publishedPolicySection(context, "installation_proof_retry");
+  const appFact = appFactFromLatestMessage(context)
+    ?? approvedAppFacts(context).find((fact) => context.candidate_state.selected_app && normalize(fact.app) === normalize(context.candidate_state.selected_app))
+    ?? null;
+  if (!installationProcess && !installationPermission && !installationProofRetry && !appFact) return null;
+  const parts = [
+    installationProcess,
+    installationPermission,
+    installationProofRetry,
+    appFact ? `Secili uygulama bilgisi: ${appFact.app}; davet kodu ${appFact.invite_code ?? "yayinda degil"}; ajans kodu ${appFact.agency_code ?? appFact.agency_bind_code ?? "yayinda degil"}.` : null,
+  ].filter((part): part is string => Boolean(part && part.trim()));
+  const reply = `${parts.join(" ")} Kurulumda bu dogrulanmis bilgiler disina cikmadan ilerleyelim.`;
+  return {
+    ...baseDecision(reply, context, "deterministic_safety_response"),
+    intent: { primary: "installation_question", secondary: [], confidence: 1 },
+    direct_question: {
+      present: true,
+      question_summary: "Aday kurulum veya onay adimini soruyor",
+      answered_in_reply: true,
+    },
+    chosen_actions: ["answer_user_question"],
+    policy_facts_used: context.canonical_policy_facts.map((fact) => fact.id),
+    next_action: "none",
+    requires_escalation: false,
+    escalation_reason: null,
+  };
+}
+
+function buildGroundedSafetyDecision(context: ConversationDecisionContext): ConversationDecision | null {
+  if (asksPaymentOrGuarantee(context.latest_message.text)) return buildPaymentBoundarySafetyDecision(context);
+  if (asksCameraAccountOrProfile(context.latest_message.text)) return buildCameraAccountBoundarySafetyDecision(context);
+  const link = buildKnownAppLinkSafetyDecision(context);
+  if (link) return link;
+  const appCatalog = buildAppCatalogSafetyDecision(context);
+  if (appCatalog) return appCatalog;
+  const installation = buildInstallationSafetyDecision(context);
+  if (installation) return installation;
+  if (
+    context.latest_message.inferred_intent === "ask_job_definition"
+    || context.latest_message.inferred_intent === "ask_how_work_is_done"
+    || /(reklam|daha fazla bilgi|calisma|is.*bilgi|iÅŸ.*bilgi)/u.test(normalize(context.latest_message.text))
+  ) {
+    if (context.structured_facts.general_work_model || hasAnyCanonicalPolicyFact(context)) {
+      return buildJobDefinitionSafetyDecision(context);
+    }
+  }
+  return null;
+}
+
+function shouldEscalateMissingVerifiedDetail(context: ConversationDecisionContext, reason: "invalid_model_decision" | "provider_unavailable" | "policy_missing"): boolean {
+  if (reason === "policy_missing" || !hasAnyCanonicalPolicyFact(context)) return true;
+  if (asksDownloadLink(context.latest_message.text)) {
+    const fact = appFactFromLatestMessage(context);
+    return Boolean(fact && !fact.official_url?.trim());
+  }
+  return false;
 }
 
 export function buildOffTopicSafetyDecision(context: ConversationDecisionContext): ConversationDecision {
@@ -335,6 +472,9 @@ export function buildDeterministicSafetyDecision(
   context: ConversationDecisionContext,
   reason: "invalid_model_decision" | "provider_unavailable" | "policy_missing"
 ): ConversationDecision {
+  const groundedDecision = buildGroundedSafetyDecision(context);
+  if (groundedDecision) return groundedDecision;
+
   if (reason === "invalid_model_decision" && asksPaymentOrGuarantee(context.latest_message.text)) {
     return buildPaymentBoundarySafetyDecision(context);
   }
@@ -343,11 +483,11 @@ export function buildDeterministicSafetyDecision(
     return buildCameraAccountBoundarySafetyDecision(context);
   }
 
-  if (reason === "invalid_model_decision" && context.latest_message.inferred_intent === "off_topic") {
+  if ((reason === "invalid_model_decision" || reason === "provider_unavailable") && context.latest_message.inferred_intent === "off_topic") {
     return buildOffTopicSafetyDecision(context);
   }
 
-  if (reason === "invalid_model_decision") {
+  if (reason === "invalid_model_decision" || reason === "provider_unavailable") {
     const partialIntakeDecision = buildPartialIntakeSafetyDecision(context);
     if (partialIntakeDecision) return partialIntakeDecision;
   }
@@ -362,13 +502,14 @@ export function buildDeterministicSafetyDecision(
       "Bunu kontrol ediyorum; kısa süre içinde dönüş yapacağım.",
       "Sorunu aldım, doğrulayıp kısa süre içinde yanıtlayacağım."
     ]);
+  const escalate = shouldEscalateMissingVerifiedDetail(context, reason);
   return {
     ...baseDecision(
       reply,
       context,
       reason === "provider_unavailable" ? "deterministic_transport_failure" : "deterministic_safety_response"
     ),
-    requires_escalation: true,
-    escalation_reason: "conversational_escalation_claim"
+    requires_escalation: escalate,
+    escalation_reason: escalate ? "conversational_escalation_claim" : null
   };
 }
