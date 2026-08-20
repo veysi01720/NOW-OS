@@ -124,7 +124,15 @@ async function main(): Promise<void> {
     for (const step of steps) {
       const input = inputFor(step, state, run);
       const output = await adapter.run(input);
-      const sanitized = parseSanitized(output.rawText, step, input);
+      let sanitized = parseSanitized(output.rawText, step, input);
+      if (sanitized.status !== "pass") {
+        const retryInput: ModelAdapterInput = {
+          ...input,
+          metadata: { ...input.metadata, traceId: `${input.metadata.traceId}-repair` },
+        };
+        const repaired = await adapter.run(retryInput);
+        sanitized = { ...parseSanitized(repaired.rawText, step, retryInput), repair_attempted: true };
+      }
       stepsReport.push({ step: step.id, ...sanitized });
       if (sanitized.status === "pass") {
         for (const key of sanitized.state_patch_keys) state[key] = true;
