@@ -574,4 +574,89 @@ describe("POST /webhooks/evolution", () => {
 
     await app.close();
   });
+
+  it("routes inbound MESSAGES_UPDATE receipts to the loss detector without treating them as candidate text", async () => {
+    const app = Fastify({ logger: false });
+    const logger = createSilentLogger();
+    const observed: Array<Record<string, unknown>> = [];
+    const assistantClient = new FakeAssistantClient([
+      '{"contract_version":"1.0","reply":"should not run","internal_boss_note":"log"}',
+    ]);
+    registerEvolutionWebhook(app, {
+      env: createTestEnv(),
+      assistantClient,
+      sender: new FakeSender(),
+      threadStore: new InMemoryThreadStore(),
+      memoryStore: new InMemoryStore(),
+      messageDedupeStore: new InMemoryMessageDedupeStore(),
+      userStateStore: new InMemoryUserStateStore(),
+      userRunLock: new UserRunLock(),
+      logger,
+      connectionHealthMonitor: {
+        recordInboundMessageUpdate: (input: Record<string, unknown>) => observed.push(input),
+      } as ConnectionHealthMonitor,
+    });
+
+    const response = await app.inject({
+      method: "POST",
+      url: "/webhooks/evolution",
+      payload: {
+        event: "messages.update",
+        data: [{
+          key: { remoteJid: "905000000000@s.whatsapp.net", fromMe: false, id: "msg_update_only" },
+          update: { status: 4 },
+        }],
+      },
+    });
+
+    expect(response.statusCode).toBe(200);
+    expect(response.json()).toEqual({ status: "ignored", reason: "message_update_observed" });
+    expect(observed).toHaveLength(1);
+    expect(observed[0]).toMatchObject({ message_id: "msg_update_only", status: 4, known: false });
+    expect(assistantClient.runCalls).toHaveLength(0);
+    expect(logger.events).toEqual(expect.arrayContaining([
+      expect.objectContaining({ event_type: "EVOLUTION_MESSAGE_UPDATE_OBSERVED", inbound_update_count: 1 }),
+    ]));
+    expect(JSON.stringify(logger.events)).not.toContain("905000000000");
+
+    await app.close();
+  });
+
+  it("does not clear inbound degradation from an outbound echo", async () => {
+    const app = Fastify({ logger: false });
+    const logger = createSilentLogger();
+    const inboundConfirmations: unknown[] = [];
+    registerEvolutionWebhook(app, {
+      env: createTestEnv(),
+      assistantClient: new FakeAssistantClient([]),
+      sender: new FakeSender(),
+      threadStore: new InMemoryThreadStore(),
+      memoryStore: new InMemoryStore(),
+      messageDedupeStore: new InMemoryMessageDedupeStore(),
+      userStateStore: new InMemoryUserStateStore(),
+      userRunLock: new UserRunLock(),
+      logger,
+      connectionHealthMonitor: {
+        recordInboundConfirmed: (input: unknown) => inboundConfirmations.push(input),
+      } as ConnectionHealthMonitor,
+    });
+
+    const response = await app.inject({
+      method: "POST",
+      url: "/webhooks/evolution",
+      payload: {
+        event: "messages.upsert",
+        data: {
+          key: { remoteJid: "905000000000@s.whatsapp.net", fromMe: true, id: "msg_outbound_echo" },
+          messageType: "conversation",
+          message: { conversation: "outbound echo" },
+        },
+      },
+    });
+
+    expect(response.statusCode).toBe(200);
+    expect(response.json().status).toBe("ignored_from_me");
+    expect(inboundConfirmations).toEqual([]);
+    await app.close();
+  });
 });

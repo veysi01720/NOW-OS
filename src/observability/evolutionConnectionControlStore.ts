@@ -5,6 +5,7 @@ export type EvolutionConnectionAlarmKind =
   | "logged_out_401"
   | "repeated_refused_428"
   | "circuit_breaker_open"
+  | "inbound_message_missing"
   | "connection_recovered";
 
 export interface EvolutionConnectionControlState {
@@ -19,6 +20,12 @@ export interface EvolutionConnectionControlState {
   last_state: string | null;
   refused_attempted: boolean;
   connecting_attempted: boolean;
+  inbound_deaf_since: string | null;
+  inbound_deaf_reconnect_attempted: boolean;
+  last_missing_inbound_at: string | null;
+  last_missing_message_hash: string | null;
+  unmatched_inbound_update_timestamps: string[];
+  last_reconciliation_status: "not_run" | "found" | "missing" | "error";
   incident_active: boolean;
   alarms_sent: EvolutionConnectionAlarmKind[];
 }
@@ -35,6 +42,12 @@ const emptyState = (): EvolutionConnectionControlState => ({
   last_state: null,
   refused_attempted: false,
   connecting_attempted: false,
+  inbound_deaf_since: null,
+  inbound_deaf_reconnect_attempted: false,
+  last_missing_inbound_at: null,
+  last_missing_message_hash: null,
+  unmatched_inbound_update_timestamps: [],
+  last_reconciliation_status: "not_run",
   incident_active: false,
   alarms_sent: [],
 });
@@ -85,6 +98,8 @@ export class PersistentEvolutionConnectionControlStore {
       state.hard_stop_reason = null;
       state.connecting_since = null;
       state.refused_since = null;
+      state.inbound_deaf_since = null;
+      state.inbound_deaf_reconnect_attempted = false;
       state.refused_event_count = 0;
       state.open_since = recoveryAlarmDelivered ? null : state.open_since;
       state.last_state = "open";
@@ -111,9 +126,19 @@ export class PersistentEvolutionConnectionControlStore {
               value === "logged_out_401"
               || value === "repeated_refused_428"
               || value === "circuit_breaker_open"
+              || value === "inbound_message_missing"
               || value === "connection_recovered"
             ))
           : [],
+        unmatched_inbound_update_timestamps: Array.isArray(parsed.unmatched_inbound_update_timestamps)
+          ? parsed.unmatched_inbound_update_timestamps.filter((value): value is string => typeof value === "string")
+          : [],
+        last_reconciliation_status:
+          parsed.last_reconciliation_status === "found"
+          || parsed.last_reconciliation_status === "missing"
+          || parsed.last_reconciliation_status === "error"
+            ? parsed.last_reconciliation_status
+            : "not_run",
       };
     } catch {
       return emptyState();
@@ -123,6 +148,9 @@ export class PersistentEvolutionConnectionControlStore {
   private pruneAttempts(): void {
     const cutoff = this.now().getTime() - 30 * 60 * 1000;
     this.state.attempt_timestamps = this.state.attempt_timestamps.filter((value) => Date.parse(value) >= cutoff);
+    const inboundCutoff = this.now().getTime() - 24 * 60 * 60 * 1000;
+    this.state.unmatched_inbound_update_timestamps = this.state.unmatched_inbound_update_timestamps
+      .filter((value) => Date.parse(value) >= inboundCutoff);
   }
 
   private save(): void {

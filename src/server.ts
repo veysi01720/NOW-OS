@@ -413,6 +413,8 @@ export async function buildServer() {
     connectingTimeoutMs: env.evolutionConnectingTimeoutMs,
     refusedRetryDelayMs: env.evolutionRefusedRetryDelayMs,
     stableOpenResetMs: env.evolutionStableOpenResetMs,
+    inboundUpdateGraceMs: env.evolutionInboundUpdateGraceMs,
+    inboundDeafRetryDelayMs: env.evolutionInboundDeafRetryDelayMs,
     connectionControlStatePath: resolve(DATA_DIR, "evolution-connection-control.json"),
     logoutEventsPath: resolve(DATA_DIR, "evolution-logout-events.json"),
     sessionIntegrityCheck,

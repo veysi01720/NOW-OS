@@ -1,4 +1,5 @@
 import { redactSecrets } from "../utils/redaction.js";
+import { createHash } from "node:crypto";
 import type { Logger } from "./logger.js";
 import type { QueueBacklogSnapshot } from "../reliability/queueTypes.js";
 import { evaluateMigrationReadiness, type MigrationReadinessSnapshot } from "./migrationReadiness.js";
@@ -53,6 +54,11 @@ export interface ConnectionHealthSnapshot {
   smtp_alarm_configured?: boolean;
   logout_401_count_last_24h?: number;
   session_integrity?: "nonempty" | "empty" | "unavailable" | "error";
+  inbound_deaf_suspected?: boolean;
+  inbound_deaf_since?: string | null;
+  unmatched_inbound_updates_last_24h?: number;
+  last_missing_inbound_at?: string | null;
+  last_reconciliation_status?: "not_run" | "found" | "missing" | "error";
 }
 
 export interface ShadowQueueWriteStats {
@@ -86,6 +92,8 @@ export interface ConnectionHealthMonitorOptions {
   connectingTimeoutMs?: number;
   refusedRetryDelayMs?: number;
   stableOpenResetMs?: number;
+  inboundUpdateGraceMs?: number;
+  inboundDeafRetryDelayMs?: number;
   connectionControlStatePath?: string;
   logoutEventsPath?: string;
   sessionIntegrityCheck?: () => Promise<"nonempty" | "empty" | "unavailable" | "error">;
@@ -122,6 +130,8 @@ export class ConnectionHealthMonitor {
   private readonly connectingTimeoutMs: number;
   private readonly refusedRetryDelayMs: number;
   private readonly stableOpenResetMs: number;
+  private readonly inboundUpdateGraceMs: number;
+  private readonly inboundDeafRetryDelayMs: number;
   private readonly logoutEventsPath?: string;
   private readonly sessionIntegrityCheck?: ConnectionHealthMonitorOptions["sessionIntegrityCheck"];
   private readonly onLogout401?: ConnectionHealthMonitorOptions["onLogout401"];
@@ -132,6 +142,8 @@ export class ConnectionHealthMonitor {
   private sessionIntegrity: "nonempty" | "empty" | "unavailable" | "error" = "unavailable";
   private reconnectInProgress = false;
   private logoutEvents: string[] = [];
+  private readonly recentInboundMessageHashes = new Map<string, number>();
+  private readonly pendingInboundUpdateTimers = new Map<string, ReturnType<typeof setTimeout>>();
 
   constructor(private readonly options: ConnectionHealthMonitorOptions) {
     this.degradedThresholdMs = options.degradedThresholdMs ?? 10 * 60 * 1000;
@@ -144,6 +156,8 @@ export class ConnectionHealthMonitor {
     this.connectingTimeoutMs = options.connectingTimeoutMs ?? 5 * 60 * 1000;
     this.refusedRetryDelayMs = options.refusedRetryDelayMs ?? 10 * 60 * 1000;
     this.stableOpenResetMs = options.stableOpenResetMs ?? 2 * 60 * 1000;
+    this.inboundUpdateGraceMs = options.inboundUpdateGraceMs ?? 5_000;
+    this.inboundDeafRetryDelayMs = options.inboundDeafRetryDelayMs ?? 60_000;
     this.logoutEventsPath = options.logoutEventsPath;
     this.sessionIntegrityCheck = options.sessionIntegrityCheck;
     this.onLogout401 = options.onLogout401;
@@ -155,6 +169,27 @@ export class ConnectionHealthMonitor {
 
   recordInboundConfirmed(input: { correlation_id?: string; message_id?: string; chat_type?: string }): void {
     this.lastInboundConfirmedAt = this.now();
+    if (input.message_id) {
+      const messageHash = this.messageHash(input.message_id);
+      this.recentInboundMessageHashes.set(messageHash, this.now().getTime());
+      const pending = this.pendingInboundUpdateTimers.get(messageHash);
+      if (pending) clearTimeout(pending);
+      this.pendingInboundUpdateTimers.delete(messageHash);
+      this.pruneRecentInboundHashes();
+    }
+    const control = this.controlStore.snapshot();
+    if (control.inbound_deaf_since !== null) {
+      this.controlStore.update((state) => {
+        state.inbound_deaf_since = null;
+        state.inbound_deaf_reconnect_attempted = false;
+        state.open_since = this.now().toISOString();
+      });
+      this.options.logger.info({
+        event_type: "EVOLUTION_INBOUND_FLOW_RECOVERED",
+        evolution_instance: this.options.evolutionInstance,
+        recovery_evidence: "real_inbound_confirmed",
+      });
+    }
     const snapshot = this.snapshot();
     this.options.logger.info({
       event_type: "INBOUND_CONFIRMED",
@@ -275,7 +310,45 @@ export class ConnectionHealthMonitor {
       smtp_alarm_configured: this.alarmNotifier?.isConfigured() === true,
       logout_401_count_last_24h: this.recentLogoutCount(),
       session_integrity: this.sessionIntegrity,
+      inbound_deaf_suspected: connectionControl.inbound_deaf_since !== null,
+      inbound_deaf_since: connectionControl.inbound_deaf_since,
+      unmatched_inbound_updates_last_24h: connectionControl.unmatched_inbound_update_timestamps.length,
+      last_missing_inbound_at: connectionControl.last_missing_inbound_at,
+      last_reconciliation_status: connectionControl.last_reconciliation_status,
     };
+  }
+
+  recordInboundMessageUpdate(input: {
+    message_id: string;
+    status?: number;
+    known: boolean;
+    process_recovered: (payload: unknown) => Promise<boolean>;
+  }): void {
+    const messageId = input.message_id.trim();
+    if (!messageId) return;
+    const messageHash = this.messageHash(messageId);
+    this.pruneRecentInboundHashes();
+    const control = this.controlStore.snapshot();
+    if (
+      input.known
+      || this.recentInboundMessageHashes.has(messageHash)
+      || this.pendingInboundUpdateTimers.has(messageHash)
+      || (control.inbound_deaf_since !== null && control.last_missing_message_hash === messageHash)
+    ) return;
+
+    this.options.logger.info({
+      event_type: "EVOLUTION_INBOUND_UPDATE_PENDING_RECONCILIATION",
+      evolution_instance: this.options.evolutionInstance,
+      message_id_hash: messageHash,
+      status: input.status,
+      grace_ms: this.inboundUpdateGraceMs,
+    });
+    const timer = setTimeout(() => {
+      this.pendingInboundUpdateTimers.delete(messageHash);
+      void this.reconcileInboundUpdate(messageId, messageHash, input.process_recovered);
+    }, this.inboundUpdateGraceMs);
+    timer.unref?.();
+    this.pendingInboundUpdateTimers.set(messageHash, timer);
   }
 
   recordEvolutionConnectionUpdate(input: { state?: string; statusReason?: number }): void {
@@ -330,6 +403,7 @@ export class ConnectionHealthMonitor {
         control.connecting_attempted = false;
       });
       void this.resetAfterStableOpenIfEligible();
+      void this.requestAutomaticConnect("inbound_deaf_suspected");
       return;
     }
 
@@ -390,15 +464,21 @@ export class ConnectionHealthMonitor {
     });
   }
 
-  private async requestAutomaticConnect(trigger: "refused_428" | "connecting_timeout"): Promise<void> {
+  private async requestAutomaticConnect(trigger: "refused_428" | "connecting_timeout" | "inbound_deaf_suspected"): Promise<void> {
     if (!this.autoReconnectEnabled) return;
     const control = this.controlStore.snapshot();
     if (control.hard_stop_reason) return;
     const nowMs = this.now().getTime();
     if (trigger === "refused_428") {
       if (control.refused_attempted || control.refused_since === null || nowMs - Date.parse(control.refused_since) < this.refusedRetryDelayMs) return;
-    } else if (control.connecting_attempted || control.connecting_since === null || nowMs - Date.parse(control.connecting_since) < this.connectingTimeoutMs) {
-      return;
+    } else if (trigger === "connecting_timeout") {
+      if (control.connecting_attempted || control.connecting_since === null || nowMs - Date.parse(control.connecting_since) < this.connectingTimeoutMs) return;
+    } else {
+      if (
+        control.inbound_deaf_reconnect_attempted
+        || control.inbound_deaf_since === null
+        || nowMs - Date.parse(control.inbound_deaf_since) < this.inboundDeafRetryDelayMs
+      ) return;
     }
     await this.requestOperation("connect", trigger, false);
   }
@@ -419,7 +499,7 @@ export class ConnectionHealthMonitor {
 
   private async requestOperation(
     operation: "connect" | "logout",
-    trigger: "refused_428" | "connecting_timeout" | "owner_manual",
+    trigger: "refused_428" | "connecting_timeout" | "inbound_deaf_suspected" | "owner_manual",
     manual: boolean,
   ): Promise<{ ok: boolean; status: number; reason: string }> {
     if (this.reconnectInProgress) return { ok: false, status: 409, reason: "operation_in_progress" };
@@ -448,6 +528,7 @@ export class ConnectionHealthMonitor {
     this.controlStore.update((state) => {
       if (trigger === "refused_428") state.refused_attempted = true;
       if (trigger === "connecting_timeout") state.connecting_attempted = true;
+      if (trigger === "inbound_deaf_suspected") state.inbound_deaf_reconnect_attempted = true;
     });
     if (this.reconnectBaseDelayMs > 0) await new Promise((resolve) => setTimeout(resolve, this.reconnectBaseDelayMs));
     const endpoint = operation === "connect" ? "connect" : "logout";
@@ -502,6 +583,7 @@ export class ConnectionHealthMonitor {
 
   private async resetAfterStableOpenIfEligible(): Promise<void> {
     const control = this.controlStore.snapshot();
+    if (control.inbound_deaf_since !== null) return;
     if (control.open_since === null || this.now().getTime() - Date.parse(control.open_since) < this.stableOpenResetMs) return;
     const recoveryAlarmDelivered = control.incident_active
       ? await this.emitAlarm("connection_recovered")
@@ -581,6 +663,7 @@ export class ConnectionHealthMonitor {
   }
 
   private isReceivingDegraded(): boolean {
+    if (this.controlStore.snapshot().inbound_deaf_since !== null) return true;
     if (this.isRecent(this.lastInboundConfirmedAt)) {
       return false;
     }
@@ -593,6 +676,7 @@ export class ConnectionHealthMonitor {
 
   private degradedReason(): string | null {
     if (!this.isReceivingDegraded()) return null;
+    if (this.controlStore.snapshot().inbound_deaf_since !== null) return "inbound_deaf_suspected";
     if (this.lastInboundConfirmedAt === null) {
       return "no_inbound_confirmed_yet";
     }
@@ -635,5 +719,85 @@ export class ConnectionHealthMonitor {
     if (snapshot.receiving_degraded) return `Repair inbound receiving before smoke or cutover: ${snapshot.degraded_reason ?? "unknown"}.`;
     if (snapshot.reachability_ok === false) return "Repair Evolution gateway reachability.";
     return "No operator action required.";
+  }
+
+  private messageHash(messageId: string): string {
+    return createHash("sha256").update(messageId).digest("hex").slice(0, 16);
+  }
+
+  private pruneRecentInboundHashes(): void {
+    const cutoff = this.now().getTime() - 24 * 60 * 60 * 1000;
+    for (const [hash, observedAt] of this.recentInboundMessageHashes) {
+      if (observedAt < cutoff) this.recentInboundMessageHashes.delete(hash);
+    }
+  }
+
+  private async reconcileInboundUpdate(
+    messageId: string,
+    messageHash: string,
+    processRecovered: (payload: unknown) => Promise<boolean>,
+  ): Promise<void> {
+    if (this.recentInboundMessageHashes.has(messageHash)) return;
+    let reconciliationStatus: "found" | "missing" | "error" = "missing";
+    try {
+      const response = await this.fetchImpl(
+        `${this.options.evolutionApiBaseUrl.replace(/\/$/u, "")}/chat/findMessages/${encodeURIComponent(this.options.evolutionInstance)}`,
+        {
+          method: "POST",
+          headers: { apikey: this.options.evolutionApiKey, "content-type": "application/json" },
+          body: JSON.stringify({ where: { key: { id: messageId } } }),
+          signal: AbortSignal.timeout(this.reachabilityTimeoutMs),
+        },
+      );
+      const body = await response.json().catch(() => ({})) as { messages?: { records?: unknown[] }; records?: unknown[] };
+      const records = body.messages?.records ?? body.records ?? [];
+      const recovered = records.find((record) => {
+        if (typeof record !== "object" || record === null || Array.isArray(record)) return false;
+        const item = record as { key?: { fromMe?: boolean; id?: string }; message?: unknown };
+        return item.key?.fromMe === false && item.key.id === messageId && typeof item.message === "object" && item.message !== null;
+      });
+      if (response.ok && recovered) {
+        reconciliationStatus = "found";
+        const processed = await processRecovered(recovered);
+        this.options.logger[processed ? "info" : "warn"]({
+          event_type: processed ? "EVOLUTION_INBOUND_RECONCILIATION_RECOVERED" : "EVOLUTION_INBOUND_RECONCILIATION_PROCESSING_FAILED",
+          evolution_instance: this.options.evolutionInstance,
+          message_id_hash: messageHash,
+        });
+        if (processed) {
+          this.controlStore.update((state) => { state.last_reconciliation_status = "found"; });
+          return;
+        }
+        reconciliationStatus = "error";
+      }
+    } catch (error) {
+      reconciliationStatus = "error";
+      this.options.logger.warn({
+        event_type: "EVOLUTION_INBOUND_RECONCILIATION_FAILED",
+        evolution_instance: this.options.evolutionInstance,
+        message_id_hash: messageHash,
+        error: redactSecrets(error instanceof Error ? error.message : String(error)),
+      });
+    }
+
+    const nowIso = this.now().toISOString();
+    this.controlStore.update((state) => {
+      state.inbound_deaf_since ??= nowIso;
+      state.last_missing_inbound_at = nowIso;
+      state.last_missing_message_hash = messageHash;
+      state.unmatched_inbound_update_timestamps.push(nowIso);
+      state.last_reconciliation_status = reconciliationStatus;
+      state.incident_active = true;
+      state.open_since = null;
+    });
+    this.options.logger.warn({
+      event_type: "EVOLUTION_INBOUND_MESSAGE_MISSING",
+      evolution_instance: this.options.evolutionInstance,
+      message_id_hash: messageHash,
+      reconciliation_status: reconciliationStatus,
+      raw_message_logged: false,
+    });
+    await this.emitAlarm("inbound_message_missing");
+    await this.requestAutomaticConnect("inbound_deaf_suspected");
   }
 }

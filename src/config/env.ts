@@ -19,6 +19,8 @@ export interface EnvConfig {
   evolutionConnectingTimeoutMs?: number;
   evolutionRefusedRetryDelayMs?: number;
   evolutionStableOpenResetMs?: number;
+  evolutionInboundUpdateGraceMs?: number;
+  evolutionInboundDeafRetryDelayMs?: number;
   evolutionSessionDatabaseUrl?: string;
   smtpAlertEnabled?: boolean;
   smtpHost?: string;
@@ -157,6 +159,8 @@ export function loadEnv(): EnvConfig {
     evolutionConnectingTimeoutMs: parsePositiveInteger(process.env.EVOLUTION_CONNECTING_TIMEOUT_MS, 5 * 60 * 1000),
     evolutionRefusedRetryDelayMs: parsePositiveInteger(process.env.EVOLUTION_REFUSED_RETRY_DELAY_MS, 10 * 60 * 1000),
     evolutionStableOpenResetMs: parsePositiveInteger(process.env.EVOLUTION_STABLE_OPEN_RESET_MS, 2 * 60 * 1000),
+    evolutionInboundUpdateGraceMs: parsePositiveInteger(process.env.EVOLUTION_INBOUND_UPDATE_GRACE_MS, 5_000),
+    evolutionInboundDeafRetryDelayMs: parsePositiveInteger(process.env.EVOLUTION_INBOUND_DEAF_RETRY_DELAY_MS, 60_000),
     evolutionSessionDatabaseUrl: process.env.EVOLUTION_SESSION_DATABASE_URL?.trim() || undefined,
     smtpAlertEnabled: process.env.SMTP_ALERT_ENABLED === "true",
     smtpHost: process.env.SMTP_HOST?.trim() || undefined,

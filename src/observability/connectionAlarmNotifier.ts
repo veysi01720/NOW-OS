@@ -33,6 +33,7 @@ const subjects: Record<EvolutionConnectionAlarmKind, string> = {
   logged_out_401: "P0 WhatsApp session logged out (401)",
   repeated_refused_428: "P0 WhatsApp connection repeatedly refused (428)",
   circuit_breaker_open: "P0 WhatsApp reconnect circuit breaker opened",
+  inbound_message_missing: "P0 WhatsApp inbound message was not delivered to NOW OS",
   connection_recovered: "WhatsApp connection recovered",
 };
 

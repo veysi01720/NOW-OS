@@ -99,6 +99,7 @@ file hashes in this document are the authoritative deployment evidence.
 | Webhook enabled | `YES` |
 | Webhook target | `http://now_os_backend:3000/webhooks/evolution` |
 | `MESSAGES_UPSERT` enabled | `YES` |
+| `MESSAGES_UPDATE` enabled | `REQUIRED` - feeds the persistent inbound-loss detector and reconciliation path |
 | Backend URL class | Compose-internal Evolution endpoint |
 | Backend and gateway network | `deploy_package_default` |
 
@@ -223,4 +224,3 @@ removal. It is not part of the canonical WhatsApp backend path.
 6. Local containers must never be used as production acceptance evidence.
 7. Evolution, PostgreSQL, session data and active state are outside cleanup scope.
 8. Responses/V3 source work must be preserved until its migration package decides its fate.
-

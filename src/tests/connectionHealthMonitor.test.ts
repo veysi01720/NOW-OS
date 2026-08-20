@@ -336,4 +336,129 @@ describe("ConnectionHealthMonitor", () => {
     const snapshot = await monitor.runReachabilityCheck("startup");
     expect(snapshot.session_integrity).toBe("nonempty");
   });
+
+  it("reconciles a missing webhook from the Evolution message store without raising a false alarm", async () => {
+    const logger = createSilentLogger();
+    const alarms: string[] = [];
+    const recovered: unknown[] = [];
+    const monitor = new ConnectionHealthMonitor({
+      evolutionInstance: "nowakademi_bot",
+      evolutionApiBaseUrl: "http://evolution.local",
+      evolutionApiKey: "secret-key",
+      logger,
+      inboundUpdateGraceMs: 1,
+      alarmNotifier: {
+        isConfigured: () => true,
+        send: async (input) => {
+          alarms.push(input.kind);
+          return { delivered: true };
+        },
+      },
+      fetchImpl: (async (url) => {
+        if (String(url).includes("/chat/findMessages/")) {
+          return new Response(JSON.stringify({
+            messages: {
+              records: [{
+                key: { id: "msg_recovered", fromMe: false, remoteJid: "905000000000@s.whatsapp.net" },
+                messageType: "conversation",
+                message: { conversation: "hello" },
+              }],
+            },
+          }), { status: 200 });
+        }
+        return new Response("{}", { status: 200 });
+      }) as typeof fetch,
+    });
+
+    monitor.recordInboundMessageUpdate({
+      message_id: "msg_recovered",
+      status: 4,
+      known: false,
+      process_recovered: async (payload) => {
+        recovered.push(payload);
+        monitor.recordInboundConfirmed({ message_id: "msg_recovered", chat_type: "private" });
+        return true;
+      },
+    });
+    await new Promise((resolve) => setTimeout(resolve, 20));
+
+    expect(recovered).toHaveLength(1);
+    expect(alarms).toEqual([]);
+    expect(monitor.snapshot()).toMatchObject({
+      receiving_degraded: false,
+      inbound_deaf_suspected: false,
+      last_reconciliation_status: "found",
+    });
+    expect(JSON.stringify(logger.events)).not.toContain("905000000000");
+    expect(JSON.stringify(logger.events)).not.toContain("hello");
+  });
+
+  it("persists an unrecoverable inbound loss, alarms, and permits only one breaker-controlled soft reconnect", async () => {
+    const logger = createSilentLogger();
+    const dir = mkdtempSync(join(tmpdir(), "now-os-deaf-"));
+    const statePath = join(dir, "control.json");
+    const calls: string[] = [];
+    const alarms: string[] = [];
+    let nowMs = Date.parse("2026-08-21T00:00:00.000Z");
+    const options = {
+      evolutionInstance: "nowakademi_bot",
+      evolutionApiBaseUrl: "http://evolution.local",
+      evolutionApiKey: "secret-key",
+      logger,
+      now: () => new Date(nowMs),
+      autoReconnectEnabled: true,
+      reconnectBaseDelayMs: 1,
+      inboundUpdateGraceMs: 1,
+      inboundDeafRetryDelayMs: 60_000,
+      connectionControlStatePath: statePath,
+      alarmNotifier: {
+        isConfigured: () => true,
+        send: async (input: { kind: string }) => {
+          alarms.push(input.kind);
+          return { delivered: true };
+        },
+      },
+      fetchImpl: (async (url: string | URL | Request) => {
+        calls.push(String(url));
+        if (String(url).includes("/chat/findMessages/")) {
+          return new Response(JSON.stringify({ messages: { records: [] } }), { status: 200 });
+        }
+        if (String(url).includes("/instance/connectionState/")) {
+          return new Response(JSON.stringify({ instance: { state: "open" } }), { status: 200 });
+        }
+        return new Response("{}", { status: 200 });
+      }) as typeof fetch,
+    };
+    const monitor = new ConnectionHealthMonitor(options);
+    monitor.recordInboundMessageUpdate({
+      message_id: "msg_missing",
+      status: 4,
+      known: false,
+      process_recovered: async () => false,
+    });
+    await new Promise((resolve) => setTimeout(resolve, 20));
+
+    expect(monitor.snapshot()).toMatchObject({
+      receiving_degraded: true,
+      degraded_reason: "inbound_deaf_suspected",
+      inbound_deaf_suspected: true,
+      unmatched_inbound_updates_last_24h: 1,
+      last_reconciliation_status: "missing",
+    });
+    expect(alarms).toEqual(["inbound_message_missing"]);
+    expect(calls.filter((url) => url.includes("/instance/connect/"))).toHaveLength(0);
+
+    const restartedMonitor = new ConnectionHealthMonitor(options);
+    expect(restartedMonitor.snapshot().inbound_deaf_suspected).toBe(true);
+    nowMs += 60_001;
+    await restartedMonitor.runReachabilityCheck("periodic");
+    await new Promise((resolve) => setTimeout(resolve, 10));
+    await restartedMonitor.runReachabilityCheck("periodic");
+    await new Promise((resolve) => setTimeout(resolve, 10));
+
+    expect(calls.filter((url) => url.includes("/instance/connect/"))).toHaveLength(1);
+    expect(restartedMonitor.snapshot().reconnect_attempts_last_30m).toBe(1);
+    expect(JSON.stringify(logger.events)).not.toContain("msg_missing");
+    rmSync(dir, { recursive: true, force: true });
+  });
 });
