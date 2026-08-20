@@ -155,7 +155,7 @@ describe("structured knowledge publish", () => {
     writeFileSync(sourcePath, `${readFileSync(sourcePath, "utf8").trimEnd()}\n\n## Owner Transfer [constraint]: Owner direct bilgi\n\n${ownerRule}\n`, "utf8");
 
     expect(parseOwnerTransferSectionsFromMarkdown(readFileSync(sourcePath, "utf8"))).toEqual([
-      expect.objectContaining({ title: "Owner direct bilgi", content: ownerRule, classification: "constraint" }),
+      expect.objectContaining({ section_id: expect.stringMatching(/^owner_direct_bilgi_[a-f0-9]{12}$/), title: "Owner direct bilgi", content: ownerRule, classification: "constraint" }),
     ]);
     const result = publishStructuredKnowledgeSources({ knowledgeBankDir: dir, mode: "activate", ownerApproval: true });
     expect(result.status).toBe("published");
@@ -174,6 +174,24 @@ describe("structured knowledge publish", () => {
     expect(result.status).toBe("published");
     const structured = JSON.parse(readFileSync(resolve(dir, "app_facts_structured.json"), "utf8"));
     expect(structured.owner_transfer_sections).toHaveLength(1);
+  });
+
+  it("gives same-title owner transfer records distinct stable ids from their content hashes", () => {
+    const markdown = [
+      "## Owner Transfer [information]: Owner direct bilgi",
+      "",
+      "Yas ve cinsiyet bilgisi intake asamasinda sorulur.",
+      "",
+      "## Owner Transfer [constraint]: Owner direct bilgi",
+      "",
+      "Profil alaninda kisisel bilgi paylasilmaz.",
+    ].join("\n");
+
+    const first = parseOwnerTransferSectionsFromMarkdown(markdown);
+    const second = parseOwnerTransferSectionsFromMarkdown(markdown);
+    expect(first).toHaveLength(2);
+    expect(new Set(first.map((section) => section.section_id)).size).toBe(2);
+    expect(second.map((section) => section.section_id)).toEqual(first.map((section) => section.section_id));
   });
 
   it("writes structured facts and routing rules from app_facts.md", () => {

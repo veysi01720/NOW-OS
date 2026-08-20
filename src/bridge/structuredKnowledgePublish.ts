@@ -384,7 +384,8 @@ export function parseOwnerTransferSectionsFromMarkdown(markdown: string): Array<
     const contentHash = sha256(content);
     if (seenContentHashes.has(contentHash)) continue;
     seenContentHashes.add(contentHash);
-    const sectionId = `owner_transfer_${normalizeHeading(title).replace(/[^a-z0-9]+/g, "_").replace(/^_|_$/g, "") || "untitled"}`;
+    const titleSlug = normalizeHeading(title).replace(/[^a-z0-9]+/g, "_").replace(/^_|_$/g, "") || "untitled";
+    const sectionId = `${titleSlug}_${contentHash.slice(0, 12)}`;
     sections.push({ section_id: sectionId, title, content, classification });
   }
   return sections;
