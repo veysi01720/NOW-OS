@@ -387,7 +387,7 @@ export function buildKnowledgeSyncContext(
   };
 
   // Context construction is intentionally read-only. File and store mutations
-  // are performed only by executeKnowledgeSyncCommand from ownerCommands.ts.
+  // are performed only by the authenticated owner knowledge publication flow.
 
   // Recalculate context counts and preview
   const patches = store.listKnowledgePatches();

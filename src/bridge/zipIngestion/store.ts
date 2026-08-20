@@ -82,6 +82,23 @@ export class ZipIngestionStore {
     this.persist();
   }
 
+  markLearningCandidatesRolledBack(candidateIds: string[], actorRole: "owner" | "manager"): void {
+    const now = new Date().toISOString();
+    for (const candidateId of candidateIds) {
+      const current = this.data.learning_candidates[candidateId];
+      if (!current || current.status !== "published") continue;
+      this.data.learning_candidates[candidateId] = {
+        ...current,
+        status: "rejected",
+        reviewed_by: actorRole,
+        reviewed_at: now,
+        review_decision: "reject",
+        review_note_sanitized: "natural_language_rollback",
+      };
+    }
+    this.persist();
+  }
+
   findJobBySha256(sha256: string): ZipIngestionJobRecord | undefined {
     return Object.values(this.data.jobs).find((job) => job.zip_sha256 === sha256);
   }

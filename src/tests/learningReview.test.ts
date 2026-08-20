@@ -170,11 +170,18 @@ describe("SPEC-016 Owner Learning Review & Approval Actions", () => {
     await handleIncomingMessage(msg, deps);
 
     const sug = ingestionStore.getLearningSuggestion("sug_2");
-    expect(sug.status).toBe("approved_for_bundle");
+    expect(sug.status).toBe("approved");
     expect(sug.reviewed_by).toBe("owner");
     expect(ingestionStore.listLearningSuggestions().filter((s: any) => s.status === "pending_owner_review")).toHaveLength(0);
-    expect(assistantClient.runCalls).toHaveLength(previousRunCount);
-    expect((deps.sender as FakeSender).sends.at(-1)?.text).toContain(`${ref} approved_for_bundle`);
+    expect(assistantClient.runCalls).toHaveLength(previousRunCount + 1);
+    const context = extractContext(assistantClient.runCalls.at(-1)!.content);
+    expect(context.learning_review.action_result).toMatchObject({
+      action: "approve",
+      suggestion_ref: ref,
+      previous_status: "pending_owner_review",
+      new_status: "approved",
+      success: true,
+    });
   });
 
   test("repeated approve action is idempotent/handled safely", async () => {
@@ -182,8 +189,14 @@ describe("SPEC-016 Owner Learning Review & Approval Actions", () => {
     const previousRunCount = assistantClient.runCalls.length;
     await handleIncomingMessage(msg, deps);
 
-    expect(assistantClient.runCalls).toHaveLength(previousRunCount);
-    expect((deps.sender as FakeSender).sends.at(-1)?.text).toContain(`zaten 'approved_for_bundle' durumunda`);
+    expect(assistantClient.runCalls).toHaveLength(previousRunCount + 1);
+    const context = extractContext(assistantClient.runCalls.at(-1)!.content);
+    expect(context.learning_review.action_result).toMatchObject({
+      action: "approve",
+      previous_status: "approved",
+      new_status: "approved",
+      success: false,
+    });
   });
 
   test("invalid transition rejected -> approved is blocked", async () => {
@@ -205,8 +218,14 @@ describe("SPEC-016 Owner Learning Review & Approval Actions", () => {
     const previousRunCount = assistantClient.runCalls.length;
     await handleIncomingMessage(msg, deps);
 
-    expect(assistantClient.runCalls).toHaveLength(previousRunCount);
-    expect((deps.sender as FakeSender).sends.at(-1)?.text).toContain(`zaten 'rejected' durumunda`);
+    expect(assistantClient.runCalls).toHaveLength(previousRunCount + 1);
+    const context = extractContext(assistantClient.runCalls.at(-1)!.content);
+    expect(context.learning_review.action_result).toMatchObject({
+      action: "approve",
+      previous_status: "rejected",
+      new_status: "rejected",
+      success: false,
+    });
     const sug = ingestionStore.getLearningSuggestion("sug_3");
     expect(sug.status).toBe("rejected");
   });

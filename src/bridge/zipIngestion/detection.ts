@@ -3,7 +3,6 @@ import type { NormalizedIncomingMessage, NormalizedMediaAttachment } from "../no
 export interface ZipRoutingDecision {
   document_message_detected: boolean;
   zip_candidate_detected: boolean;
-  caption_prefix_detected: boolean;
   sender_authorized: boolean;
   unsupported_archive_detected: boolean;
 }
@@ -35,10 +34,6 @@ export function isUnsupportedArchive(attachment: NormalizedMediaAttachment | und
   );
 }
 
-export function hasZipPrefix(text: string): boolean {
-  return text.trim().toLowerCase().startsWith("#zip");
-}
-
 export function detectZipRouting(input: {
   message: NormalizedIncomingMessage;
   senderRole: string;
@@ -48,7 +43,6 @@ export function detectZipRouting(input: {
   return {
     document_message_detected: document,
     zip_candidate_detected: isZipAttachment(attachment),
-    caption_prefix_detected: hasZipPrefix(input.message.text),
     sender_authorized: input.senderRole === "owner" || input.senderRole === "manager",
     unsupported_archive_detected: isUnsupportedArchive(attachment)
   };

@@ -61,24 +61,22 @@ export function parseConversationDecisionV3Response(input: {
   }
 
   const shape = validateConversationDecisionV3Shape(value);
-  const normalization = shape.ok
-    ? normalizeConversationDecisionV3MissingPolicy(value as ConversationDecisionV3, input.adapterInput)
-    : null;
-  const evaluatedValue = normalization?.decision ?? value;
-  const semantics = validateConversationDecisionV3Semantics(
-    evaluatedValue,
-    buildConversationDecisionV3SemanticContext(input.adapterInput),
-  );
-
   if (!shape.ok) {
     return {
       ok: false,
       error_code: "SHAPE_INVALID",
       raw_preview: rawPreview(input.rawText),
-      normalization,
-      semanticValidation: semantics,
+      normalization: null,
+      semanticValidation: null,
     };
   }
+
+  const normalization = normalizeConversationDecisionV3MissingPolicy(value as ConversationDecisionV3, input.adapterInput);
+  const evaluatedValue = normalization.decision ?? value;
+  const semantics = validateConversationDecisionV3Semantics(
+    evaluatedValue,
+    buildConversationDecisionV3SemanticContext(input.adapterInput),
+  );
 
   if (!semantics.ok) {
     return {

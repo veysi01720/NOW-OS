@@ -76,16 +76,16 @@ describe("architecture seal invariants", () => {
     expect(buildAssistantRunContent as unknown).toBeDefined();
   });
 
-  it("preserves group, command, and behavior ordering before AI", () => {
+  it("preserves group, natural-owner, and behavior ordering before candidate AI", () => {
     const handleIncoming = source("src/bridge/handleIncomingMessage.ts");
     const groupGateIndex = handleIncoming.indexOf('status: "group_ignored"');
-    const commandIndex = handleIncoming.indexOf("handleOwnerCommand");
+    const ownerIntentIndex = handleIncoming.indexOf("handleOwnerNaturalLanguage");
     const behaviorIndex = handleIncoming.indexOf("BEHAVIOR_STATE_LOADED");
     const modelExecutionIndex = handleIncoming.indexOf("modelExecutionService.execute");
 
     expect(groupGateIndex).toBeGreaterThan(0);
-    expect(commandIndex).toBeGreaterThan(0);
-    expect(behaviorIndex).toBeGreaterThan(commandIndex);
+    expect(ownerIntentIndex).toBeGreaterThan(0);
+    expect(behaviorIndex).toBeGreaterThan(ownerIntentIndex);
     expect(modelExecutionIndex).toBeGreaterThan(behaviorIndex);
     expect(handleIncoming).toContain("resolveBehaviorCanaryEligibility");
     expect(handleIncoming).toContain("if (behaviorEligibility.eligible)");
@@ -202,7 +202,7 @@ describe("architecture seal invariants", () => {
     expect(modelExecutionService).not.toContain(".responses.");
   });
 
-  it("keeps Responses unselected by the primary factory and isolated to shadow runtime", () => {
+  it("keeps the rollback factory stable while global Responses selection stays explicit", () => {
     const designDocPath = join(process.cwd(), "docs/design/RESPONSES_ADAPTER_DESIGN_V1.md");
     const responsesAdapterPath = join(process.cwd(), "src/modelAdapter/ResponsesAdapter.ts");
     const factory = source("src/modelAdapter/modelAdapterFactory.ts");
@@ -211,21 +211,28 @@ describe("architecture seal invariants", () => {
         .filter((file) => !file.endsWith("ResponsesAdapter.ts"))
         .filter((file) => !file.endsWith("openaiInstallationVisionClassifier.ts"))
         .filter((file) => !file.endsWith("responsesShadowService.ts")),
-      ...filesUnder("src/bridge").filter((file) => !file.endsWith("openaiInstallationVisionClassifier.ts")),
+      ...filesUnder("src/bridge")
+        .filter((file) => !file.endsWith("openaiInstallationVisionClassifier.ts"))
+        .filter((file) => !file.endsWith("ownerNaturalLanguageIntent.ts")),
     ]
       .map((file) => source(file))
       .join("\n");
     const designDoc = readFileSync(designDocPath, "utf8");
+    const server = source("src/server.ts");
+    const ownerIntent = source("src/bridge/ownerNaturalLanguageIntent.ts");
 
     expect(existsSync(designDocPath)).toBe(true);
     expect(existsSync(responsesAdapterPath)).toBe(true);
     expect(factory).toContain("return new AssistantAdapter");
     expect(factory).not.toMatch(/ResponsesAdapter|MODEL_PROVIDER|responses\.create|\.responses\./i);
     expect(primaryRuntimeSources).not.toMatch(/MODEL_PROVIDER|responses\.create|\.responses\./i);
+    expect(server).toContain("env.modelAdapterLayerEnabled");
+    expect(server).toContain("createOpenAIResponsesAdapter");
+    expect(ownerIntent).toContain("responses.create");
+    expect(ownerIntent).toContain("store: false");
     expect(source("src/modelAdapter/responsesShadowService.ts")).toContain("outbound_allowed: false");
     expect(source("src/modelAdapter/responsesShadowService.ts")).toContain("state_writes_allowed: false");
     expect(source("src/modelAdapter/responsesShadowService.ts")).not.toMatch(/sendText|EvolutionApiSender|UserStateStore|MemoryStore|QueueStore/);
-    expect(designDoc).toContain("SHADOW-WIRED / PRIMARY RUNTIME UNSELECTED");
     expect(designDoc).toContain("Breaking changes required: NO");
     expect(designDoc).not.toMatch(/sk-[A-Za-z0-9_-]+|@s\.whatsapp\.net|@g\.us|905\d{9}/);
   });

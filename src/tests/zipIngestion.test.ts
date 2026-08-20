@@ -178,14 +178,14 @@ describe("Phase 3 ZIP ingestion pipeline", () => {
     }
   });
 
-  it("owner zip without #zip asks for prefix", async () => {
+  it("owner zip is ingested without a command prefix", async () => {
     const dir = tempDir();
     try {
       const testDeps = deps(dir);
       await handleIncomingMessage(message({ text: "" }), testDeps);
 
-      expect(testDeps.sender.sends[0]?.text).toContain("#zip");
-      expect(testDeps.zipIngestionStore.listJobs()).toHaveLength(0);
+      expect(testDeps.sender.sends[0]?.text).toContain("1 bolum tespit edildi");
+      expect(testDeps.zipIngestionStore.listJobs()).toHaveLength(1);
       expect(testDeps.assistantClient.runCalls).toHaveLength(0);
     } finally {
       rmSync(dir, { recursive: true, force: true });
@@ -408,7 +408,7 @@ describe("Phase 3 ZIP ingestion pipeline", () => {
     }
   });
 
-  it("#bilgi creates review candidates without activating knowledge", () => {
+  it("direct owner knowledge creates review candidates without activating knowledge", () => {
     const dir = tempDir();
     try {
       const store = new ZipIngestionStore(join(dir, "zip-store.json"));

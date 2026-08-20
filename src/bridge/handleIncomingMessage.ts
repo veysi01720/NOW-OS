@@ -36,7 +36,6 @@ import type {
 } from "../storage/types.js";
 import type { MaintenanceStore } from "../store/maintenanceStore.js";
 import type { ActionAuditStore } from "../store/actionAuditStore.js";
-import { handleOwnerCommand } from "./ownerCommands.js";
 import { guardUnbackedOwnerSuccessClaim } from "./ownerSuccessClaimGuard.js";
 import { waitForHumanReplyDelay } from "./humanReplyDelay.js";
 import {
@@ -84,9 +83,11 @@ import {
   verifyInstallationMedia,
   type InstallationVerificationClassifier,
 } from "./installationVerification.js";
-import { buildOwnerKnowledgeReviewSummary, materializeApprovedOwnerKnowledge, persistOwnerKnowledgeReviewSummary } from "./ownerKnowledgeTransfer.js";
-import { buildZipIngestionOutcomeReply, createDirectOwnerKnowledgeReview } from "./ownerKnowledgeIntake.js";
+import { persistOwnerKnowledgeReviewSummary } from "./ownerKnowledgeTransfer.js";
+import { buildZipIngestionOutcomeReply } from "./ownerKnowledgeIntake.js";
 import { applyOwnerTone, type OwnerToneContext } from "./ownerTone.js";
+import type { OwnerNaturalLanguageIntentClassifier } from "./ownerNaturalLanguageIntent.js";
+import { handleOwnerNaturalLanguage } from "./ownerNaturalLanguageFlow.js";
 
 function requiresInstallationVerification(text: string): boolean {
   const normalized = text.toLocaleLowerCase("tr-TR").normalize("NFKD").replace(/\p{M}/gu, "").replace(/Ä±/gu, "i");
@@ -102,6 +103,7 @@ export interface HandleIncomingMessageDeps {
     runAssistant(threadId: string, content: string): Promise<string>;
   };
   modelExecutionService?: ModelExecutionService;
+  ownerNaturalLanguageIntentClassifier?: OwnerNaturalLanguageIntentClassifier;
   sender: EvolutionSender;
   threadStore: ThreadStore;
   memoryStore: MemoryStore;
@@ -502,12 +504,6 @@ function parseInstallationOwnerReply(text: string): { suffix: string; decision: 
   return { suffix: match[1], decision: "rejected", correction: value };
 }
 
-function parseOwnerQueryReply(text: string): { suffix: string; answer: string } | null {
-  const match = text.trim().match(/^(?:cevap|yanıt|yanit)\s+(\d{4})\s+([\s\S]+)$/iu);
-  if (!match || match[2].trim() === "") return null;
-  return { suffix: match[1], answer: match[2].trim() };
-}
-
 function modelExecutionServiceFor(deps: HandleIncomingMessageDeps): ModelExecutionService {
   if (deps.modelExecutionService) {
     return deps.modelExecutionService;
@@ -746,36 +742,6 @@ export async function handleIncomingMessage(
       return latencyTracker.finish({ status: "sent", correlation_id: message.correlation_id });
     }
   }
-  if ((senderRole === "owner" || senderRole === "manager") && message.chat_type === "private" && deps.humanHandoffStore && !message.text.trim().startsWith("#")) {
-    const pendingOwnerQueries = deps.humanHandoffStore.listPendingOwnerQueries();
-    const targetedReply = parseOwnerQueryReply(message.text);
-    const suffixMatches = targetedReply
-      ? pendingOwnerQueries.filter((item) => item.owner_query?.candidate_phone.endsWith(targetedReply.suffix))
-      : [];
-    if (targetedReply && suffixMatches.length !== 1) {
-      await sendReply(message, `Aday ${targetedReply.suffix} için tek bir bekleyen soru bulunamadı; hiçbir yanıt iletilmedi.`, deps, latencyTracker);
-      return latencyTracker.finish({ status: "sent", correlation_id: message.correlation_id });
-    }
-    if (!targetedReply && pendingOwnerQueries.length > 1) {
-      const suffixes = pendingOwnerQueries.map((item) => item.owner_query?.candidate_phone.slice(-4)).filter(Boolean).join(", ");
-      await sendReply(message, `Birden fazla bekleyen aday var (${suffixes}). Yanıtı "cevap 1234 <mesaj>" biçiminde gönder; hiçbir yanıt iletilmedi.`, deps, latencyTracker);
-      return latencyTracker.finish({ status: "sent", correlation_id: message.correlation_id });
-    }
-    const pendingOwnerQuery = targetedReply ? suffixMatches[0] : pendingOwnerQueries[0];
-    if (pendingOwnerQuery?.owner_query) {
-      const candidateMessage = syntheticPrivateMessage(pendingOwnerQuery.owner_query.candidate_phone, "", message.correlation_id);
-      const candidateReply = targetedReply?.answer ?? message.text.trim();
-      try {
-        await deps.sender.sendText({ message: candidateMessage, text: candidateReply });
-        deps.humanHandoffStore.resolveOwnerQuery(pendingOwnerQuery.handoff_id);
-        logger.info({ event_type: "OWNER_ANSWER_RELAYED_TO_CANDIDATE", correlation_id: message.correlation_id, handoff_id: pendingOwnerQuery.handoff_id, candidate_last4: pendingOwnerQuery.owner_query.candidate_phone.slice(-4), raw_text_logged: false });
-        await sendReply(message, "Yanıt adaya iletildi.", deps, latencyTracker);
-        return latencyTracker.finish({ status: "sent", correlation_id: message.correlation_id });
-      } catch (error) {
-        logger.error({ event_type: "OWNER_ANSWER_RELAY_FAILED", correlation_id: message.correlation_id, handoff_id: pendingOwnerQuery.handoff_id, error: redactSecrets(error instanceof Error ? error.message : String(error)), raw_text_logged: false });
-      }
-    }
-  }
   const zipRouting = detectZipRouting({ message, senderRole });
   if (zipRouting.document_message_detected) {
     if (zipRouting.unsupported_archive_detected) {
@@ -788,14 +754,8 @@ export async function handleIncomingMessage(
       return latencyTracker.finish({ status: "sent", correlation_id: message.correlation_id });
     }
 
-    if (zipRouting.zip_candidate_detected && !zipRouting.caption_prefix_detected) {
-      await sendReply(message, "ZIP islemi icin dosyayi #zip notuyla gondermelisin.", deps, latencyTracker);
-      return latencyTracker.finish({ status: "sent", correlation_id: message.correlation_id });
-    }
-
     if (
       zipRouting.zip_candidate_detected &&
-      zipRouting.caption_prefix_detected &&
       zipRouting.sender_authorized &&
       deps.zipIngestionStore
     ) {
@@ -827,7 +787,7 @@ export async function handleIncomingMessage(
         `ZIP inceleme ozeti: ${reviewSummary.job_id}`,
         `Bolumler: ${reviewSummary.detected_sections.length}`,
         ...reviewSummary.detected_sections.map((section) => `${section.section_id}=${section.classification}; hedef=${section.target_file}; durum=${section.status}`),
-        "Aktif bilgi degistirilmedi; owner onayi bekleniyor.",
+        "Aktif bilgi degistirilmedi. Istedigin bolumleri basliklariyla dogal dilde soyleyebilirsin.",
       ].join("\n");
       await notifyTrainingOwner(deps, summaryText, message.correlation_id, "knowledge_review");
       logger.info({
@@ -886,116 +846,37 @@ export async function handleIncomingMessage(
       return { status: "sent", correlation_id: message.correlation_id };
     }
   }
-  const directKnowledgeMatch = message.text.trim().match(/^#bilgi(?:\s+([\s\S]+))?$/i);
-  if (directKnowledgeMatch) {
-    if ((senderRole !== "owner" && senderRole !== "manager") || message.chat_type !== "private") {
-      await sendReply(message, "Bu bilgi komutu yalnızca owner veya manager tarafından private kanalda kullanılabilir.", deps, latencyTracker);
+  if ((senderRole === "owner" || senderRole === "manager") && message.chat_type === "private") {
+    const naturalOwnerResult = await handleOwnerNaturalLanguage(message, senderRole, {
+      classifier: deps.ownerNaturalLanguageIntentClassifier,
+      zipStore: deps.zipIngestionStore,
+      knowledgeBankDir: deps.knowledgeBankDir,
+      actionAuditStore: deps.actionAuditStore,
+      humanHandoffStore: deps.humanHandoffStore,
+      installationReviewStore: deps.installationVerificationReviewStore,
+      reportDataSource: deps.reportDataSource,
+      sourceInstance: deps.env.evolutionInstance,
+      logger,
+      sendToCandidate: async (phone, text) => {
+        await deps.sender.sendText({ message: syntheticPrivateMessage(phone, "", message.correlation_id), text });
+      },
+    });
+    if (naturalOwnerResult.handled && naturalOwnerResult.reply) {
+      const guarded = guardUnbackedOwnerSuccessClaim({
+        reply: naturalOwnerResult.reply,
+        senderRole,
+        executionSucceeded: naturalOwnerResult.executionSucceeded === true,
+      });
+      logger.info({
+        event_type: naturalOwnerResult.eventType ?? "OWNER_NATURAL_LANGUAGE_HANDLED",
+        correlation_id: message.correlation_id,
+        execution_succeeded: naturalOwnerResult.executionSucceeded === true,
+        success_claim_blocked: guarded.blocked,
+        raw_text_logged: false,
+      });
+      await sendReply(message, guarded.reply, deps, latencyTracker);
       return latencyTracker.finish({ status: "sent", correlation_id: message.correlation_id });
     }
-    if (!deps.zipIngestionStore) {
-      await sendReply(message, "Bilgi inceleme kuyruğu hazır değil; aktif bilgi değiştirilmedi.", deps, latencyTracker);
-      return latencyTracker.finish({ status: "zip_ingestion_failed", correlation_id: message.correlation_id });
-    }
-    const directResult = createDirectOwnerKnowledgeReview({
-      text: directKnowledgeMatch[1] ?? "",
-      senderRole: senderRole === "manager" ? "manager" : "owner",
-      senderPhone: message.phone_number,
-      sourceInstance: deps.env.evolutionInstance,
-      zipStore: deps.zipIngestionStore,
-      logger,
-    });
-    if (directResult.status === "rejected") {
-      await sendReply(message, "Bilgi metni boş veya anlamlı bir bölüm içermiyor; aktif bilgi değiştirilmedi.", deps, latencyTracker);
-      return latencyTracker.finish({ status: "zip_ingestion_failed", correlation_id: message.correlation_id });
-    }
-    if (directResult.status === "duplicate") {
-      await sendReply(message, "Bu bilgi daha önce inceleme kuyruğuna alındı, yeni bölüm bulunamadı. Aktif bilgi değiştirilmedi.", deps, latencyTracker);
-      return latencyTracker.finish({ status: "zip_ingestion_duplicate", correlation_id: message.correlation_id });
-    }
-    const directProcess = directResult.result!;
-    const reviewSummary = persistOwnerKnowledgeReviewSummary(directProcess.job, directProcess.candidates);
-    const summaryText = [
-      `Bilgi inceleme ozeti: ${reviewSummary.job_id}`,
-      `Bolumler: ${reviewSummary.detected_sections.length}`,
-      ...reviewSummary.detected_sections.map((section) => `${section.section_id}=${section.classification}; hedef=${section.target_file}; durum=${section.status}`),
-      "Aktif bilgi degistirilmedi; owner onayi bekleniyor.",
-    ].join("\n");
-    await notifyTrainingOwner(deps, summaryText, message.correlation_id, "knowledge_review");
-    const reviewReply = directProcess.candidates.length === 1
-      ? "1 bolum tespit edildi. Aktif bilgi degistirilmedi. Onayliyor musun? (evet/hayir)"
-      : `${directProcess.candidates.length} bolum tespit edildi, owner onayini bekliyor. Aktif bilgi degistirilmedi.`;
-    await sendReply(message, reviewReply, deps, latencyTracker);
-    logger.info({ event_type: "OWNER_KNOWLEDGE_REVIEW_SUMMARY_CREATED", correlation_id: message.correlation_id, job_id: reviewSummary.job_id, section_count: reviewSummary.detected_sections.length, active_claim: false });
-    return latencyTracker.finish({ status: "zip_ingestion_started", correlation_id: message.correlation_id });
-  }
-  if ((senderRole === "owner" || senderRole === "manager") && message.chat_type === "private" && deps.zipIngestionStore) {
-    const decision = message.text.trim().normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
-    const isYes = decision === "evet" || decision === "onayliyorum" || decision === "tamam";
-    const isNo = decision === "hayir" || decision === "iptal";
-    if (isYes || isNo) {
-      const pending = deps.zipIngestionStore.listLearningCandidates().filter((candidate) => candidate.source === "owner_direct_text" && candidate.status === "pending_owner_review");
-      const jobIds = [...new Set(pending.map((candidate) => candidate.source_job_id))];
-      if (jobIds.length === 1 && pending.length === 1) {
-        const candidate = pending[0];
-        if (isNo) {
-          const rejected = deps.zipIngestionStore.reviewLearningCandidate(candidate.id, "reject", senderRole === "manager" ? "manager" : "owner");
-          await sendReply(message, rejected?.status === "rejected" ? "Bilgi reddedildi; aktif bilgi degismedi." : "Bilgi reddedilemedi; aktif bilgi degismedi.", deps, latencyTracker);
-          return latencyTracker.finish({ status: "sent", correlation_id: message.correlation_id });
-        }
-        const approved = deps.zipIngestionStore.reviewLearningCandidate(candidate.id, "approve", senderRole === "manager" ? "manager" : "owner");
-        if (!approved || approved.status !== "approved_for_bundle") {
-          await sendReply(message, "Bilgi onaylanamadi; aktif bilgi degismedi.", deps, latencyTracker);
-          return latencyTracker.finish({ status: "sent", correlation_id: message.correlation_id });
-        }
-        const result = materializeApprovedOwnerKnowledge({
-          jobId: candidate.source_job_id,
-          zipStore: deps.zipIngestionStore,
-          knowledgeBankDir: deps.knowledgeBankDir,
-          actionAuditStore: deps.actionAuditStore,
-          actorRole: senderRole === "manager" ? "manager" : "owner",
-        });
-        if (result.status !== "published" || !result.verification) {
-          await sendReply(message, `Bilgi onaylandi ancak uygulanamadi; aktif bilgi degismedi. Hata: ${result.error_code ?? result.status}.`, deps, latencyTracker);
-          return latencyTracker.finish({ status: "sent", correlation_id: message.correlation_id });
-        }
-        const verification = result.verification;
-        await sendReply(message, `Bilgi uygulandi: 1 bolum; aktif hash=${result.active_version_hash_masked}; fact_count=${result.fact_count}; activation_status=${result.activation_status}; rollback_pointer=${result.rollback_pointer}; source_present=${verification.source_present}; structured_fields=${verification.structured_fields.join(",")}; context_paths=${verification.context_paths.join(",")}.`, deps, latencyTracker);
-        return latencyTracker.finish({ status: "sent", correlation_id: message.correlation_id });
-      }
-    }
-  }
-  const ownerCommandRes = handleOwnerCommand(
-    message,
-    senderRole,
-    deps.env,
-    deps.queueStore,
-    deps.ingestionStore,
-    deps.maintenanceStore,
-    { zipIngestionStore: deps.zipIngestionStore, actionAuditStore: deps.actionAuditStore, knowledgeBankDir: deps.knowledgeBankDir },
-  );
-  if (ownerCommandRes.is_command && ownerCommandRes.reply_text) {
-    logger.info({
-      event_type: "OWNER_COMMAND_EXECUTED",
-      correlation_id: message.correlation_id,
-      message_id: message.message_id,
-      command_text: message.text.trim().toLowerCase(),
-    });
-    const guardedOwnerCommandReply = guardUnbackedOwnerSuccessClaim({
-      reply: ownerCommandRes.reply_text,
-      senderRole,
-      executionSucceeded: ownerCommandRes.execution_succeeded === true,
-    });
-    if (guardedOwnerCommandReply.blocked) {
-      logger.warn({
-        event_type: "OWNER_SUCCESS_CLAIM_BLOCKED",
-        correlation_id: message.correlation_id,
-        reason: guardedOwnerCommandReply.reason,
-        sender_role: senderRole,
-        command_path: true,
-      });
-    }
-    await sendReply(message, guardedOwnerCommandReply.reply, deps, latencyTracker);
-    return latencyTracker.finish({ status: "sent", correlation_id: message.correlation_id });
   }
   const lockedResult: HandleIncomingMessageResult = await deps.userRunLock.runExclusive(conversationKey, async () => {
     const storedState =
@@ -1050,7 +931,7 @@ export async function handleIncomingMessage(
           `Kararin yeterli: gorsel ${review.candidate_phone_last4} onay veya gorsel ${review.candidate_phone_last4} red.`
         ].join("\n");
         const ownerSent = await notifyInstallationOwner(deps, ownerTextBase, message.correlation_id);
-        deps.installationVerificationReviewStore.markOwnerNotified(review.review_id);
+        if (ownerSent) deps.installationVerificationReviewStore.markOwnerNotified(review.review_id);
         const teamTimer = setTimeout(async () => {
           const pending = deps.installationVerificationReviewStore?.pendingForCandidate(review.candidate_phone);
           if (!pending || pending.team_escalated) return;

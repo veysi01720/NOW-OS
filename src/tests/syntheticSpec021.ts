@@ -1,6 +1,5 @@
 import { logger } from "../utils/logger.js";
 import { PersistentMaintenanceStore } from "../store/maintenanceStore.js";
-import { handleOwnerCommand } from "../bridge/ownerCommands.js";
 import { resolve } from "node:path";
 import { rmSync } from "node:fs";
 
@@ -30,19 +29,6 @@ async function runTest() {
   
   const maintStoreReload = new PersistentMaintenanceStore(maintPath);
   console.log("Reloaded maintenance enabled:", maintStoreReload.isEnabled());
-
-  // 3. Owner Emergency Commands Test
-  console.log("\n[3] Testing Owner Emergency Commands...");
-  const mockMessage: any = {
-    chat_type: "private",
-    text: "güvenlik kontrolü yap",
-    phone_number: "905393157701"
-  };
-  const mockEnv: any = { realOpenaiPublishEnabled: false };
-  
-  const result = handleOwnerCommand(mockMessage, "owner", mockEnv, undefined, undefined, maintStore);
-  console.log("Is Command:", result.is_command);
-  console.log("Reply:\n" + result.reply_text);
 
   console.log("\nTest Completed.");
 }

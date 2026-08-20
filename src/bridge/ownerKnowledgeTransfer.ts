@@ -25,6 +25,14 @@ export interface OwnerKnowledgeReviewSummary {
   active_claim: false;
 }
 
+export interface OwnerKnowledgeRollbackResult {
+  status: "rolled_back" | "failed" | "not_available";
+  active_version_hash_masked: string | null;
+  fact_count: number;
+  rollback_pointer: string | null;
+  error_code?: string;
+}
+
 export interface OwnerKnowledgeMaterializationResult {
   status: "published" | "failed" | "no_approved_sections";
   job_id: string;
@@ -222,5 +230,98 @@ export function materializeApprovedOwnerKnowledge(input: {
     const actorRole = input.actorRole ?? "owner";
     input.actionAuditStore?.logAction({ action_type: "owner_knowledge_transfer_failed", actor_role: actorRole, actor_masked_ref: "authenticated-owner", role_resolution_source: actorRole === "manager" ? "manager_token" : "owner_token", target_type: "learning", target_safe_ref: job.id, risk_level: "HIGH", confirm_required: true, confirmed: true, result_status: "failure", error_safe_message: code, new_status: "failed_previous_version_preserved" });
     return { status: "failed", job_id: job.id, approved_section_ids: [], rejected_section_ids: rejected, active_version_hash_masked: null, fact_count: 0, activation_status: "failed_previous_version_preserved", rollback_pointer: backupPath, error_code: code };
+  }
+}
+
+export function rollbackLastOwnerKnowledge(input: {
+  zipStore: ZipIngestionStore;
+  knowledgeBankDir?: string;
+  actionAuditStore?: ActionAuditStore;
+  actorRole?: "owner" | "manager";
+}): OwnerKnowledgeRollbackResult {
+  const dir = resolve(input.knowledgeBankDir ?? process.env.KNOWLEDGE_BANK_DIR ?? resolve("data", "knowledge_bank"));
+  const appFactsPath = resolve(dir, "app_facts.md");
+  const rollbackPath = resolve(dir, "owner_knowledge_transfer_rollback.json");
+  if (!existsSync(rollbackPath)) {
+    return { status: "not_available", active_version_hash_masked: null, fact_count: 0, rollback_pointer: null };
+  }
+  const actorRole = input.actorRole ?? "owner";
+  let current = "";
+  const structuredPath = resolve(dir, "app_facts_structured.json");
+  const manifestPath = resolve(dir, "structured_knowledge_manifest.json");
+  const routingPath = resolve(dir, "app_routing_rules.md");
+  const artifactSnapshot = new Map<string, string | null>();
+  for (const path of [structuredPath, manifestPath, routingPath]) {
+    artifactSnapshot.set(path, existsSync(path) ? readFileSync(path, "utf8") : null);
+  }
+  let rollback: { backup_path?: string; section_hashes?: Array<{ section_id: string; section_hash: string }> } = {};
+  try {
+    rollback = JSON.parse(readFileSync(rollbackPath, "utf8")) as typeof rollback;
+    if (!rollback.backup_path || !existsSync(rollback.backup_path)) throw new Error("ROLLBACK_BACKUP_MISSING");
+    current = readFileSync(appFactsPath, "utf8");
+    const previous = readFileSync(rollback.backup_path, "utf8");
+    const redoBackup = `${appFactsPath}.backup-before-rollback-${Date.now()}`;
+    writeFileSync(redoBackup, current, { encoding: "utf8", mode: 0o600 });
+    atomicWrite(appFactsPath, previous);
+    const publish = publishStructuredKnowledgeSources({ knowledgeBankDir: dir, mode: "activate", ownerApproval: true });
+    if (publish.status !== "published") throw new Error(`ROLLBACK_PUBLISH_${publish.status.toUpperCase()}`);
+    const rolledBackIds = input.zipStore.listLearningCandidates()
+      .filter((candidate) => candidate.status === "published" && (rollback.section_hashes ?? []).some((item) => (
+        item.section_id === (candidate.section_id ?? candidate.id)
+        && item.section_hash === (candidate.section_hash ?? sha256(candidate.extracted_text))
+      )))
+      .map((candidate) => candidate.id);
+    input.zipStore.markLearningCandidatesRolledBack(rolledBackIds, actorRole);
+    atomicWrite(rollbackPath, `${JSON.stringify({
+      previous_source_hash: sha256(previous),
+      backup_path: redoBackup,
+      created_at: new Date().toISOString(),
+      rollback_of_section_hashes: rollback.section_hashes ?? [],
+      section_hashes: [],
+    }, null, 2)}\n`);
+    input.actionAuditStore?.logAction({
+      action_type: "owner_knowledge_transfer_rolled_back",
+      actor_role: actorRole,
+      actor_masked_ref: "authenticated-owner",
+      role_resolution_source: actorRole === "manager" ? "manager_token" : "owner_token",
+      target_type: "learning",
+      target_safe_ref: "latest_owner_knowledge_change",
+      risk_level: "HIGH",
+      confirm_required: false,
+      confirmed: true,
+      result_status: "success",
+      new_status: "rolled_back",
+      sanitized_reason: JSON.stringify({ rolled_back_section_count: rolledBackIds.length, active_version_hash_masked: maskHash(publish.structured_hash) }),
+    });
+    return {
+      status: "rolled_back",
+      active_version_hash_masked: maskHash(publish.structured_hash),
+      fact_count: publish.app_fact_count,
+      rollback_pointer: redoBackup,
+    };
+  } catch (error) {
+    if (current !== "") atomicWrite(appFactsPath, current);
+    for (const [path, content] of artifactSnapshot) {
+      if (content === null) {
+        if (existsSync(path)) unlinkSync(path);
+      } else {
+        atomicWrite(path, content);
+      }
+    }
+    const code = error instanceof Error ? error.message : "ROLLBACK_FAILED";
+    input.actionAuditStore?.logAction({
+      action_type: "owner_knowledge_transfer_rollback_failed",
+      actor_role: actorRole,
+      actor_masked_ref: "authenticated-owner",
+      role_resolution_source: actorRole === "manager" ? "manager_token" : "owner_token",
+      target_type: "learning",
+      target_safe_ref: "latest_owner_knowledge_change",
+      risk_level: "HIGH",
+      confirm_required: false,
+      confirmed: true,
+      result_status: "failure",
+      error_safe_message: code,
+    });
+    return { status: "failed", active_version_hash_masked: null, fact_count: 0, rollback_pointer: null, error_code: code };
   }
 }

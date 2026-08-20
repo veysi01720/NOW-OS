@@ -18,6 +18,7 @@ import { FileWhatsAppLearningStore } from "./store/whatsappLearningStore.js";
 import { FileWhatsAppVisualResearchStore } from "./store/whatsappVisualResearchStore.js";
 import { ModelExecutionService, type ModelExecutionRuntimeSnapshot } from "./modelAdapter/modelExecutionService.js";
 import { createOpenAIResponsesAdapter } from "./modelAdapter/ResponsesAdapter.js";
+import { createOpenAIOwnerNaturalLanguageIntentClassifier } from "./bridge/ownerNaturalLanguageIntent.js";
 import { ResponsesShadowService, type ResponsesShadowSnapshot } from "./modelAdapter/responsesShadowService.js";
 import { ConnectionHealthMonitor } from "./observability/connectionHealthMonitor.js";
 import { resolve } from "node:path";
@@ -329,6 +330,12 @@ export async function buildServer() {
       model: env.openaiResponsesModel,
     })
     : undefined;
+  const ownerNaturalLanguageIntentClassifier = env.openaiResponsesModel
+    ? await createOpenAIOwnerNaturalLanguageIntentClassifier({
+      apiKey: env.openaiApiKey,
+      model: env.openaiResponsesModel,
+    })
+    : undefined;
   if (env.responsesShadowEnabled && env.responsesShadowMode !== "off" && responsesAdapter) {
     responsesShadowService = new ResponsesShadowService(
       responsesAdapter,
@@ -481,6 +488,7 @@ export async function buildServer() {
     env,
     assistantClient,
     modelExecutionService,
+    ownerNaturalLanguageIntentClassifier,
     sender: new EvolutionApiSender(env),
     reliabilityQueueStore,
     threadStore: persistentStore.threadStore,

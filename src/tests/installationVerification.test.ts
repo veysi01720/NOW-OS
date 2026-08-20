@@ -107,6 +107,30 @@ describe("installation verification media boundary", () => {
     expect(deps.sender.sends.at(-1)?.text).toContain("onaylandı");
   });
 
+  it("does not mark the owner as notified when every owner outbound fails", async () => {
+    const stateStore = new InMemoryUserStateStore();
+    const reviewStore = new InstallationVerificationReviewStore(join(mkdtempSync(join(tmpdir(), "install-review-notify-fail-")), "reviews.json"));
+    stateStore.states.set("905333333333", { ...defaultUserState(), current_state: "INSTALLATION_IN_PROGRESS", installation_status: "in_progress" });
+    const sends: Array<{ message: NormalizedIncomingMessage; text: string }> = [];
+    const sender = {
+      sendText: async (input: { message: NormalizedIncomingMessage; text: string }) => {
+        if (["905111111111", "905222222222"].includes(input.message.phone_number)) throw new Error("owner outbound unavailable");
+        sends.push(input);
+      },
+    };
+    const result = await handleIncomingMessage(imageMessage(clearInstallationScreenshot, { message_id: "owner-notify-fail" }), {
+      ...baseDeps(),
+      sender,
+      env: createTestEnv({ installationVisionEnabled: true, installationVisionAllowedCandidates: ["905333333333"] }),
+      userStateStore: stateStore,
+      installationVerificationReviewStore: reviewStore,
+      installationVerificationClassifier: () => ({ status: "clear" as const, sanitized_result: "INSTALLATION_COMPLETE_CONFIRMED" }),
+    });
+    expect(result.status).toBe("sent");
+    expect(reviewStore.list()[0]?.owner_notification_sent).toBe(false);
+    expect(sends.at(-1)?.text).toContain("kontrol ediliyor");
+  });
+
   it("keeps state unchanged and records an ambiguous verification handoff", async () => {
     const stateStore = new InMemoryUserStateStore();
     stateStore.states.set("905333333333", {

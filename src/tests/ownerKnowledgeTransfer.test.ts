@@ -102,7 +102,7 @@ describe("owner knowledge transfer chain", () => {
     }
   });
 
-  it("materializes #bilgi content only after the review approval", () => {
+  it("materializes owner knowledge content only after review approval", () => {
     const dir = mkdtempSync(join(tmpdir(), "owner-direct-text-"));
     try {
       const bank = join(dir, "knowledge_bank");
