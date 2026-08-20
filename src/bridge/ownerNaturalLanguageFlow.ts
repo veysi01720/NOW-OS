@@ -19,6 +19,7 @@ import type {
 import type { ZipLearningCandidateRecord } from "./zipIngestion/types.js";
 import type { ZipIngestionStore } from "./zipIngestion/store.js";
 import { buildOwnerKnowledgeActivationReply } from "./ownerTone.js";
+import { executeOwnerOperationalQuery } from "./ownerOperationalQuery.js";
 
 export interface OwnerNaturalLanguageFlowResult {
   handled: boolean;
@@ -236,6 +237,46 @@ export async function handleOwnerNaturalLanguage(
 
   if (decision.confidence < 0.65) {
     return { handled: true, reply: decision.clarification_question ?? "Ne yapmamı istediğini güvenle ayıramadım. Bilgi mi ekliyorsun, bir adaya mesaj mı iletiyorsun?", executionSucceeded: false, eventType: "OWNER_NATURAL_INTENT_LOW_CONFIDENCE" };
+  }
+  if (decision.intent === "operational_query") {
+    const result = executeOwnerOperationalQuery({
+      decision,
+      actorRole,
+      reportDataSource: deps.reportDataSource,
+      humanHandoffStore: deps.humanHandoffStore,
+    });
+    deps.actionAuditStore?.logAction({
+      action_type: "owner_operational_query",
+      actor_role: actorRole,
+      actor_masked_ref: "authenticated-owner",
+      role_resolution_source: "unknown",
+      target_type: "system",
+      target_safe_ref: `opq_${message.correlation_id.slice(-12)}`,
+      risk_level: "LOW",
+      confirm_required: false,
+      confirmed: false,
+      result_status: result.executionSucceeded ? "success" : "failure",
+      sanitized_reason: `kind=${result.queryKind};window_minutes=${result.timeWindowMinutes};evidence_count=${result.evidenceIds.length}`,
+    });
+    deps.logger.info({
+      event_type: result.executionSucceeded
+        ? "OWNER_OPERATIONAL_QUERY_EXECUTED"
+        : "OWNER_OPERATIONAL_QUERY_FAILED",
+      correlation_id: message.correlation_id,
+      query_kind: result.queryKind,
+      time_window_minutes: result.timeWindowMinutes,
+      evidence_count: result.evidenceIds.length,
+      result_status: result.executionSucceeded ? "success" : "failure",
+      raw_text_logged: false,
+    });
+    return {
+      handled: true,
+      reply: result.reply,
+      executionSucceeded: result.executionSucceeded,
+      eventType: result.executionSucceeded
+        ? "OWNER_OPERATIONAL_QUERY_REPLIED"
+        : "OWNER_OPERATIONAL_QUERY_UNAVAILABLE",
+    };
   }
   if (decision.intent === "normal_chat") return { handled: false };
   if (decision.intent === "show_knowledge_details") {

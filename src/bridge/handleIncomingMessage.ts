@@ -581,6 +581,7 @@ function recordEvent(
     sendtext_status: input.sendtextStatus,
     fallback_used: input.fallbackUsed,
     internal_boss_note_logged: input.internalBossNoteLogged,
+    sender_last4: input.message.phone_number.replace(/\D/g, "").slice(-4) || undefined,
   });
 }
 
@@ -709,6 +710,13 @@ export async function handleIncomingMessage(
   const authorityContext = resolveAuthorityContext(message, deps.env);
   const senderRole = authorityContext.sender_role;
   const isCandidate = senderRole === "candidate";
+  deps.eventLogStore?.recordInboundActivity?.({
+    evidence_id: message.correlation_id,
+    occurred_at: message.received_at,
+    sender_role: senderRole,
+    chat_type: message.chat_type,
+    sender_last4: message.phone_number.replace(/\D/g, "").slice(-4) || null,
+  });
 
   if ((senderRole === "owner" || senderRole === "manager") && message.chat_type === "private" && deps.installationVerificationReviewStore) {
     const ownerDecision = parseInstallationOwnerReply(message.text);

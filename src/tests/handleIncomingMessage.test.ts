@@ -1148,4 +1148,80 @@ describe("handleIncomingMessage", () => {
     expect(result.status).toBe("sent");
     expect(testDeps.assistantClient.runCalls).toHaveLength(1);
   });
+
+  it("answers a natural owner activity question from read-only evidence without invoking the conversation model", async () => {
+    const reportDataSource = new InMemoryReportDataSource();
+    vi.spyOn(reportDataSource, "listRecentInboundActivity").mockReturnValue([
+      {
+        evidence_id: "corr_recent_candidate",
+        occurred_at: new Date(Date.now() - 60_000).toISOString(),
+        sender_last4: "3623",
+        current_state: "WORK_MODEL_ACCEPTANCE",
+        sendtext_status: "success",
+      },
+    ]);
+    const testDeps = deps('{}');
+    const auditLogs: Array<Record<string, unknown>> = [];
+    const result = await handleIncomingMessage(
+      message({
+        sender_id: "905111111111",
+        phone_number: "905111111111",
+        remote_jid: "905111111111@s.whatsapp.net",
+        text: "Mesaj atan var mı?",
+      }),
+      {
+        ...testDeps,
+        reportDataSource,
+        actionAuditStore: {
+          logAction: (entry: Record<string, unknown>) => auditLogs.push(entry),
+          getRecentLogs: () => [],
+          hasIdempotencyKey: () => false,
+        } as any,
+        ownerNaturalLanguageIntentClassifier: ownerIntent({
+          intent: "operational_query",
+          operational_query_kind: "recent_inbound_activity",
+          operational_time_window_minutes: 60,
+        }),
+      },
+    );
+
+    expect(result.status).toBe("sent");
+    expect(testDeps.assistantClient.runCalls).toHaveLength(0);
+    expect(testDeps.sender.sends[0]?.text).toContain("1 aday mesajı kayda girdi");
+    expect(testDeps.sender.sends[0]?.text).toContain("3623 ile biten hattan");
+    expect(testDeps.logger.events).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        event_type: "OWNER_OPERATIONAL_QUERY_EXECUTED",
+        query_kind: "recent_inbound_activity",
+        evidence_count: 2,
+      }),
+    ]));
+    expect(auditLogs).toEqual([
+      expect.objectContaining({
+        action_type: "owner_operational_query",
+        result_status: "success",
+        sanitized_reason: "kind=recent_inbound_activity;window_minutes=60;evidence_count=2",
+      }),
+    ]);
+    expect(JSON.stringify(auditLogs)).not.toContain("Mesaj atan var mı");
+  });
+
+  it("never exposes owner operational capabilities to a candidate role", async () => {
+    const testDeps = deps('{}');
+    await handleIncomingMessage(
+      message({ text: "Mesaj atan var mı?", message_id: "candidate-operational-query" }),
+      {
+        ...testDeps,
+        ownerNaturalLanguageIntentClassifier: ownerIntent({
+          intent: "operational_query",
+          operational_query_kind: "recent_inbound_activity",
+          operational_time_window_minutes: 60,
+        }),
+      },
+    );
+
+    expect(testDeps.assistantClient.runCalls.length).toBeGreaterThan(0);
+    expect(testDeps.sender.sends[0]?.text).not.toContain("aday mesajı kayda girdi");
+    expect(testDeps.logger.events.some((event) => event.event_type === "OWNER_OPERATIONAL_QUERY_EXECUTED")).toBe(false);
+  });
 });

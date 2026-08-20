@@ -65,10 +65,28 @@ export interface EventLogInput {
   fallback_used: boolean;
   internal_boss_note_logged: boolean;
   active_bundle_version?: string;
+  sender_last4?: string;
+}
+
+export interface RecentInboundActivity {
+  evidence_id: string;
+  occurred_at: string;
+  sender_last4: string | null;
+  current_state: string;
+  sendtext_status: string;
+}
+
+export interface InboundActivityInput {
+  evidence_id: string;
+  occurred_at: string;
+  sender_role: string;
+  chat_type: string;
+  sender_last4: string | null;
 }
 
 export interface EventLogStore {
   recordEvent(event: EventLogInput): void;
+  recordInboundActivity?(activity: InboundActivityInput): void;
 }
 
 export type QueueItemStatus = "open" | "resolved" | "dismissed";
@@ -219,6 +237,7 @@ export interface ReportDataSource {
   listLearningSuggestions?(): LearningSuggestion[];
   listKnowledgePatches?(): KnowledgePatch[];
   listPublishJobs?(): PublishJob[];
+  listRecentInboundActivity?(since: string): RecentInboundActivity[];
 }
 
 export interface DailyReportState {

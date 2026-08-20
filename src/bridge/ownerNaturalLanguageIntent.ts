@@ -1,6 +1,7 @@
 export type OwnerNaturalIntent =
   | "knowledge_addition"
   | "candidate_relay"
+  | "operational_query"
   | "normal_chat"
   | "confirm_pending_knowledge"
   | "reject_pending_knowledge"
@@ -20,6 +21,8 @@ export interface OwnerNaturalLanguageDecision {
   selected_section_ids: string[];
   rejected_section_ids: string[];
   apply_selection: boolean;
+  operational_query_kind?: "recent_inbound_activity" | "candidate_overview" | "pending_handoffs" | null;
+  operational_time_window_minutes?: number | null;
 }
 
 export interface OwnerNaturalLanguageIntentInput {
@@ -46,11 +49,13 @@ const OWNER_INTENT_SCHEMA = {
     "intent", "confidence", "knowledge_text", "candidate_reference", "relay_text",
     "conflict_detected", "ambiguity_detected", "clarification_question",
     "selected_section_ids", "rejected_section_ids", "apply_selection",
+    "operational_query_kind", "operational_time_window_minutes",
   ],
   properties: {
     intent: { type: "string", enum: [
       "knowledge_addition", "candidate_relay", "normal_chat", "confirm_pending_knowledge",
       "reject_pending_knowledge", "rollback_last_knowledge", "show_knowledge_details", "zip_review_selection",
+      "operational_query",
     ] },
     confidence: { type: "number", minimum: 0, maximum: 1 },
     knowledge_text: { type: ["string", "null"] },
@@ -62,6 +67,11 @@ const OWNER_INTENT_SCHEMA = {
     selected_section_ids: { type: "array", items: { type: "string" } },
     rejected_section_ids: { type: "array", items: { type: "string" } },
     apply_selection: { type: "boolean" },
+    operational_query_kind: {
+      type: ["string", "null"],
+      enum: ["recent_inbound_activity", "candidate_overview", "pending_handoffs", null],
+    },
+    operational_time_window_minutes: { type: ["number", "null"], minimum: 1, maximum: 10_080 },
   },
 } as const;
 
@@ -114,7 +124,8 @@ export async function createOpenAIOwnerNaturalLanguageIntentClassifier(input: {
                 "You classify private Turkish messages from an authenticated business owner. Do not answer the message.",
                 "knowledge_addition: a declarative rule or operational fact the owner intends the system to learn.",
                 "candidate_relay: an explicit request to tell/send a message to a candidate or phone reference.",
-                "normal_chat: a question, discussion, status request, or casual conversation.",
+                "operational_query: a read-only question about real system or candidate activity. Choose recent_inbound_activity for questions asking whether anyone wrote, whether a new message/candidate arrived, or who contacted the bot; candidate_overview for candidate counts or onboarding states; pending_handoffs for pending owner reviews or escalations.",
+                "normal_chat: a general question, discussion, or casual conversation that does not require live operational data.",
                 "confirm_pending_knowledge/reject_pending_knowledge: a free-form answer to the one pending clarification.",
                 "rollback_last_knowledge: asks to undo the most recent knowledge change.",
                 "show_knowledge_details: explicitly asks for technical details, audit proof, fields, paths, hashes, or rollback information about the latest knowledge change.",
@@ -122,6 +133,7 @@ export async function createOpenAIOwnerNaturalLanguageIntentClassifier(input: {
                 "A statement is conflicting when it changes or contradicts active knowledge. Ambiguous means its intended rule cannot be stated confidently.",
                 "Never classify a question as knowledge addition. Never classify ordinary owner chat as candidate relay.",
                 "For candidate relay, preserve meaning in relay_text and extract the phone/last-four reference when present.",
+                "For operational_query, select exactly one operational_query_kind and infer a reasonable time window from the owner's words. Use 1440 minutes when no window is stated. Do not answer from conversation memory.",
                 "For a clear knowledge addition, put the self-contained fact in knowledge_text.",
               ].join("\n") }],
             },

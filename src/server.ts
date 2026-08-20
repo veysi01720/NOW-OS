@@ -547,6 +547,7 @@ export async function buildServer() {
       listQueueItems: () => persistentStore.reportDataSource.listQueueItems(),
       getQueueSummary: () => persistentStore.reportDataSource.getQueueSummary(),
       listPublishers: () => persistentStore.reportDataSource.listPublishers(),
+      listRecentInboundActivity: (since: string) => persistentStore.reportDataSource.listRecentInboundActivity?.(since) ?? [],
       listLearningSuggestions: () => ingestionStore.listLearningSuggestions()
     },
     ingestionStore,

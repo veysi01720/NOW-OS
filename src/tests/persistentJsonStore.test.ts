@@ -357,4 +357,51 @@ describe("PersistentJsonStore", () => {
       cleanup(dir);
     }
   });
+
+  it("keeps recent inbound operational evidence across backend restarts", () => {
+    const { dir, file } = tempStorePath();
+    try {
+      const first = createPersistentJsonStore(file);
+      first.eventLogStore.recordInboundActivity?.({
+        evidence_id: "corr_persisted_inbound",
+        occurred_at: "2026-08-21T00:00:00.000Z",
+        sender_role: "candidate",
+        chat_type: "private",
+        sender_last4: "3623",
+      });
+      const processing = createPersistentJsonStore(file).reportDataSource
+        .listRecentInboundActivity?.("2020-01-01T00:00:00.000Z") ?? [];
+      expect(processing[0]).toEqual(expect.objectContaining({
+        evidence_id: "corr_persisted_inbound",
+        current_state: "RECEIVED",
+        sendtext_status: "pending",
+      }));
+      first.eventLogStore.recordEvent({
+        correlation_id: "corr_persisted_inbound",
+        sender_masked: "905***",
+        sender_last4: "3623",
+        sender_role: "candidate",
+        chat_type: "private",
+        message_id: "msg_persisted_inbound",
+        current_state: "WORK_MODEL_ACCEPTANCE",
+        assistant_status: "completed",
+        parser_result: "valid",
+        sendtext_status: "success",
+        fallback_used: false,
+        internal_boss_note_logged: false,
+      });
+
+      const restarted = createPersistentJsonStore(file);
+      const activity = restarted.reportDataSource.listRecentInboundActivity?.("2020-01-01T00:00:00.000Z") ?? [];
+      expect(activity).toEqual([
+        expect.objectContaining({
+          evidence_id: "corr_persisted_inbound",
+          sender_last4: "3623",
+          sendtext_status: "success",
+        }),
+      ]);
+    } finally {
+      cleanup(dir);
+    }
+  });
 });

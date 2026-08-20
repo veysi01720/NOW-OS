@@ -9,6 +9,7 @@ import { defaultUserState } from "./types.js";
 import type {
   EventLogInput,
   EventLogStore,
+  InboundActivityInput,
   CandidateReportState,
   ProcessedMessageMetadata,
   QueueItem,
@@ -17,6 +18,7 @@ import type {
   QueueItemUpsertInput,
   QueueStore,
   QueueSummary,
+  RecentInboundActivity,
   ReportDataSource,
   UserIdentityInput,
   UserState,
@@ -68,6 +70,11 @@ interface PersistedEventLog extends EventLogInput {
   created_at: string;
 }
 
+interface PersistedInboundActivity extends RecentInboundActivity {
+  sender_role: string;
+  chat_type: string;
+}
+
 interface PersistedQueueItem extends QueueItem {}
 
 interface PersistedPublisher extends Publisher {}
@@ -82,6 +89,7 @@ interface StoreData {
   processed_messages: Record<string, PersistedProcessedMessage>;
   queue_items: Record<string, PersistedQueueItem>;
   event_logs: PersistedEventLog[];
+  inbound_activity: PersistedInboundActivity[];
   publishers: Record<string, PersistedPublisher>;
   daily_reports: Record<string, PersistedDailyReportState>;
   scheduled_report_configs?: Record<string, any>;
@@ -97,6 +105,7 @@ function emptyData(): StoreData {
     processed_messages: {},
     queue_items: {},
     event_logs: [],
+    inbound_activity: [],
     publishers: {},
     daily_reports: {},
     scheduled_report_configs: {},
@@ -355,7 +364,53 @@ class PersistentJsonRepository {
       created_at: new Date().toISOString()
     });
     this.data.event_logs = this.data.event_logs.slice(-1000);
+    const activity = this.data.inbound_activity.find((item) => item.evidence_id === event.correlation_id);
+    if (activity) {
+      activity.current_state = event.current_state;
+      activity.sendtext_status = event.sendtext_status;
+    }
     this.persist();
+  }
+
+  recordInboundActivity(activity: InboundActivityInput): void {
+    if (this.data.inbound_activity.some((item) => item.evidence_id === activity.evidence_id)) return;
+    this.data.inbound_activity.push({
+      ...activity,
+      current_state: "RECEIVED",
+      sendtext_status: "pending",
+    });
+    this.data.inbound_activity = this.data.inbound_activity.slice(-5000);
+    this.persist();
+  }
+
+  listRecentInboundActivity(since: string): RecentInboundActivity[] {
+    const sinceMs = Date.parse(since);
+    if (!Number.isFinite(sinceMs)) return [];
+    const historical = this.data.event_logs
+      .filter((event) => event.sender_role === "candidate" && event.chat_type === "private")
+      .map((event) => ({
+        evidence_id: event.correlation_id,
+        occurred_at: event.created_at,
+        sender_last4: event.sender_last4 ?? null,
+        current_state: event.current_state,
+        sendtext_status: event.sendtext_status,
+      }));
+    const combined = new Map<string, RecentInboundActivity>();
+    for (const item of historical) combined.set(item.evidence_id, item);
+    for (const item of this.data.inbound_activity) {
+      if (item.sender_role === "candidate" && item.chat_type === "private") {
+        combined.set(item.evidence_id, {
+          evidence_id: item.evidence_id,
+          occurred_at: item.occurred_at,
+          sender_last4: item.sender_last4,
+          current_state: item.current_state,
+          sendtext_status: item.sendtext_status,
+        });
+      }
+    }
+    return [...combined.values()]
+      .filter((item) => Date.parse(item.occurred_at) >= sinceMs)
+      .sort((left, right) => Date.parse(right.occurred_at) - Date.parse(left.occurred_at));
   }
 
   upsertOpenQueueItem(input: QueueItemUpsertInput): QueueItem {
@@ -768,6 +823,10 @@ class PersistentEventLogStore implements EventLogStore {
   recordEvent(event: EventLogInput): void {
     this.repository.recordEvent(event);
   }
+
+  recordInboundActivity(activity: InboundActivityInput): void {
+    this.repository.recordInboundActivity(activity);
+  }
 }
 
 class PersistentQueueStore implements QueueStore {
@@ -835,6 +894,10 @@ class PersistentReportDataSource implements ReportDataSource {
 
   listPublishers(): Publisher[] {
     return this.repository.listPublishers();
+  }
+
+  listRecentInboundActivity(since: string): RecentInboundActivity[] {
+    return this.repository.listRecentInboundActivity(since);
   }
 }
 

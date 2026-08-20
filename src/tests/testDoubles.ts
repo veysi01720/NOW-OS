@@ -9,6 +9,7 @@ import type {
   QueueSummary,
   CandidateReportState,
   ReportDataSource,
+  RecentInboundActivity,
   Publisher,
   PublisherStore
 } from "../storage/types.js";
@@ -346,7 +347,8 @@ export class InMemoryReportDataSource implements ReportDataSource {
     public readonly mutableQueueStore = new InMemoryQueueStore(),
     private readonly publisherStore = new InMemoryPublisherStore(),
     private readonly ingestionJobs: any[] = [],
-    private readonly learningSuggestions: any[] = []
+    private readonly learningSuggestions: any[] = [],
+    private readonly recentInboundActivity: RecentInboundActivity[] = []
   ) {}
 
   listCandidateStates(): CandidateReportState[] {
@@ -371,6 +373,13 @@ export class InMemoryReportDataSource implements ReportDataSource {
 
   listLearningSuggestions(): any[] {
     return this.learningSuggestions;
+  }
+
+  listRecentInboundActivity(since: string): RecentInboundActivity[] {
+    const sinceMs = Date.parse(since);
+    return this.recentInboundActivity
+      .filter((item) => Date.parse(item.occurred_at) >= sinceMs)
+      .map((item) => ({ ...item }));
   }
 }
 
