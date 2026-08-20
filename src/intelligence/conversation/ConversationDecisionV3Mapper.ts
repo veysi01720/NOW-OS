@@ -24,6 +24,7 @@ export function mapConversationDecisionV3ToBackendDecision(
       preferred_work_mode: decision.state_patch.preferred_work_mode,
       video_allowed: decision.state_patch.video_allowed,
     },
+    state_patch_evidence: decision.state_patch_evidence.map((evidence) => ({ ...evidence })),
     policy_facts_used: decision.policy_facts_used,
     next_action: decision.next_action,
     requires_escalation: decision.requires_escalation,

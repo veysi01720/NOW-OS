@@ -96,6 +96,7 @@ describe("Responses decision context boundary", () => {
     expect(instructions).toMatch(/use next_action=update_candidate_state/i);
     expect(instructions).toMatch(/normalize gender to erkek or kadin/i);
     expect(instructions).toMatch(/current_message evidence with evidence_ref=null/i);
+    expect(instructions).toMatch(/explicitly corrects an already-known age, gender, or daily_hours value/i);
     expect(instructions).toMatch(/preferred_work_mode=text_only and video_allowed=false/i);
     expect(instructions).toMatch(/authority does not make the claim grounded/i);
     expect(instructions).toMatch(/Yalnizca dogrulanmis bilgileri kullanmaliyiz; desteklenmeyen vaatlerde bulunmamaliyiz/i);

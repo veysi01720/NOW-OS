@@ -59,8 +59,20 @@ function deps(response: string) {
 function conversationDecisionV3(input: {
   role: "candidate" | "owner" | "manager" | "group";
   reply?: string;
-  nextAction?: "reply_only" | "ask_missing_info";
+  nextAction?: "reply_only" | "ask_missing_info" | "update_candidate_state";
   chosenActions?: string[];
+  statePatch?: Partial<{
+    age: number | null;
+    gender: string | null;
+    daily_hours: number | null;
+    work_model_acceptance: "pending" | "accepted" | "rejected" | null;
+    selected_app: string | null;
+    phone_type: string | null;
+    work_model_disclosed: boolean | null;
+    preferred_work_mode: "text_only" | "video_or_voice_allowed" | null;
+    video_allowed: boolean | null;
+  }>;
+  evidence?: Array<{ field: string; source: string; evidence_ref: string | null }>;
 }) {
   return JSON.stringify({
     decision_version: "3.1",
@@ -85,8 +97,9 @@ function conversationDecisionV3(input: {
       work_model_disclosed: null,
       preferred_work_mode: null,
       video_allowed: null,
+      ...input.statePatch,
     },
-    state_patch_evidence: [],
+    state_patch_evidence: input.evidence ?? [],
     missing_fields: [],
     policy_facts_used: [],
     requires_escalation: false,
@@ -112,7 +125,10 @@ function conversationDecisionV3(input: {
   });
 }
 
-function v3ModelExecutionService(calls: ModelAdapterInput[] = []): ModelExecutionService {
+function v3ModelExecutionService(
+  calls: ModelAdapterInput[] = [],
+  responseFactory?: (input: ModelAdapterInput) => string,
+): ModelExecutionService {
   return {
     evaluateCanaryDecisionForMessage: () => ({
       useAdapterLayer: true,
@@ -126,7 +142,7 @@ function v3ModelExecutionService(calls: ModelAdapterInput[] = []): ModelExecutio
       calls.push(input);
       return {
         normalizedResponse: null,
-        rawText: conversationDecisionV3({
+        rawText: responseFactory?.(input) ?? conversationDecisionV3({
           role: input.senderRole === "owner" || input.senderRole === "manager" ? input.senderRole : "candidate",
           reply: `${input.senderRole} V3 ortak parser cevabi`,
           nextAction: input.senderRole === "candidate" ? "ask_missing_info" : "reply_only",
@@ -677,6 +693,71 @@ describe("handleIncomingMessage", () => {
       expect.objectContaining({ event_type: "ASSISTANT_RESPONSE_INVALID" }),
     ]));
     expect(baseDeps.assistantClient.runCalls).toHaveLength(0);
+  });
+
+  it("persists a private candidate's evidenced intake correction without owner escalation", async () => {
+    const userStateStore = new MutableUserStateStore();
+    userStateStore.states.set("905333333333", {
+      ...defaultUserState(),
+      age: 27,
+      gender: "erkek",
+      daily_hours: 4,
+      eligibility_status: "eligible",
+      work_model_disclosed: true,
+      model_acceptance: "accepted",
+      selected_app: "Layla",
+      phone_type: "android",
+      installation_status: "in_progress",
+      current_state: "INSTALLATION_IN_PROGRESS",
+      missing_fields: [],
+      expected_next_step: "continue_installation",
+    });
+    const handoffRoot = mkdtempSync(join(tmpdir(), "tmp-intake-correction-"));
+    const handoffStore = new PersistentHumanHandoffStore(join(handoffRoot, "handoffs.json"));
+    const calls: ModelAdapterInput[] = [];
+    const testDeps = {
+      ...deps("{}"),
+      env: createTestEnv({
+        conversationDecisionV2Enabled: true,
+        modelAdapterLayerEnabled: true,
+        openaiResponsesModel: "gpt-4.1",
+      }),
+      modelExecutionService: v3ModelExecutionService(calls, () => conversationDecisionV3({
+        role: "candidate",
+        reply: "Bilgilerini 29 yaş, kadın ve günlük 6 saat olarak güncelledim.",
+        nextAction: "update_candidate_state",
+        chosenActions: ["acknowledge_information"],
+        statePatch: { age: 29, gender: "kadın", daily_hours: 6 },
+        evidence: [
+          { field: "age", source: "current_message", evidence_ref: null },
+          { field: "gender", source: "current_message", evidence_ref: null },
+          { field: "daily_hours", source: "current_message", evidence_ref: null },
+        ],
+      })),
+      userStateStore,
+      humanHandoffStore: handoffStore,
+    };
+
+    try {
+      const result = await handleIncomingMessage(message({
+        text: "Yanlış vermişim, 29 kadın 6 saat",
+        message_id: "candidate-intake-correction",
+      }), testDeps as any);
+
+      expect(result.status).toBe("sent");
+      expect(calls).toHaveLength(1);
+      expect(userStateStore.states.get("905333333333")).toMatchObject({
+        age: 29,
+        gender: "kadın",
+        daily_hours: 6,
+        eligibility_status: "eligible",
+      });
+      expect(handoffStore.list()).toEqual([]);
+      expect(testDeps.sender.sends.some((item) => item.message.phone_number === "905111111111")).toBe(false);
+      expect(testDeps.sender.sends.some((item) => item.message.phone_number === "905222222222")).toBe(false);
+    } finally {
+      rmSync(handoffRoot, { recursive: true, force: true });
+    }
   });
 
   it("keeps group mode behavior with approved app guard enabled", async () => {

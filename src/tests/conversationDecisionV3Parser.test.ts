@@ -104,6 +104,7 @@ describe("ConversationDecisionV3 parser", () => {
       if (!result.ok) return;
       expect(result.decision.reply.text).toBe(`${role} cevabi`);
       expect(result.decision.decision_version).toBe("2.0");
+      expect(result.decision.state_patch_evidence).toEqual([]);
     },
   );
 

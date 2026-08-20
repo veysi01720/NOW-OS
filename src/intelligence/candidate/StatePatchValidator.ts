@@ -1,11 +1,46 @@
 import type { UserState } from "../../storage/types.js";
-import { deriveCandidateState, detectApprovedApp, detectModelAcceptance, detectPhoneType } from "../../bridge/candidateIntakeStateMachine.js";
+import {
+  deriveCandidateState,
+  detectAgeGenderDailyHours,
+  detectApprovedApp,
+  detectModelAcceptance,
+  detectPhoneType,
+} from "../../bridge/candidateIntakeStateMachine.js";
 import type { ConversationDecision, ConversationDecisionContext } from "../conversation/ConversationDecisionSchema.js";
 
 export interface StatePatchResult {
   ok: boolean;
   state: UserState;
   reason_codes: string[];
+}
+
+type IntakeField = "age" | "gender" | "daily_hours";
+
+function normalizeGender(value: unknown): string {
+  return String(value ?? "")
+    .toLocaleLowerCase("tr-TR")
+    .normalize("NFKD")
+    .replace(/\p{M}/gu, "")
+    .replace(/ı/gu, "i");
+}
+
+function currentMessageSupportsIntakePatch(
+  field: IntakeField,
+  value: number | string,
+  messageText: string,
+): boolean {
+  const detected = detectAgeGenderDailyHours(messageText);
+  if (field === "age") return detected.age === value;
+  if (field === "daily_hours") return detected.daily_hours === value;
+  return normalizeGender(detected.gender) === normalizeGender(value);
+}
+
+function hasCurrentMessageEvidence(decision: ConversationDecision, field: IntakeField): boolean {
+  return decision.state_patch_evidence?.some((evidence) =>
+    evidence.field === field
+    && evidence.source === "current_message"
+    && evidence.evidence_ref === null,
+  ) === true;
 }
 
 export function validateAndApplyStatePatch(
@@ -90,13 +125,37 @@ export function validateAndApplyStatePatch(
     .filter(([, value]) => value !== undefined && value !== null) as Array<
       ["age" | "gender" | "daily_hours", number | string]
     >;
-  const authoritativeIntakeEcho = intakeFields.length > 0
-    && intakeFields.every(([field, value]) =>
-      context.facts_extracted_from_current_message.includes(field)
-      && current[field] === value,
-    );
-  if (intakeFields.length > 0 && !authoritativeIntakeEcho) {
-    reasons.push("AUTHORITATIVE_INTAKE_PATCH_NOT_ALLOWED_FROM_DECISION");
+  const validatedIntakeFields: Array<[IntakeField, number | string]> = [];
+  let intakePatchRejected = false;
+  for (const [field, value] of intakeFields) {
+    const authoritativeIntakeEcho = context.facts_extracted_from_current_message.includes(field)
+      && current[field] === value;
+    const candidateCorrection = context.role === "candidate"
+      && context.channel === "private"
+      && hasCurrentMessageEvidence(decision, field)
+      && currentMessageSupportsIntakePatch(field, value, context.latest_message.text);
+
+    if (!authoritativeIntakeEcho && !candidateCorrection) {
+      reasons.push("AUTHORITATIVE_INTAKE_PATCH_NOT_ALLOWED_FROM_DECISION");
+      intakePatchRejected = true;
+      continue;
+    }
+
+    validatedIntakeFields.push([field, value]);
+  }
+
+  let intakeChanged = false;
+  if (!intakePatchRejected) {
+    for (const [field, value] of validatedIntakeFields) {
+      if (current[field] !== value) intakeChanged = true;
+      if (field === "age" && typeof value === "number") next.age = value;
+      if (field === "gender" && typeof value === "string") next.gender = value;
+      if (field === "daily_hours" && typeof value === "number") next.daily_hours = value;
+    }
+  }
+
+  if (intakeChanged && reasons.length === 0) {
+    next.eligibility_status = "unresolved";
   }
 
   return {

@@ -5,13 +5,18 @@ import { defaultUserState } from "../storage/types.js";
 
 function context(capturedFields: string[], text = "27 erkek 4 saat"): ConversationDecisionContext {
   return {
+    role: "candidate",
+    channel: "private",
     latest_message: { text },
     facts_extracted_from_current_message: capturedFields,
   } as ConversationDecisionContext;
 }
 
-function decision(statePatch: ConversationDecision["state_patch"]): ConversationDecision {
-  return { state_patch: statePatch } as ConversationDecision;
+function decision(
+  statePatch: ConversationDecision["state_patch"],
+  evidence: NonNullable<ConversationDecision["state_patch_evidence"]> = [],
+): ConversationDecision {
+  return { state_patch: statePatch, state_patch_evidence: evidence } as ConversationDecision;
 }
 
 describe("StatePatchValidator", () => {
@@ -61,6 +66,65 @@ describe("StatePatchValidator", () => {
 
     expect(result.ok).toBe(false);
     expect(result.reason_codes).toContain("AUTHORITATIVE_INTAKE_PATCH_NOT_ALLOWED_FROM_DECISION");
+  });
+
+  it("accepts and applies a private candidate correction proven by the latest message", () => {
+    const current = {
+      ...defaultUserState(),
+      age: 27,
+      gender: "erkek",
+      daily_hours: 4,
+      eligibility_status: "eligible" as const,
+      work_model_disclosed: true,
+    };
+    const result = validateAndApplyStatePatch(
+      current,
+      decision(
+        { age: 29, gender: "kadın", daily_hours: 6 },
+        [
+          { field: "age", source: "current_message", evidence_ref: null },
+          { field: "gender", source: "current_message", evidence_ref: null },
+          { field: "daily_hours", source: "current_message", evidence_ref: null },
+        ],
+      ),
+      context([], "Yanlış vermişim, 29 kadın 6 saat"),
+      ["Layla"],
+    );
+
+    expect(result.ok).toBe(true);
+    expect(result.reason_codes).toEqual([]);
+    expect(result.state).toMatchObject({ age: 29, gender: "kadın", daily_hours: 6, eligibility_status: "eligible" });
+  });
+
+  it("keeps privileged and unsupported intake corrections fail-closed", () => {
+    const current = { ...defaultUserState(), age: 27, gender: "erkek", daily_hours: 4 };
+    const correction = decision(
+      { age: 29, gender: "kadın" },
+      [
+        { field: "age", source: "current_message", evidence_ref: null },
+        { field: "gender", source: "current_message", evidence_ref: null },
+      ],
+    );
+    const ownerContext = { ...context([], "Yanlış vermişim, 29 kadın"), role: "owner" };
+    const unsupported = decision(
+      { age: 29, gender: "kadın" },
+      [{ field: "age", source: "current_message", evidence_ref: null }],
+    );
+
+    const ownerResult = validateAndApplyStatePatch(current, correction, ownerContext, ["Layla"]);
+    const unsupportedResult = validateAndApplyStatePatch(
+      current,
+      unsupported,
+      context([], "Yanlış vermişim, 29 kadın"),
+      ["Layla"],
+    );
+
+    expect(ownerResult.ok).toBe(false);
+    expect(ownerResult.state).toMatchObject({ age: 27, gender: "erkek", daily_hours: 4 });
+    expect(unsupportedResult.ok).toBe(false);
+    expect(unsupportedResult.state).toMatchObject({ age: 27, gender: "erkek", daily_hours: 4 });
+    expect(ownerResult.reason_codes).toContain("AUTHORITATIVE_INTAKE_PATCH_NOT_ALLOWED_FROM_DECISION");
+    expect(unsupportedResult.reason_codes).toContain("AUTHORITATIVE_INTAKE_PATCH_NOT_ALLOWED_FROM_DECISION");
   });
 
   it("does not infer app, phone, or acceptance state from a message that does not say it", () => {

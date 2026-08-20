@@ -131,6 +131,11 @@ export interface ConversationDecision {
     preferred_work_mode?: "text_only" | "video_or_voice_allowed" | null;
     video_allowed?: boolean | null;
   };
+  state_patch_evidence?: Array<{
+    field: "age" | "gender" | "daily_hours" | "work_model_acceptance" | "selected_app" | "phone_type" | "work_model_disclosed" | "preferred_work_mode" | "video_allowed";
+    source: "current_message" | "existing_state" | "canonical_policy_fact" | "reply_content";
+    evidence_ref: string | null;
+  }>;
   policy_facts_used: string[];
   next_action: ConversationDecisionNextAction;
   requires_escalation: boolean;
