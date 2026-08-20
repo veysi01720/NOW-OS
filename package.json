@@ -17,6 +17,7 @@
     "test:package12:combined-real": "tsx scripts/responsesQualificationSuite.ts",
     "test:terra:chain-real": "tsx scripts/terraIntakeChainQualification.ts",
     "test:terra:vision-real": "tsx scripts/terraVisionQualification.ts",
+    "test:terra:owner-tone-real": "tsx scripts/terraOwnerKnowledgeToneQualification.ts",
     "test": "vitest run",
     "test:watch": "vitest",
     "backup": "tsx scripts/backup.ts",

@@ -75,3 +75,26 @@ export function applyOwnerTone(
   }
   return `${intro}\n${body}`;
 }
+
+function conciseKnowledgeSummary(value: string): string {
+  const compact = value
+    .replace(/^\s*#+\s*[^\n]+\n+/u, "")
+    .replace(/^\s*(?:sunu|şunu)\s+bil\s*[:,-]?\s*/iu, "")
+    .replace(/\s+/gu, " ")
+    .trim();
+  if (compact.length <= 180) return compact;
+  return `${compact.slice(0, 177).trimEnd()}...`;
+}
+
+export function buildOwnerKnowledgeActivationReply(
+  knowledgeText: string,
+  recipientRole: OwnerRecipientRole = "owner",
+): string {
+  const summary = conciseKnowledgeSummary(knowledgeText);
+  const detail = summary ? `${summary.replace(/[.!?]+$/u, "")}.` : "Verdiğin bilgi kaydedildi.";
+  return applyOwnerTone(`Tamam, not aldım. ${detail} Artık aktif.`, {
+    context: "knowledge_review",
+    recipientRole,
+    seed: knowledgeText,
+  });
+}

@@ -297,9 +297,18 @@ describe("handleIncomingMessage", () => {
         ownerNaturalLanguageIntentClassifier: ownerIntent({ intent: "knowledge_addition", knowledge_text: "Kurulumda takilan aday once uygulamayi kapatip acar." }),
       };
       await handleIncomingMessage(message({ phone_number: "905111111111", sender_id: "905111111111", text: "Şunu bil: Kurulumda takılan aday önce uygulamayı kapatıp açar.", message_id: "owner-info" }), testDeps);
-      expect(testDeps.sender.sends.at(-1)?.text).toContain("Bilgi aktif edildi");
+      expect(testDeps.sender.sends.at(-1)?.text).toContain("not aldım");
+      expect(testDeps.sender.sends.at(-1)?.text).toContain("Artık aktif");
+      expect(testDeps.sender.sends.at(-1)?.text).not.toMatch(/owner_transfer_sections|structured_facts|decision_context|canonical_policy_facts|aktif sürüm|geri alma kaydı/iu);
       expect(readFileSync(resolve(bank, "app_facts.md"), "utf8")).toContain("Kurulumda takilan aday");
       expect(store.listLearningCandidates()[0]?.status).toBe("published");
+
+      await handleIncomingMessage(message({ phone_number: "905111111111", sender_id: "905111111111", text: "Teknik detay göster", message_id: "owner-info-details" }), {
+        ...testDeps,
+        ownerNaturalLanguageIntentClassifier: ownerIntent({ intent: "show_knowledge_details" }),
+      });
+      expect(testDeps.sender.sends.at(-1)?.text).toContain("Structured alanlar");
+      expect(testDeps.sender.sends.at(-1)?.text).toContain("Context yolları");
     } finally {
       rmSync(root, { recursive: true, force: true });
     }

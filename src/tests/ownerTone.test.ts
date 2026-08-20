@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { buildAssistantRunContent } from "../assistant/assistantRun.js";
 import type { BackendContextPayloadV1 } from "../contracts/backendContextPayload.js";
-import { applyOwnerTone, ownerAssistantToneGuidanceLines } from "../bridge/ownerTone.js";
+import { applyOwnerTone, buildOwnerKnowledgeActivationReply, ownerAssistantToneGuidanceLines } from "../bridge/ownerTone.js";
 import { defaultUserState } from "../storage/types.js";
 
 function backendContext(role: "owner" | "manager" | "candidate"): BackendContextPayloadV1 {
@@ -71,5 +71,24 @@ describe("owner-facing tone", () => {
     expect(managerPrompt).not.toContain("The owner is Arda");
     expect(candidatePrompt).not.toContain("The owner is Arda");
     expect(ownerAssistantToneGuidanceLines().join(" ")).toContain("only to owner-facing replies");
+  });
+
+  it("confirms five knowledge additions naturally without exposing internal metadata", () => {
+    const facts = [
+      "Yaş, cinsiyet ve günlük süre madde madde sorulsun.",
+      "Kurulum görseli owner onayı olmadan tamamlanmış sayılmasın.",
+      "Çekim talepleri yalnızca günlük alınır.",
+      "Layla davet kodu çalışmazsa fotoğraf eklenip tekrar denenir.",
+      "Adaya daha önce verdiği bilgiler yeniden sorulmaz.",
+    ];
+    const forbidden = /owner_transfer_sections|structured_facts|decision_context|canonical_policy_facts|rollback_pointer|active_version_hash|[a-f0-9]{24,}|(?:[A-Za-z]:\\|\/root\/)/iu;
+
+    for (const fact of facts) {
+      const reply = buildOwnerKnowledgeActivationReply(fact);
+      expect(reply).toContain("not aldım");
+      expect(reply).toContain("aktif");
+      expect(reply).not.toMatch(forbidden);
+      expect(reply.length).toBeLessThan(260);
+    }
   });
 });

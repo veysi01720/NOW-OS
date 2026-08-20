@@ -5,6 +5,7 @@ export type OwnerNaturalIntent =
   | "confirm_pending_knowledge"
   | "reject_pending_knowledge"
   | "rollback_last_knowledge"
+  | "show_knowledge_details"
   | "zip_review_selection";
 
 export interface OwnerNaturalLanguageDecision {
@@ -49,7 +50,7 @@ const OWNER_INTENT_SCHEMA = {
   properties: {
     intent: { type: "string", enum: [
       "knowledge_addition", "candidate_relay", "normal_chat", "confirm_pending_knowledge",
-      "reject_pending_knowledge", "rollback_last_knowledge", "zip_review_selection",
+      "reject_pending_knowledge", "rollback_last_knowledge", "show_knowledge_details", "zip_review_selection",
     ] },
     confidence: { type: "number", minimum: 0, maximum: 1 },
     knowledge_text: { type: ["string", "null"] },
@@ -116,6 +117,7 @@ export async function createOpenAIOwnerNaturalLanguageIntentClassifier(input: {
                 "normal_chat: a question, discussion, status request, or casual conversation.",
                 "confirm_pending_knowledge/reject_pending_knowledge: a free-form answer to the one pending clarification.",
                 "rollback_last_knowledge: asks to undo the most recent knowledge change.",
+                "show_knowledge_details: explicitly asks for technical details, audit proof, fields, paths, hashes, or rollback information about the latest knowledge change.",
                 "zip_review_selection: selects/rejects pending multi-section ZIP items; copy only supplied section IDs.",
                 "A statement is conflicting when it changes or contradicts active knowledge. Ambiguous means its intended rule cannot be stated confidently.",
                 "Never classify a question as knowledge addition. Never classify ordinary owner chat as candidate relay.",

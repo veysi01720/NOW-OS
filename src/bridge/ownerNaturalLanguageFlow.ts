@@ -18,6 +18,7 @@ import type {
 } from "./ownerNaturalLanguageIntent.js";
 import type { ZipLearningCandidateRecord } from "./zipIngestion/types.js";
 import type { ZipIngestionStore } from "./zipIngestion/store.js";
+import { buildOwnerKnowledgeActivationReply } from "./ownerTone.js";
 
 export interface OwnerNaturalLanguageFlowResult {
   handled: boolean;
@@ -73,6 +74,37 @@ function latestSinglePendingDirect(store: ZipIngestionStore): ZipLearningCandida
   return inLatestJob.length === 1 ? inLatestJob[0] : null;
 }
 
+interface OwnerKnowledgeAuditDetails {
+  active_version_hash_masked?: string | null;
+  fact_count?: number;
+  rollback_pointer?: string | null;
+  verification?: {
+    structured_fields?: string[];
+    context_paths?: string[];
+  };
+}
+
+function latestKnowledgeTechnicalDetails(deps: OwnerNaturalLanguageFlowDeps): string {
+  const auditPath = resolve(knowledgeDir(deps.knowledgeBankDir), "owner_knowledge_transfer_audit.json");
+  if (!existsSync(auditPath)) return "Son bilgi değişikliği için teknik denetim kaydı bulunamadı.";
+  try {
+    const audit = JSON.parse(readFileSync(auditPath, "utf8")) as OwnerKnowledgeAuditDetails;
+    const fields = audit.verification?.structured_fields ?? [];
+    const paths = audit.verification?.context_paths ?? [];
+    const rollback = audit.rollback_pointer ? audit.rollback_pointer.split(/[\\/]/u).at(-1) : null;
+    return [
+      "Son bilgi değişikliğinin teknik detayı:",
+      `- Structured alanlar: ${fields.length > 0 ? fields.join(", ") : "yok"}`,
+      `- Context yolları: ${paths.length > 0 ? paths.join(", ") : "yok"}`,
+      `- Aktif sürüm: ${audit.active_version_hash_masked ?? "yok"}`,
+      `- Fact sayısı: ${audit.fact_count ?? 0}`,
+      `- Geri alma kaydı: ${rollback ?? "yok"}`,
+    ].join("\n");
+  } catch {
+    return "Son bilgi değişikliğinin teknik denetim kaydı okunamadı.";
+  }
+}
+
 function publishCandidate(input: {
   candidate: ZipLearningCandidateRecord;
   store: ZipIngestionStore;
@@ -95,7 +127,7 @@ function publishCandidate(input: {
   }
   return {
     handled: true,
-    reply: `Bilgi aktif edildi. Alanlar: ${result.verification.structured_fields.join(", ")}; kullanım yolları: ${result.verification.context_paths.join(", ")}; aktif sürüm=${result.active_version_hash_masked}; geri alma kaydı hazır.`,
+    reply: buildOwnerKnowledgeActivationReply(input.candidate.extracted_text, input.actorRole),
     executionSucceeded: true,
     eventType: "OWNER_NATURAL_KNOWLEDGE_PUBLISHED",
   };
@@ -166,9 +198,10 @@ export async function handleOwnerNaturalLanguage(
   const pendingDirect = deps.zipStore ? latestSinglePendingDirect(deps.zipStore) : null;
   const confirmationHint = pendingDirect && matchesNormalizedHint(message.text, ["onaylandi", "evet", "dogru", "aynen", "tamam"]);
   const rejectionHint = pendingDirect && matchesNormalizedHint(message.text, ["hayir", "iptal", "reddet"], { strict: true });
-  if (confirmationHint || rejectionHint) {
+  const detailsHint = matchesNormalizedHint(message.text, ["detay goster", "teknik detay goster", "denetim detayini goster", "son bilgi degisikliginin detayini goster"]);
+  if (confirmationHint || rejectionHint || detailsHint) {
     decision = {
-      intent: confirmationHint ? "confirm_pending_knowledge" : "reject_pending_knowledge",
+      intent: detailsHint ? "show_knowledge_details" : confirmationHint ? "confirm_pending_knowledge" : "reject_pending_knowledge",
       confidence: 1,
       knowledge_text: null,
       candidate_reference: null,
@@ -205,11 +238,14 @@ export async function handleOwnerNaturalLanguage(
     return { handled: true, reply: decision.clarification_question ?? "Ne yapmamı istediğini güvenle ayıramadım. Bilgi mi ekliyorsun, bir adaya mesaj mı iletiyorsun?", executionSucceeded: false, eventType: "OWNER_NATURAL_INTENT_LOW_CONFIDENCE" };
   }
   if (decision.intent === "normal_chat") return { handled: false };
+  if (decision.intent === "show_knowledge_details") {
+    return { handled: true, reply: latestKnowledgeTechnicalDetails(deps), executionSucceeded: true, eventType: "OWNER_NATURAL_KNOWLEDGE_DETAILS_SHOWN" };
+  }
   if (decision.intent === "rollback_last_knowledge") {
     if (!deps.zipStore) return { handled: true, reply: "Geri alma kaydı servisi hazır değil; aktif bilgi değişmedi.", executionSucceeded: false };
     const result = rollbackLastOwnerKnowledge({ zipStore: deps.zipStore, knowledgeBankDir: deps.knowledgeBankDir, actionAuditStore: deps.actionAuditStore, actorRole });
     return result.status === "rolled_back"
-      ? { handled: true, reply: `Son bilgi değişikliği geri alındı; aktif sürüm=${result.active_version_hash_masked}; fact_count=${result.fact_count}.`, executionSucceeded: true, eventType: "OWNER_NATURAL_KNOWLEDGE_ROLLED_BACK" }
+      ? { handled: true, reply: "Son bilgi değişikliğini geri aldım. Önceki bilgiler yeniden aktif.", executionSucceeded: true, eventType: "OWNER_NATURAL_KNOWLEDGE_ROLLED_BACK" }
       : { handled: true, reply: result.status === "not_available" ? "Geri alınabilecek son bilgi değişikliği bulunamadı." : `Geri alma tamamlanamadı; aktif bilgi korunuyor. Hata: ${result.error_code ?? result.status}.`, executionSucceeded: false };
   }
   if (decision.intent === "candidate_relay") {
