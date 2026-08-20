@@ -1,7 +1,7 @@
-const DEFINITIVE_SUCCESS_CLAIM = /(?:tamamlandı|tamamlandi|başarıyla aktarıldı|basariyla aktarildi|senkronizasyon tamamlandı|senkronizasyon tamamlandi|başarıyla senkronize edildi|basariyla senkronize edildi|işlem tamamlandı|islem tamamlandi)/iu;
+const DEFINITIVE_SUCCESS_CLAIM = /(?:tamamlandı|tamamlandi|başarıyla|basariyla|aktif edildi|uygulandı|uygulandi|yayınlandı|yayinlandi|iletildi|gönderildi|gonderildi|onaylandı|onaylandi|senkronize edildi|işlem yapıldı|islem yapildi)/iu;
 
 export const UNKNOWN_OWNER_COMMAND_REPLY =
-  "Komut formatı tanınmadı. Kullanılabilir format: #komut onaylıları bilgi bankasına aktar";
+  "Bu işlemin tamamlandığını doğrulayan bir kayıt yok; hiçbir değişikliği başarılı saymadım.";
 
 export function guardUnbackedOwnerSuccessClaim(input: {
   reply: string;

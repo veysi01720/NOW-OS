@@ -85,6 +85,12 @@ async function processEvolutionInbound(
     chat_type: normalized.chat_type,
     is_from_me: normalized.is_from_me,
   });
+  deps.deliveryEventLedger?.append({
+    event_type: "inbound_received",
+    correlation_id: normalized.correlation_id,
+    status: normalized.is_from_me ? "from_me" : "candidate_or_owner",
+    metadata: { chat_type: normalized.chat_type, message_type: normalized.message_type },
+  });
   if (normalized.message_id.trim() === "") {
     deps.logger.info({
       event_type: "MESSAGE_IGNORED_MISSING_PROVIDER_MESSAGE_ID",
@@ -113,6 +119,11 @@ async function processEvolutionInbound(
   }
 
   const result = await handleIncomingMessage(normalized, deps);
+  deps.deliveryEventLedger?.append({
+    event_type: "processing_terminal",
+    correlation_id: normalized.correlation_id,
+    status: result.status,
+  });
   deps.messageDedupeStore.markSeen(dedupeKey, {
     message_id: normalized.message_id,
     sender_id: normalized.sender_id,

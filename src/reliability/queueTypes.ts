@@ -3,6 +3,7 @@ export type ReliabilityJobStatus = "QUEUED" | "LEASED" | "PROCESSING" | "RETRY_W
 
 export interface ReliabilityQueueJob {
   job_id: string;
+  queue_name: ReliabilityQueueName;
   idempotency_key: string;
   tenant_id: string;
   conversation_key_hash: string;
@@ -46,6 +47,7 @@ export interface QueueBacklogSnapshot {
 export interface ReliabilityQueueStore {
   enqueue(input: EnqueueReliabilityJobInput): ReliabilityQueueJob;
   claimNext(queueName: ReliabilityQueueName, workerId: string, now?: Date): ReliabilityQueueJob | null;
+  claimById(jobId: string, workerId: string, now?: Date): ReliabilityQueueJob | null;
   markDone(jobId: string, now?: Date): void;
   markFailed(jobId: string, error: string, options?: { permanent?: boolean; now?: Date; backoffMs?: number }): ReliabilityQueueJob;
   reclaimStaleLocks(staleMs: number, now?: Date): number;

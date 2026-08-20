@@ -29,7 +29,12 @@ import { ModelAdapterCanaryApprovalController } from "./modelAdapter/modelAdapte
 import { ModelAdapterCanaryStateStore } from "./modelAdapter/modelAdapterCanaryStateStore.js";
 import { ModelAdapterCanaryThresholdEvaluator } from "./modelAdapter/modelAdapterCanaryThresholds.js";
 import { ModelAdapterCanaryControl } from "./modelAdapter/modelAdapterCanaryControl.js";
-import { InMemoryReliabilityQueueStore } from "./reliability/inMemoryReliabilityQueueStore.js";
+import { PersistentReliabilityQueueStore } from "./reliability/persistentReliabilityQueueStore.js";
+import { DeliveryEventLedger } from "./reliability/deliveryEventLedger.js";
+import { ReliableEvolutionSender } from "./reliability/reliableEvolutionSender.js";
+import { ReliabilityQueueWorker, processOutboundJob } from "./reliability/queueWorker.js";
+import { queueBacklogSnapshot, emitQueueInfraAlerts } from "./reliability/queueMonitoring.js";
+import { SmtpOperationalAlarmNotifier } from "./observability/operationalAlarmNotifier.js";
 import { PersistentHumanHandoffStore } from "./store/humanHandoffStore.js";
 import { PersistentTrainingHandoffStore } from "./store/trainingHandoffStore.js";
 import { createOpenAIInstallationVisionClassifier } from "./bridge/openaiInstallationVisionClassifier.js";
@@ -402,6 +407,19 @@ export async function buildServer() {
       : "EVOLUTION_SMTP_ALARM_CHANNEL_NOT_CONFIGURED",
     configured: connectionAlarmNotifier.isConfigured(),
   });
+  const reliabilityQueueStore = new PersistentReliabilityQueueStore(resolve(DATA_DIR, "reliability", "outbox.json"));
+  const deliveryEventLedger = new DeliveryEventLedger(resolve(DATA_DIR, "reliability", "delivery-events.json"));
+  const operationalAlarmNotifier = new SmtpOperationalAlarmNotifier({
+    enabled: env.smtpAlertEnabled === true,
+    host: env.smtpHost,
+    port: env.smtpPort ?? 587,
+    secure: env.smtpSecure === true,
+    username: env.smtpUsername,
+    password: env.smtpPassword,
+    from: env.smtpFrom,
+    recipients: env.smtpAlertRecipients ?? [],
+    logger,
+  });
   const connectionHealthMonitor = new ConnectionHealthMonitor({
     evolutionInstance: env.evolutionInstance,
     evolutionApiBaseUrl: env.evolutionApiBaseUrl,
@@ -419,6 +437,9 @@ export async function buildServer() {
     logoutEventsPath: resolve(DATA_DIR, "evolution-logout-events.json"),
     sessionIntegrityCheck,
     alarmNotifier: connectionAlarmNotifier,
+    queueSnapshotProvider: () => queueBacklogSnapshot(reliabilityQueueStore, {
+      workersEnabled: env.reliableOutboxEnabled,
+    }),
     onLogout401: ({ instance }) => {
       const result = humanHandoffStore.create({
         tenant_id: "now_os",
@@ -456,7 +477,7 @@ export async function buildServer() {
       inbound_queue_mode: env.webhookQueueMode,
       outbound_queue_mode: env.outboundQueueMode,
       fast_ack_enabled: env.fastAckEnabled,
-      workers_enabled: env.workersEnabled,
+      workers_enabled: env.workersEnabled || env.reliableOutboxEnabled === true,
       behavior_tenant_canary_available: true,
       behavior_tenant_canary_enabled: env.behaviorTenantCanaryEnabled,
       behavior_tenant_canary_allowed_tenant_count: env.behaviorCanaryTenants.length,
@@ -506,12 +527,79 @@ export async function buildServer() {
     });
   });
 
-  // Phase 9 (queue/worker cutover): instantiated so a future phase can wire
-  // it in behind WEBHOOK_QUEUE_MODE/OUTBOUND_QUEUE_MODE. Both flags default
-  // to "off" in production, so passing this store changes nothing today -
-  // enqueueInboundShadow/enqueueOutboundShadow only write to it once one of
-  // those modes is explicitly turned on.
-  const reliabilityQueueStore = new InMemoryReliabilityQueueStore();
+  const rawEvolutionSender = new EvolutionApiSender(env);
+  const evolutionSender = env.reliableOutboxEnabled
+    ? new ReliableEvolutionSender({
+        rawSender: rawEvolutionSender,
+        store: reliabilityQueueStore,
+        ledger: deliveryEventLedger,
+        logger,
+        maxAttempts: env.reliableOutboxMaxAttempts,
+      })
+    : rawEvolutionSender;
+  const outboundWorker = new ReliabilityQueueWorker({
+    queueName: "outbound",
+    workerId: `outbound-${process.pid}`,
+    store: reliabilityQueueStore,
+    logger,
+    connectionHealthMonitor,
+    onJobStatus: (job, status) => {
+      const message = job.payload.message as { correlation_id?: unknown } | undefined;
+      const correlationId = typeof message?.correlation_id === "string" ? message.correlation_id : "outbound-worker";
+      deliveryEventLedger.append({
+        event_type: status === "COMPLETED" ? "outbound_delivered" : status === "DEAD_LETTER" ? "outbound_dead_letter" : "outbound_retry_scheduled",
+        correlation_id: correlationId,
+        job_id: job.job_id,
+        status,
+        metadata: { attempt_count: job.attempt_count },
+      });
+    },
+  });
+  if (env.reliableOutboxEnabled) await outboundWorker.start();
+  let previousOutboxAlarm = false;
+  let workerBusy = false;
+  const outboxInterval = setInterval(async () => {
+    if (!env.reliableOutboxEnabled || workerBusy) return;
+    workerBusy = true;
+    try {
+      for (let index = 0; index < 20; index += 1) {
+        const result = await outboundWorker.runOnce((job) => processOutboundJob(job, rawEvolutionSender, connectionHealthMonitor));
+        if (!result.picked) break;
+      }
+      const snapshot = queueBacklogSnapshot(reliabilityQueueStore, { workersEnabled: true });
+      emitQueueInfraAlerts(snapshot, logger);
+      const alarm = snapshot.backlog_alarm || snapshot.dead_letter_alarm;
+      if (alarm && !previousOutboxAlarm) {
+        await operationalAlarmNotifier.send({
+          kind: snapshot.dead_letter_alarm ? "outbound_dead_letter" : "outbox_backlog",
+          pending: snapshot.outbound_queue_pending,
+          dead_letters: snapshot.dead_letter_count,
+          occurred_at: new Date().toISOString(),
+        });
+      } else if (!alarm && previousOutboxAlarm) {
+        await operationalAlarmNotifier.send({
+          kind: "outbox_recovered",
+          pending: snapshot.outbound_queue_pending,
+          dead_letters: snapshot.dead_letter_count,
+          occurred_at: new Date().toISOString(),
+        });
+      }
+      previousOutboxAlarm = alarm;
+    } finally {
+      workerBusy = false;
+    }
+  }, env.reliableOutboxPollMs ?? 5_000);
+  outboxInterval.unref?.();
+  app.addHook("onClose", async () => {
+    clearInterval(outboxInterval);
+    clearInterval(reachabilityInterval);
+  });
+  logger.info({
+    event_type: "RELIABLE_OUTBOX_RUNTIME",
+    enabled: env.reliableOutboxEnabled,
+    pending: reliabilityQueueStore.counts().outbound_queue_pending,
+    dead_letters: reliabilityQueueStore.counts().dead_letter_count,
+  });
   const trainingHandoffStore = new PersistentTrainingHandoffStore(resolve(DATA_DIR, "training-handoffs.json"));
   const installationVerificationClassifier = env.installationVisionEnabled && env.openaiResponsesModel
     ? await createOpenAIInstallationVisionClassifier({
@@ -533,8 +621,9 @@ export async function buildServer() {
     assistantClient,
     modelExecutionService,
     ownerNaturalLanguageIntentClassifier,
-    sender: new EvolutionApiSender(env),
+    sender: evolutionSender,
     reliabilityQueueStore,
+    deliveryEventLedger,
     threadStore: persistentStore.threadStore,
     memoryStore: persistentStore.memoryStore,
     messageDedupeStore: persistentStore.messageDedupeStore,

@@ -22,6 +22,7 @@ export class ReliabilityQueueWorker {
       connectionHealthMonitor?: ConnectionHealthMonitor;
       backoffMs?: (attempts: number) => number;
       staleLockThresholdMs?: number;
+      onJobStatus?: (job: ReliabilityQueueJob, status: ReliabilityJobStatus) => void;
     },
   ) {}
 
@@ -53,6 +54,7 @@ export class ReliabilityQueueWorker {
     try {
       await handler(job);
       this.options.store.markDone(job.job_id);
+      this.options.onJobStatus?.(job, "COMPLETED");
       return { picked: true, job_id: job.job_id, status: "COMPLETED" };
     } catch (error) {
       const permanent = error instanceof PermanentQueueError;
@@ -73,6 +75,7 @@ export class ReliabilityQueueWorker {
         job_id: updated.job_id,
         error: updated.last_error ?? "worker_error",
       });
+      this.options.onJobStatus?.(updated, updated.status);
       return { picked: true, job_id: updated.job_id, status: updated.status };
     }
   }
@@ -104,10 +107,6 @@ export async function processOutboundJob(
   });
 }
 
-// Note: ReliabilityQueueJob does not carry its own queue_name (see Phase 9
-// assessment) - the caller already knows which queue it claimed from, so
-// dry-run acknowledgement below trusts that context rather than an
-// unverifiable field on the job itself.
 export async function processInboundJobDryRun(job: ReliabilityQueueJob): Promise<{ would_process: true; job_id: string }> {
   return { would_process: true, job_id: job.job_id };
 }

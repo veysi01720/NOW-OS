@@ -18,6 +18,7 @@
     "test:terra:chain-real": "tsx scripts/terraIntakeChainQualification.ts",
     "test:terra:vision-real": "tsx scripts/terraVisionQualification.ts",
     "test:terra:owner-tone-real": "tsx scripts/terraOwnerKnowledgeToneQualification.ts",
+    "test:p0:replay-real": "npm run test:terra:chain-real && npm run test:terra:vision-real && npm run test:terra:owner-tone-real",
     "test": "vitest run",
     "test:watch": "vitest",
     "backup": "tsx scripts/backup.ts",

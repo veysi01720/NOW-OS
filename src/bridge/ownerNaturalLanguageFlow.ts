@@ -20,6 +20,7 @@ import type { ZipLearningCandidateRecord } from "./zipIngestion/types.js";
 import type { ZipIngestionStore } from "./zipIngestion/store.js";
 import { buildOwnerKnowledgeActivationReply } from "./ownerTone.js";
 import { executeOwnerOperationalQuery } from "./ownerOperationalQuery.js";
+import { CapabilityRegistry, ownerCapabilityForIntent } from "./capabilityRegistry.js";
 
 export interface OwnerNaturalLanguageFlowResult {
   handled: boolean;
@@ -39,6 +40,7 @@ export interface OwnerNaturalLanguageFlowDeps {
   sourceInstance: string;
   logger: Logger;
   sendToCandidate(phone: string, text: string): Promise<void>;
+  capabilityRegistry?: CapabilityRegistry;
 }
 
 function knowledgeDir(value: string | undefined): string {
@@ -234,6 +236,24 @@ export async function handleOwnerNaturalLanguage(
     ambiguity_detected: decision.ambiguity_detected,
     raw_text_logged: false,
   });
+
+  const capability = ownerCapabilityForIntent(decision.intent);
+  if (capability) {
+    const authorization = (deps.capabilityRegistry ?? new CapabilityRegistry()).authorize({
+      capability,
+      senderRole: actorRole,
+      chatType: message.chat_type,
+    });
+    if (!authorization.authorized) {
+      deps.logger.warn({
+        event_type: "OWNER_CAPABILITY_DENIED",
+        correlation_id: message.correlation_id,
+        capability,
+        reason: authorization.reason,
+      });
+      return { handled: true, reply: "Bu işlemi bu kanaldan yapamam; hiçbir değişiklik uygulanmadı.", executionSucceeded: false };
+    }
+  }
 
   if (decision.confidence < 0.65) {
     return { handled: true, reply: decision.clarification_question ?? "Ne yapmamı istediğini güvenle ayıramadım. Bilgi mi ekliyorsun, bir adaya mesaj mı iletiyorsun?", executionSucceeded: false, eventType: "OWNER_NATURAL_INTENT_LOW_CONFIDENCE" };

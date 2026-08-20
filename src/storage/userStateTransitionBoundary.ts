@@ -10,7 +10,7 @@ export type UserStateTransitionSource =
 
 export interface UserStateTransitionResult {
   applied: boolean;
-  reason: "applied" | "unchanged" | "missing_store" | "invalid_conversation_key" | "authority_denied";
+  reason: "applied" | "unchanged" | "missing_store" | "invalid_conversation_key" | "authority_denied" | "invariant_denied";
 }
 
 function cloneState(state: UserState): UserState {
@@ -55,6 +55,13 @@ export function applyUserStateTransition(input: {
 
   const current = cloneState(input.currentState);
   const next = cloneState(input.nextState);
+  const entersTraining = next.current_state === "TRAINING_READY" || next.training_status === "ready" || next.training_status === "in_progress";
+  if (
+    entersTraining
+    && (next.installation_status !== "done" || next.installation_verification_status === "ambiguous")
+  ) {
+    return { applied: false, reason: "invariant_denied" };
+  }
   if (JSON.stringify(current) === JSON.stringify(next)) {
     return { applied: false, reason: "unchanged" };
   }

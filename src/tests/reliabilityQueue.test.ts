@@ -19,7 +19,7 @@ describe("Reliability Queue Tests (PostgreSQL Contract)", () => {
     expect(job.job_id).toBeDefined();
     expect(job.status).toBe("QUEUED");
     expect(job.payload.foo).toBe("bar");
-    expect((job as any).queue_name).toBeUndefined(); // Verify queue_name is not in the job itself
+    expect(job.queue_name).toBe("inbound");
   });
 
   it("claims a job using the new claimNext contract (queueName, workerId, now)", () => {

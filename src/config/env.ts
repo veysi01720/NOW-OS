@@ -48,6 +48,9 @@ export interface EnvConfig {
   humanReplyDelayEnabled?: boolean;
   fastAckEnabled: boolean;
   workersEnabled: boolean;
+  reliableOutboxEnabled?: boolean;
+  reliableOutboxPollMs?: number;
+  reliableOutboxMaxAttempts?: number;
   behaviorOrchestratorEnabled: boolean;
   behaviorCanaryMode: "off" | "internal" | "tenant_allowlist";
   behaviorCanaryTenants: string[];
@@ -188,6 +191,9 @@ export function loadEnv(): EnvConfig {
     humanReplyDelayEnabled: process.env.HUMAN_REPLY_DELAY_ENABLED !== "false",
     fastAckEnabled: process.env.FAST_ACK_ENABLED === "true",
     workersEnabled: process.env.WORKERS_ENABLED === "true",
+    reliableOutboxEnabled: process.env.RELIABLE_OUTBOX_ENABLED === "true",
+    reliableOutboxPollMs: parsePositiveInteger(process.env.RELIABLE_OUTBOX_POLL_MS, 5_000),
+    reliableOutboxMaxAttempts: parsePositiveInteger(process.env.RELIABLE_OUTBOX_MAX_ATTEMPTS, 5),
     behaviorOrchestratorEnabled: process.env.BEHAVIOR_ORCHESTRATOR_ENABLED === "true",
     behaviorCanaryMode: parseSafeEnum(process.env.BEHAVIOR_CANARY_MODE, ["off", "internal", "tenant_allowlist"] as const, "off"),
     behaviorCanaryTenants: parseCsv(process.env.BEHAVIOR_CANARY_TENANT_ALLOWLIST),

@@ -45,6 +45,7 @@ export class InMemoryReliabilityQueueStore implements ReliabilityQueueStore {
     this.sequenceCounter += 1;
     const job: ReliabilityQueueJob = {
       job_id: randomUUID(),
+      queue_name: input.queue_name,
       idempotency_key: input.idempotency_key,
       tenant_id: input.tenant_id,
       conversation_key_hash: input.conversation_key_hash,
@@ -78,7 +79,7 @@ export class InMemoryReliabilityQueueStore implements ReliabilityQueueStore {
     );
 
     const candidates = allJobs
-      .filter((job) => (job.status === "QUEUED" || job.status === "RETRY_WAIT") && Date.parse(job.available_at) <= nowDate.getTime())
+      .filter((job) => job.queue_name === queueName && (job.status === "QUEUED" || job.status === "RETRY_WAIT") && Date.parse(job.available_at) <= nowDate.getTime())
       .sort((a, b) => a.enqueue_sequence - b.enqueue_sequence);
 
     for (const candidate of candidates) {
@@ -94,6 +95,24 @@ export class InMemoryReliabilityQueueStore implements ReliabilityQueueStore {
     }
 
     return null;
+  }
+
+  claimById(jobId: string, workerId: string, now = new Date()): ReliabilityQueueJob | null {
+    const job = this.jobs.get(jobId);
+    if (!job || (job.status !== "QUEUED" && job.status !== "RETRY_WAIT")) return null;
+    if (Date.parse(job.available_at) > now.getTime()) return null;
+    const conversationBusy = [...this.jobs.values()].some(
+      (candidate) => candidate.job_id !== jobId
+        && candidate.conversation_key_hash === job.conversation_key_hash
+        && (candidate.status === "LEASED" || candidate.status === "PROCESSING"),
+    );
+    if (conversationBusy) return null;
+    job.status = "LEASED";
+    job.attempt_count += 1;
+    job.locked_by = workerId;
+    job.lease_until = new Date(now.getTime() + 60_000).toISOString();
+    job.updated_at = now.toISOString();
+    return clone(job);
   }
 
   markDone(jobId: string, now = new Date()): void {
@@ -147,15 +166,17 @@ export class InMemoryReliabilityQueueStore implements ReliabilityQueueStore {
   counts(): QueueBacklogSnapshot {
     this.prune(this.clock());
     const jobs = [...this.jobs.values()];
-    const queued = jobs.filter((job) => job.status === "QUEUED" || job.status === "RETRY_WAIT").length;
+    const pending = (queueName: ReliabilityQueueName) => jobs.filter(
+      (job) => job.queue_name === queueName && (job.status === "QUEUED" || job.status === "RETRY_WAIT"),
+    ).length;
     const deadLetters = jobs.filter((job) => job.status === "DEAD_LETTER").length;
     return {
-      inbound_queue_pending: queued,
-      outbound_queue_pending: 0,
+      inbound_queue_pending: pending("inbound"),
+      outbound_queue_pending: pending("outbound"),
       dead_letter_count: deadLetters,
       failed_count: jobs.filter((job) => job.status === "DEAD_LETTER").length,
       processing_count: jobs.filter((job) => job.status === "PROCESSING" || job.status === "LEASED").length,
-      backlog_alarm: queued >= 50,
+      backlog_alarm: pending("inbound") + pending("outbound") >= 50,
       dead_letter_alarm: deadLetters > 0,
     };
   }

@@ -68,6 +68,7 @@ import { detectZipRouting } from "./zipIngestion/detection.js";
 import { runZipIngestionJob } from "./zipIngestion/pipeline.js";
 import type { ZipIngestionStore } from "./zipIngestion/store.js";
 import type { ReliabilityQueueStore } from "../reliability/queueTypes.js";
+import type { DeliveryEventLedger } from "../reliability/deliveryEventLedger.js";
 import { enqueueOutboundShadow, stripMediaBase64 } from "../reliability/shadowQueue.js";
 import { isOutboundShadowEnabled } from "../reliability/queueModes.js";
 import type { ConnectionHealthMonitor } from "../observability/connectionHealthMonitor.js";
@@ -115,6 +116,7 @@ export interface HandleIncomingMessageDeps {
   ingestionStore?: PersistentIngestionStore;
   zipIngestionStore?: ZipIngestionStore;
   reliabilityQueueStore?: ReliabilityQueueStore;
+  deliveryEventLedger?: DeliveryEventLedger;
   connectionHealthMonitor?: ConnectionHealthMonitor;
   publisherStore?: PublisherStore;
   dailyReportStore?: DailyReportStore;
@@ -260,6 +262,12 @@ function recordHumanHandoff(deps: HandleIncomingMessageDeps, message: Normalized
       correlation_id: message.correlation_id,
       reason_code: reasonCode,
       raw_text_logged: false,
+    });
+    deps.deliveryEventLedger?.append({
+      event_type: "handoff_recorded",
+      correlation_id: message.correlation_id,
+      status: result.created ? "created" : "already_present",
+      metadata: { reason_code: reasonCode },
     });
   } catch (error) {
     deps.logger.error({

@@ -9,7 +9,7 @@ describe("owner success claim guard", () => {
       executionSucceeded: false,
     });
     expect(result.blocked).toBe(true);
-    expect(result.reply).toContain("Komut formatı tanınmadı");
+    expect(result.reply).toContain("doğrulayan bir kayıt yok");
   });
 
   it("allows a definitive claim only when the backend reports success", () => {
