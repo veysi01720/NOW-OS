@@ -78,6 +78,17 @@ function verifyMaterializedKnowledge(
   const failures: string[] = [];
   const structuredSections = Array.isArray(parsed.owner_transfer_sections) ? parsed.owner_transfer_sections : [];
   const policySections = parsed.policy_sections && typeof parsed.policy_sections === "object" ? parsed.policy_sections as Record<string, unknown> : {};
+  const loaded = loadStructuredAppFacts(resolve(appFactsPath, ".."));
+  const stageProbes: Array<{
+    stage: string;
+    intent: string;
+    state: ReturnType<typeof defaultUserState>;
+  }> = [
+    { stage: "intake", intent: "ask_eligibility", state: { ...defaultUserState(), current_state: "NEW_LEAD" } },
+    { stage: "app_selection", intent: "app_selection", state: { ...defaultUserState(), current_state: "WAITING_FOR_APP" } },
+    { stage: "installation", intent: "technical_issue", state: { ...defaultUserState(), current_state: "INSTALLATION_IN_PROGRESS" } },
+    { stage: "training", intent: "training_guidance", state: { ...defaultUserState(), current_state: "TRAINING_READY" } },
+  ];
 
   for (const candidate of approved) {
     const content = candidate.extracted_text.trim();
@@ -97,32 +108,17 @@ function verifyMaterializedKnowledge(
       continue;
     }
     structuredFields.add(field);
-    const loaded = loadStructuredAppFacts(resolve(appFactsPath, ".."));
     const contextPresent = field === "owner_transfer_sections"
       ? loaded.owner_transfer_sections.some((item) => item.content.includes(content))
       : field.startsWith("policy_sections.") && loaded.policy_sections !== null && String(loaded.policy_sections[field.slice("policy_sections.".length) as keyof NonNullable<typeof loaded.policy_sections>] ?? "").includes(content);
     if (contextPresent) contextPaths.add(`structured_facts.${field}`);
     else failures.push(`CONTEXT_MISSING:${candidate.section_id ?? candidate.id}`);
-    const normalized = `${candidate.section_title ?? ""} ${content}`.toLocaleLowerCase("tr-TR");
-    const intent = /(erkek|hesap|profil|foto|fotograf)/u.test(normalized)
-      ? "account_profile_question"
-      : /(kurulum|uygulama|destek|sorun|ekran)/u.test(normalized)
-        ? "technical_issue"
-        : /(odeme|cekim|kazanc|iban)/u.test(normalized)
-          ? "payment_withdrawal"
-          : /(yas|cinsiyet|uygun)/u.test(normalized)
-            ? "ask_eligibility"
-            : null;
-    if (intent) {
-      const loadedPolicy = loadStructuredAppFacts(resolve(appFactsPath, ".."));
-      const verificationState: ReturnType<typeof defaultUserState> = {
-        ...defaultUserState(),
-        current_state: intent === "technical_issue" ? "INSTALLATION_IN_PROGRESS" : intent === "account_profile_question" ? "WAITING_FOR_APP" : "NEW_LEAD",
-      };
-      const decisionContext = resolveCandidatePolicy(verificationState, [], loadedPolicy.app_facts, loadedPolicy.general_work_model, intent, loadedPolicy.policy_sections, loadedPolicy.owner_transfer_sections);
-      if (decisionContext.facts.some((fact) => fact.content.includes(content))) contextPaths.add(`decision_context.canonical_policy_facts:${intent}`);
-      else failures.push(`DECISION_CONTEXT_MISSING:${candidate.section_id ?? candidate.id}`);
-    }
+    const matchingStages = stageProbes.filter((probe) => {
+      const decisionContext = resolveCandidatePolicy(probe.state, [], loaded.app_facts, loaded.general_work_model, probe.intent, loaded.policy_sections, loaded.owner_transfer_sections);
+      return decisionContext.facts.some((fact) => fact.content.includes(content));
+    });
+    for (const probe of matchingStages) contextPaths.add(`decision_context.canonical_policy_facts:${probe.stage}:${probe.intent}`);
+    if (matchingStages.length === 0) failures.push(`DECISION_CONTEXT_MISSING:${candidate.section_id ?? candidate.id}`);
   }
 
   return { source_present: failures.every((failure) => !failure.startsWith("SOURCE_MISSING:")), structured_fields: [...structuredFields], context_paths: [...contextPaths], failures };
@@ -199,7 +195,11 @@ export function materializeApprovedOwnerKnowledge(input: {
     atomicWrite(appFactsPath, `${previous.trimEnd()}${additions}\n`);
     const publish = publishStructuredKnowledgeSources({ knowledgeBankDir: dir, mode: "activate", ownerApproval: true });
     if (publish.status !== "published") throw new Error(`OWNER_TRANSFER_PUBLISH_${publish.status.toUpperCase()}`);
-    const verification = verifyMaterializedKnowledge(appFactsPath, structuredPath, approved, input.forceStructuredVerificationFailure);
+    const previouslyPublished = input.zipStore.listLearningCandidates()
+      .filter((candidate) => candidate.status === "published" && candidate.target_file === "app_facts.md" && candidate.classification !== "archive");
+    const verificationCandidates = [...previouslyPublished, ...approved]
+      .filter((candidate, index, candidates) => candidates.findIndex((item) => item.id === candidate.id) === index);
+    const verification = verifyMaterializedKnowledge(appFactsPath, structuredPath, verificationCandidates, input.forceStructuredVerificationFailure);
     if (!verification || verification.failures.length > 0) throw new Error(`OWNER_TRANSFER_VERIFY_${verification?.failures.join(",") ?? "MISSING"}`);
     const rollback = { previous_source_hash: previousHash, backup_path: backupPath, created_at: new Date().toISOString(), source_archive_hash: job.zip_sha256, section_hashes: sourceHashes };
     atomicWrite(rollbackPath, `${JSON.stringify(rollback, null, 2)}\n`);

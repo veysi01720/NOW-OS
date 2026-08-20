@@ -56,7 +56,7 @@ describe("owner knowledge transfer chain", () => {
       const bank = join(dir, "knowledge_bank");
       knowledgeBank(bank);
       const store = new ZipIngestionStore(join(dir, "zip-store.json"));
-      const contents = ["## Incoming 1\nKurulumda takilan aday: Approved section 1.", ...Array.from({ length: 7 }, (_, index) => `## Incoming ${index + 2}\nApproved section ${index + 2}.`)];
+      const contents = ["## Incoming 1\nKurulumda takilan aday: Approved section 1.", "## Incoming 2\nOdeme sorularinda Approved section 2 uygulanir.", ...Array.from({ length: 6 }, (_, index) => `## Incoming ${index + 3}\nApproved section ${index + 3}.`)];
       seed(store, contents);
       expect(store.listLearningCandidates("zip_transfer_test")).toHaveLength(8);
       const summary = buildOwnerKnowledgeReviewSummary(store.getJob("zip_transfer_test")!, store.listLearningCandidates("zip_transfer_test"));
@@ -75,7 +75,7 @@ describe("owner knowledge transfer chain", () => {
       expect(result.verification?.source_present).toBe(true);
       expect(result.verification?.structured_fields).toContain("owner_transfer_sections");
       expect(result.verification?.context_paths).toContain("structured_facts.owner_transfer_sections");
-      expect(result.verification?.context_paths).toContain("decision_context.canonical_policy_facts:technical_issue");
+      expect(result.verification?.context_paths).toContain("decision_context.canonical_policy_facts:installation:technical_issue");
       expect(store.getLearningCandidate("section_1")?.status).toBe("published");
     } finally {
       rmSync(dir, { recursive: true, force: true });
@@ -109,7 +109,7 @@ describe("owner knowledge transfer chain", () => {
       knowledgeBank(bank);
       const store = new ZipIngestionStore(join(dir, "zip-store.json"));
       const created = createDirectOwnerKnowledgeReview({
-        text: "## Owner bilgi\n\nBu bilgi onaydan sonra aktif facts'e eklenir.",
+        text: "## Owner bilgi\n\nProfil bilgisi onaydan sonra aktif facts'e eklenir.",
         senderRole: "owner",
         senderPhone: "905111111111",
         sourceInstance: "test",
@@ -119,13 +119,13 @@ describe("owner knowledge transfer chain", () => {
       const jobId = created.result!.job.id;
       const factsPath = resolve(bank, "app_facts.md");
       const before = readFileSync(factsPath, "utf8");
-      expect(before).not.toContain("Bu bilgi onaydan sonra");
+      expect(before).not.toContain("Profil bilgisi onaydan sonra");
 
       const candidate = store.listLearningCandidates(jobId)[0];
       store.reviewLearningCandidate(candidate.id, "approve", "owner");
       const result = materializeApprovedOwnerKnowledge({ jobId, zipStore: store, knowledgeBankDir: bank });
       expect(result.status).toBe("published");
-      expect(readFileSync(factsPath, "utf8")).toContain("Bu bilgi onaydan sonra aktif facts'e eklenir.");
+      expect(readFileSync(factsPath, "utf8")).toContain("Profil bilgisi onaydan sonra aktif facts'e eklenir.");
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }
@@ -144,6 +144,41 @@ describe("owner knowledge transfer chain", () => {
       expect(result.status).toBe("failed");
       expect(result.error_code).toContain("OWNER_TRANSFER_VERIFY_STRUCTURED_MISSING");
       expect(readFileSync(path, "utf8")).toBe(before);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it("revalidates previously published owner knowledge before claiming a later publish succeeded", () => {
+    const dir = mkdtempSync(join(tmpdir(), "owner-transfer-history-"));
+    try {
+      const bank = join(dir, "knowledge_bank");
+      knowledgeBank(bank);
+      const store = new ZipIngestionStore(join(dir, "zip-store.json"));
+      seed(store, [
+        "## Previous rule\nKurulumda sorun olursa ekran goruntusu owner kontrolune gider.",
+        "## Previous payment rule\nOdeme bilgisi yayinlanmis kurala gore verilir.",
+        ...Array.from({ length: 6 }, (_, index) => `## Rejected ${index}\nRejected.`),
+      ]);
+      expect(materializeApprovedOwnerKnowledge({ jobId: "zip_transfer_test", zipStore: store, knowledgeBankDir: bank }).status).toBe("published");
+
+      const path = resolve(bank, "app_facts.md");
+      const previous = readFileSync(path, "utf8");
+      writeFileSync(path, previous.replace(/\n\n## Owner Transfer[\s\S]*$/u, "\n"));
+      const second = createDirectOwnerKnowledgeReview({
+        text: "Odeme talebi yalniz yayinlanmis kurala gore yanitlanir.",
+        senderRole: "owner",
+        senderPhone: "905111111111",
+        sourceInstance: "test",
+        zipStore: store,
+      });
+      const candidate = second.result!.candidates[0];
+      store.reviewLearningCandidate(candidate.id, "approve", "owner");
+      const result = materializeApprovedOwnerKnowledge({ jobId: second.result!.job.id, zipStore: store, knowledgeBankDir: bank });
+
+      expect(result.status).toBe("failed");
+      expect(result.error_code).toContain("OWNER_TRANSFER_VERIFY_SOURCE_MISSING");
+      expect(readFileSync(path, "utf8")).not.toContain("Odeme talebi yalniz");
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }

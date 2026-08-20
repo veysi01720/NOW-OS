@@ -112,6 +112,7 @@ function ownerTransferMatchesStage(section: OwnerTransferPolicySection, stage: C
   if (section.classification === "archive") return false;
   if (section.classification === "constraint" || section.classification === "critical") return true;
   const text = normalize(`${section.title} ${section.content}`);
+  if (/(odeme|cekim|kazanc|iban|ucret|ayril|vazgec|ara ver)/u.test(text)) return true;
   if (stage === "intake") return /(yas|cinsiyet|uygun|profil|bio|foto|fotograf|is model|calisma)/u.test(text);
   if (stage === "app_selection") return /(uygulama|alternatif|yonlendirme|profil|cihaz)/u.test(text);
   return /(kurulum|uygulama|kod|davet|ajans|destek|sorun|ekran|profil|foto|fotograf)/u.test(text);

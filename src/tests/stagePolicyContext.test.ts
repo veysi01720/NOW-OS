@@ -60,4 +60,25 @@ describe("stage-based policy context", () => {
     expect(result.policy_context_token_estimate).toBeLessThanOrEqual(2000);
     for (const fact of result.facts) expect(prompt).toContain(fact.content);
   });
+
+  it("routes every published owner knowledge topic into at least one stage without intent-specific mappings", () => {
+    const ownerSections = [
+      { section_id: "male_profile", title: "Owner direct bilgi", classification: "constraint" as const, content: "Erkek adaylar kadin profil ve fotograflariyla ilerler; acik uygunluk onayi alinir." },
+      { section_id: "installation_support", title: "Owner direct bilgi", classification: "information" as const, content: "Kurulumda takilan aday uygulamayi kapatip acar; sorun surerse ekran goruntusu yonetime aktarilir." },
+      { section_id: "work_model_profile", title: "Owner direct bilgi", classification: "information" as const, content: "Cinsiyet alindiktan sonra erkek adaya is modeli ve kadin profil kurali aciklanir." },
+      { section_id: "intake_fields", title: "Owner direct bilgi", classification: "information" as const, content: "On bilgi icin yas, cinsiyet ve gunluk ayirabilecegin sure sorulur." },
+      { section_id: "work_rules", title: "Owner direct bilgi", classification: "constraint" as const, content: "Calisma uygulamada yazisarak ilerler; profil alaninda kisisel bilgi paylasilmaz ve kurulum ucreti yoktur." },
+    ];
+    const probes = [
+      { state: { ...defaultUserState(), current_state: "NEW_LEAD" as const }, intent: "ask_eligibility" },
+      { state: { ...defaultUserState(), current_state: "WAITING_FOR_APP" as const }, intent: "app_selection" },
+      { state: { ...defaultUserState(), current_state: "INSTALLATION_IN_PROGRESS" as const }, intent: "technical_issue" },
+      { state: { ...defaultUserState(), current_state: "TRAINING_READY" as const }, intent: "training_guidance" },
+    ];
+
+    for (const section of ownerSections) {
+      const reachable = probes.some((probe) => resolveCandidatePolicy(probe.state, [], [], null, probe.intent, sections, ownerSections).facts.some((fact) => fact.id === `owner_transfer_${section.section_id}`));
+      expect(reachable, section.section_id).toBe(true);
+    }
+  });
 });
