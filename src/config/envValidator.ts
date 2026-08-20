@@ -5,6 +5,7 @@ export interface EnvSafeSummary {
   dashboard_manager_token_configured: boolean;
   openai_configured: boolean;
   evolution_configured: boolean;
+  smtp_alarm_configured: boolean;
   storage_dir_configured: boolean;
   auto_send_default_off: boolean;
 }
@@ -25,6 +26,11 @@ export function validateProductionEnv(env: EnvConfig, isProduction: boolean = pr
   if (!env.evolutionApiBaseUrl || env.evolutionApiBaseUrl.trim() === "") missing.push("EVOLUTION_API_BASE_URL");
   if (!env.evolutionApiKey || env.evolutionApiKey.trim() === "") missing.push("EVOLUTION_API_KEY");
   if (!env.evolutionInstance || env.evolutionInstance.trim() === "") missing.push("EVOLUTION_INSTANCE");
+  if (env.smtpAlertEnabled) {
+    if (!env.smtpHost) missing.push("SMTP_HOST");
+    if (!env.smtpFrom) missing.push("SMTP_FROM");
+    if ((env.smtpAlertRecipients?.length ?? 0) === 0) missing.push("SMTP_ALERT_RECIPIENTS");
+  }
 
   if (missing.length > 0) {
     console.error(`[FATAL] Production startup aborted. Missing required environment variables: ${missing.join(", ")}`);
@@ -42,6 +48,8 @@ export function getSafeConfigSummary(env: EnvConfig): EnvSafeSummary {
     dashboard_manager_token_configured: Boolean(env.dashboardManagerToken && env.dashboardManagerToken.trim() !== ""),
     openai_configured: Boolean(env.openaiApiKey && env.openaiAssistantId),
     evolution_configured: Boolean(env.evolutionApiBaseUrl && env.evolutionApiKey && env.evolutionInstance),
+    smtp_alarm_configured: env.smtpAlertEnabled === true
+      && Boolean(env.smtpHost && env.smtpFrom && (env.smtpAlertRecipients?.length ?? 0) > 0),
     storage_dir_configured: true, // We always resolve "data" locally for now
     auto_send_default_off: true // Hardcoded constraint to ensure auto-send defaults off
   };

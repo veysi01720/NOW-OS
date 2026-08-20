@@ -15,6 +15,7 @@ describe("Dashboard Actions v2", () => {
   let auditStore: PersistentActionAuditStore;
   let tempDir: string;
   let env: EnvConfig;
+  let connectionHealthMonitor: { requestManualOperation: ReturnType<typeof vi.fn>; sendAlarmTest: ReturnType<typeof vi.fn> };
 
   beforeEach(() => {
     tempDir = mkdtempSync(join(tmpdir(), "nowos-dashboard-actions-"));
@@ -47,6 +48,10 @@ describe("Dashboard Actions v2", () => {
       reviewSuggestionBySafeRef: () => true,
       listLearningSuggestions: () => []
     } as any;
+    connectionHealthMonitor = {
+      requestManualOperation: vi.fn(async () => ({ ok: true, status: 200, reason: "requested" })),
+      sendAlarmTest: vi.fn(async () => ({ delivered: true })),
+    };
 
     registerDashboardRoutes(app, {
       env,
@@ -54,7 +59,8 @@ describe("Dashboard Actions v2", () => {
       queueStore,
       reportDataSource,
       actionAuditStore: auditStore,
-      ingestionStore
+      ingestionStore,
+      connectionHealthMonitor: connectionHealthMonitor as any,
     });
   });
 
@@ -160,6 +166,28 @@ describe("Dashboard Actions v2", () => {
       payload: { desired_state: "on" }
     });
     expect(res.statusCode).toBe(400);
+  });
+
+  it("routes owner manual Evolution operations through the shared connection lock", async () => {
+    const res = await app.inject({
+      method: "POST",
+      url: "/dashboard/actions/evolution/connection-operation",
+      headers: { "x-dashboard-token": "owner_secret" },
+      payload: { operation: "connect", confirm: true },
+    });
+    expect(res.statusCode).toBe(200);
+    expect(connectionHealthMonitor.requestManualOperation).toHaveBeenCalledWith("connect");
+  });
+
+  it("does not let a manager bypass the Evolution operation lock", async () => {
+    const res = await app.inject({
+      method: "POST",
+      url: "/dashboard/actions/evolution/connection-operation",
+      headers: { "x-dashboard-token": "manager_secret" },
+      payload: { operation: "logout", confirm: true },
+    });
+    expect(res.statusCode).toBe(403);
+    expect(connectionHealthMonitor.requestManualOperation).not.toHaveBeenCalled();
   });
 
   describe("Backup Trigger", () => {

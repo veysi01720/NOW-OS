@@ -30,6 +30,7 @@ export interface DashboardDeps {
   modelAdapterCanaryApprovalController?: ModelAdapterCanaryApprovalController;
   humanHandoffStore?: import('../store/humanHandoffStore.js').HumanHandoffStore;
   trainingHandoffStore?: import('../store/trainingHandoffStore.js').TrainingHandoffStore;
+  connectionHealthMonitor?: import('../observability/connectionHealthMonitor.js').ConnectionHealthMonitor;
 }
 
 export function registerDashboardRoutes(app: FastifyInstance, deps: DashboardDeps): void {
@@ -232,6 +233,56 @@ export function registerDashboardRoutes(app: FastifyInstance, deps: DashboardDep
     }
     done();
   };
+
+  app.post("/dashboard/actions/evolution/connection-operation", { preHandler: [requireAuth, checkIdempotency] }, async (req, reply) => {
+    const actorRole = (req as FastifyRequest & { actor_role?: string }).actor_role;
+    if (actorRole !== "owner") return reply.code(403).send({ status: "denied", reason: "owner_required" });
+    if (!deps.connectionHealthMonitor) return reply.code(503).send({ status: "unavailable" });
+    const body = (req.body ?? {}) as { operation?: "connect" | "logout"; confirm?: boolean };
+    if (!body.confirm || (body.operation !== "connect" && body.operation !== "logout")) {
+      return reply.code(400).send({ status: "rejected", reason: "confirmed_connect_or_logout_required" });
+    }
+    const result = await deps.connectionHealthMonitor.requestManualOperation(body.operation);
+    deps.actionAuditStore.logAction({
+      action_type: `evolution_${body.operation}`,
+      actor_role: "owner",
+      actor_masked_ref: "authenticated-dashboard-owner",
+      role_resolution_source: (req as FastifyRequest & { role_resolution_source?: DashboardActionAuditV1["role_resolution_source"] }).role_resolution_source ?? "unknown",
+      target_type: "system",
+      target_safe_ref: "evolution-instance",
+      risk_level: "HIGH",
+      confirm_required: true,
+      confirmed: true,
+      result_status: result.ok ? "success" : "failure",
+      idempotency_key_hash: req.headers["x-idempotency-key"] as string | undefined,
+      error_safe_message: result.ok ? undefined : result.reason,
+    });
+    return reply.code(result.status).send({ status: result.ok ? "requested" : "blocked", reason: result.reason });
+  });
+
+  app.post("/dashboard/actions/evolution/alarm-test", { preHandler: [requireAuth, checkIdempotency] }, async (req, reply) => {
+    const actorRole = (req as FastifyRequest & { actor_role?: string }).actor_role;
+    if (actorRole !== "owner") return reply.code(403).send({ status: "denied", reason: "owner_required" });
+    if (!deps.connectionHealthMonitor) return reply.code(503).send({ status: "unavailable" });
+    const body = (req.body ?? {}) as { confirm?: boolean };
+    if (!body.confirm) return reply.code(400).send({ status: "rejected", reason: "confirmation_required" });
+    const result = await deps.connectionHealthMonitor.sendAlarmTest();
+    deps.actionAuditStore.logAction({
+      action_type: "evolution_email_alarm_test",
+      actor_role: "owner",
+      actor_masked_ref: "authenticated-dashboard-owner",
+      role_resolution_source: (req as FastifyRequest & { role_resolution_source?: DashboardActionAuditV1["role_resolution_source"] }).role_resolution_source ?? "unknown",
+      target_type: "system",
+      target_safe_ref: "smtp-alert-channel",
+      risk_level: "LOW",
+      confirm_required: true,
+      confirmed: true,
+      result_status: result.delivered ? "success" : "failure",
+      idempotency_key_hash: req.headers["x-idempotency-key"] as string | undefined,
+      error_safe_message: result.delivered ? undefined : "smtp_delivery_not_confirmed",
+    });
+    return reply.code(result.delivered ? 200 : 503).send({ status: result.delivered ? "delivered" : "failed" });
+  });
 
   app.post("/dashboard/actions/daily-report/generate", { preHandler: [requireAuth, checkIdempotency] }, async (req, reply) => {
     const key = req.headers["x-idempotency-key"] as string | undefined;

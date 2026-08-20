@@ -21,6 +21,7 @@ import { createOpenAIResponsesAdapter } from "./modelAdapter/ResponsesAdapter.js
 import { createOpenAIOwnerNaturalLanguageIntentClassifier } from "./bridge/ownerNaturalLanguageIntent.js";
 import { ResponsesShadowService, type ResponsesShadowSnapshot } from "./modelAdapter/responsesShadowService.js";
 import { ConnectionHealthMonitor } from "./observability/connectionHealthMonitor.js";
+import { SmtpConnectionAlarmNotifier } from "./observability/connectionAlarmNotifier.js";
 import { resolve } from "node:path";
 import { ModelAdapterCanaryApprovalStore } from "./modelAdapter/modelAdapterCanaryApproval.js";
 import { ModelAdapterCanaryApprovalAuditStore } from "./modelAdapter/modelAdapterCanaryApprovalAudit.js";
@@ -384,6 +385,23 @@ export async function buildServer() {
     instanceName: env.evolutionInstance,
     logger,
   });
+  const connectionAlarmNotifier = new SmtpConnectionAlarmNotifier({
+    enabled: env.smtpAlertEnabled === true,
+    host: env.smtpHost,
+    port: env.smtpPort ?? 587,
+    secure: env.smtpSecure === true,
+    username: env.smtpUsername,
+    password: env.smtpPassword,
+    from: env.smtpFrom,
+    recipients: env.smtpAlertRecipients ?? [],
+    logger,
+  });
+  logger[connectionAlarmNotifier.isConfigured() ? "info" : "warn"]({
+    event_type: connectionAlarmNotifier.isConfigured()
+      ? "EVOLUTION_SMTP_ALARM_CHANNEL_READY"
+      : "EVOLUTION_SMTP_ALARM_CHANNEL_NOT_CONFIGURED",
+    configured: connectionAlarmNotifier.isConfigured(),
+  });
   const connectionHealthMonitor = new ConnectionHealthMonitor({
     evolutionInstance: env.evolutionInstance,
     evolutionApiBaseUrl: env.evolutionApiBaseUrl,
@@ -392,8 +410,13 @@ export async function buildServer() {
     autoReconnectEnabled: env.evolutionAutoReconnectEnabled,
     reconnectBaseDelayMs: env.evolutionReconnectBaseDelayMs,
     reconnectCooldownMs: env.evolutionReconnectCooldownMs,
+    connectingTimeoutMs: env.evolutionConnectingTimeoutMs,
+    refusedRetryDelayMs: env.evolutionRefusedRetryDelayMs,
+    stableOpenResetMs: env.evolutionStableOpenResetMs,
+    connectionControlStatePath: resolve(DATA_DIR, "evolution-connection-control.json"),
     logoutEventsPath: resolve(DATA_DIR, "evolution-logout-events.json"),
     sessionIntegrityCheck,
+    alarmNotifier: connectionAlarmNotifier,
     onLogout401: ({ instance }) => {
       const result = humanHandoffStore.create({
         tenant_id: "now_os",
@@ -405,6 +428,25 @@ export async function buildServer() {
       logger.warn({
         event_type: result.created ? "EVOLUTION_LOGOUT_HANDOFF_RECORDED" : "EVOLUTION_LOGOUT_HANDOFF_ALREADY_PRESENT",
         reason_code: "evolution_session_logout_401",
+        created: result.created,
+      });
+    },
+    onConnectionAlarm: ({ kind, instance }) => {
+      if (kind === "logged_out_401") return;
+      if (kind === "connection_recovered") {
+        logger.info({ event_type: "EVOLUTION_CONNECTION_RECOVERY_AUDIT", evolution_instance: instance });
+        return;
+      }
+      const result = humanHandoffStore.create({
+        tenant_id: "now_os",
+        reason_code: `evolution_connection_${kind}`,
+        urgency: "high",
+        conversation_key_hash: `evolution:${instance}`,
+        source_correlation_id: "evolution-connection-monitor",
+      });
+      logger.warn({
+        event_type: result.created ? "EVOLUTION_CONNECTION_HANDOFF_RECORDED" : "EVOLUTION_CONNECTION_HANDOFF_ALREADY_PRESENT",
+        reason_code: `evolution_connection_${kind}`,
         created: result.created,
       });
     },
@@ -533,6 +575,7 @@ export async function buildServer() {
     modelAdapterCanaryApprovalController,
     humanHandoffStore,
     trainingHandoffStore,
+    connectionHealthMonitor,
   });
 
   registerReviewRoutes(app, {

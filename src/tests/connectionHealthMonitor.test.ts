@@ -1,5 +1,8 @@
 import { ConnectionHealthMonitor } from "../observability/connectionHealthMonitor.js";
 import { createSilentLogger } from "./testDoubles.js";
+import { mkdtempSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 
 describe("ConnectionHealthMonitor", () => {
   it("records inbound and send confirmation timestamps without raw identifiers", () => {
@@ -144,9 +147,10 @@ describe("ConnectionHealthMonitor", () => {
     });
   });
 
-  it("requests a bounded reconnect once for a closed Evolution state", async () => {
+  it("waits ten minutes after 428 and requests exactly one reconnect", async () => {
     const logger = createSilentLogger();
     const calls: string[] = [];
+    let nowMs = Date.parse("2026-08-20T10:00:00.000Z");
     const monitor = new ConnectionHealthMonitor({
       evolutionInstance: "nowakademi_bot",
       evolutionApiBaseUrl: "http://evolution.local",
@@ -154,14 +158,21 @@ describe("ConnectionHealthMonitor", () => {
       logger,
       autoReconnectEnabled: true,
       reconnectBaseDelayMs: 1,
+      refusedRetryDelayMs: 10 * 60 * 1000,
+      now: () => new Date(nowMs),
       fetchImpl: (async (url) => {
         calls.push(String(url));
-        return new Response(JSON.stringify({ instance: { state: "close" } }), { status: 200 });
+        return new Response(JSON.stringify({ instance: { state: "close", statusReason: 428 } }), { status: 200 });
       }) as typeof fetch,
     });
     await monitor.runReachabilityCheck("periodic");
-    await new Promise((resolve) => setTimeout(resolve, 10));
-    expect(calls).toContain("http://evolution.local/instance/connect/nowakademi_bot");
+    expect(calls).toHaveLength(1);
+    nowMs += 10 * 60 * 1000 + 1;
+    await monitor.runReachabilityCheck("periodic");
+    await new Promise((resolve) => setTimeout(resolve, 5));
+    await monitor.runReachabilityCheck("periodic");
+    await new Promise((resolve) => setTimeout(resolve, 5));
+    expect(calls.filter((url) => url.includes("/instance/connect/"))).toHaveLength(1);
     expect(JSON.stringify(logger.events)).not.toContain("secret-key");
   });
 
@@ -197,7 +208,8 @@ describe("ConnectionHealthMonitor", () => {
 
   it("persists and reports 401 logout counts without exposing payloads", async () => {
     const logger = createSilentLogger();
-    const path = `${process.cwd()}/.tmp-evolution-logout-${Date.now()}.json`;
+    const dir = mkdtempSync(join(tmpdir(), "now-os-logout-"));
+    const path = join(dir, "events.json");
     const monitor = new ConnectionHealthMonitor({
       evolutionInstance: "nowakademi_bot",
       evolutionApiBaseUrl: "http://evolution.local",
@@ -209,12 +221,47 @@ describe("ConnectionHealthMonitor", () => {
     const snapshot = await monitor.runReachabilityCheck("periodic");
     expect(snapshot.logout_401_count_last_24h).toBe(1);
     expect(logger.events).toEqual(expect.arrayContaining([expect.objectContaining({ event_type: "EVOLUTION_SESSION_LOGOUT_401" })]));
+    rmSync(dir, { recursive: true, force: true });
   });
 
-  it("starts a cooldown after three reconnect attempts and blocks further attempts", async () => {
+  it("persists the two-attempt breaker across monitor restarts and opens a sixty-minute cooldown", async () => {
     const logger = createSilentLogger();
     const calls: string[] = [];
     let nowMs = Date.parse("2026-08-12T00:00:00.000Z");
+    const dir = mkdtempSync(join(tmpdir(), "now-os-breaker-"));
+    const statePath = join(dir, "control.json");
+    const options = {
+      evolutionInstance: "nowakademi_bot",
+      evolutionApiBaseUrl: "http://evolution.local",
+      evolutionApiKey: "secret-key",
+      logger,
+      autoReconnectEnabled: true,
+      reconnectBaseDelayMs: 1,
+      reconnectCooldownMs: 60 * 60 * 1000,
+      connectionControlStatePath: statePath,
+      now: () => new Date(nowMs),
+      fetchImpl: (async (url) => {
+        calls.push(String(url));
+        return new Response("{}", { status: 200 });
+      }) as typeof fetch,
+    };
+    const monitor = new ConnectionHealthMonitor(options);
+
+    expect((await monitor.requestManualOperation("connect")).ok).toBe(true);
+    expect((await monitor.requestManualOperation("connect")).ok).toBe(true);
+    const restartedMonitor = new ConnectionHealthMonitor(options);
+    const blocked = await restartedMonitor.requestManualOperation("connect");
+
+    expect(blocked).toMatchObject({ ok: false, status: 429, reason: "circuit_breaker_open" });
+    expect(calls).toHaveLength(2);
+    expect(restartedMonitor.snapshot().reconnect_cooldown_until).toBe("2026-08-12T01:00:00.000Z");
+    rmSync(dir, { recursive: true, force: true });
+  });
+
+  it("hard-stops on 401, never auto-reconnects, and dispatches the independent alarm", async () => {
+    const logger = createSilentLogger();
+    const calls: string[] = [];
+    const alarms: string[] = [];
     const monitor = new ConnectionHealthMonitor({
       evolutionInstance: "nowakademi_bot",
       evolutionApiBaseUrl: "http://evolution.local",
@@ -222,26 +269,58 @@ describe("ConnectionHealthMonitor", () => {
       logger,
       autoReconnectEnabled: true,
       reconnectBaseDelayMs: 1,
-      reconnectCooldownMs: 30 * 60 * 1000,
-      now: () => new Date(nowMs),
+      alarmNotifier: {
+        isConfigured: () => true,
+        send: async (input) => {
+          alarms.push(input.kind);
+          return { delivered: true, message_id: "smtp-accepted" };
+        },
+      },
       fetchImpl: (async (url) => {
         calls.push(String(url));
-        return new Response(JSON.stringify({ instance: { state: "close" } }), { status: 200 });
+        return new Response(JSON.stringify({ instance: { state: "close", statusReason: 401 } }), { status: 200 });
       }) as typeof fetch,
     });
 
-    for (let i = 0; i < 3; i += 1) {
-      monitor.recordEvolutionConnectionUpdate({ state: "close" });
-      await new Promise((resolve) => setTimeout(resolve, 5));
-    }
-    monitor.recordEvolutionConnectionUpdate({ state: "close" });
-    await new Promise((resolve) => setTimeout(resolve, 5));
-    monitor.recordEvolutionConnectionUpdate({ state: "close" });
+    await monitor.runReachabilityCheck("periodic");
     await new Promise((resolve) => setTimeout(resolve, 5));
 
-    expect(calls).toHaveLength(3);
-    expect(monitor.snapshot().reconnect_cooldown_until).toBe("2026-08-12T00:30:00.000Z");
-    expect(JSON.stringify(logger.events)).toContain("EVOLUTION_RECONNECT_COOLDOWN_ACTIVE");
+    expect(calls.filter((url) => url.includes("/instance/connect/"))).toHaveLength(0);
+    expect(alarms).toEqual(["logged_out_401"]);
+    expect(monitor.snapshot().reconnect_hard_stop_reason).toBe("logged_out_401");
+  });
+
+  it("clears the persistent breaker only after open remains stable for two minutes", async () => {
+    const logger = createSilentLogger();
+    let nowMs = Date.parse("2026-08-20T10:00:00.000Z");
+    const monitor = new ConnectionHealthMonitor({
+      evolutionInstance: "nowakademi_bot",
+      evolutionApiBaseUrl: "http://evolution.local",
+      evolutionApiKey: "secret-key",
+      logger,
+      reconnectBaseDelayMs: 1,
+      stableOpenResetMs: 2 * 60 * 1000,
+      now: () => new Date(nowMs),
+      alarmNotifier: {
+        isConfigured: () => true,
+        send: async () => ({ delivered: true }),
+      },
+      fetchImpl: (async () => new Response("{}", { status: 200 })) as typeof fetch,
+    });
+
+    await monitor.requestManualOperation("connect");
+    monitor.recordEvolutionConnectionUpdate({ state: "open" });
+    expect(monitor.snapshot().reconnect_attempts_last_30m).toBe(1);
+
+    nowMs += 119_999;
+    monitor.recordEvolutionConnectionUpdate({ state: "open" });
+    await new Promise((resolve) => setTimeout(resolve, 1));
+    expect(monitor.snapshot().reconnect_attempts_last_30m).toBe(1);
+
+    nowMs += 2;
+    monitor.recordEvolutionConnectionUpdate({ state: "open" });
+    await new Promise((resolve) => setTimeout(resolve, 1));
+    expect(monitor.snapshot().reconnect_attempts_last_30m).toBe(0);
   });
 
   it("retains session integrity in the connection-doctor snapshot", async () => {

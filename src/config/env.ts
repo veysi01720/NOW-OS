@@ -16,7 +16,18 @@ export interface EnvConfig {
   evolutionAutoReconnectEnabled?: boolean;
   evolutionReconnectBaseDelayMs?: number;
   evolutionReconnectCooldownMs?: number;
+  evolutionConnectingTimeoutMs?: number;
+  evolutionRefusedRetryDelayMs?: number;
+  evolutionStableOpenResetMs?: number;
   evolutionSessionDatabaseUrl?: string;
+  smtpAlertEnabled?: boolean;
+  smtpHost?: string;
+  smtpPort?: number;
+  smtpSecure?: boolean;
+  smtpUsername?: string;
+  smtpPassword?: string;
+  smtpFrom?: string;
+  smtpAlertRecipients?: string[];
   openaiApiKey: string;
   openaiAssistantId: string;
   openaiVectorStoreId?: string;
@@ -142,8 +153,19 @@ export function loadEnv(): EnvConfig {
     evolutionBotPhoneNumber: process.env.EVOLUTION_BOT_PHONE_NUMBER?.trim() || undefined,
     evolutionAutoReconnectEnabled: process.env.EVOLUTION_AUTO_RECONNECT_ENABLED !== "false",
     evolutionReconnectBaseDelayMs: parsePositiveInteger(process.env.EVOLUTION_RECONNECT_BASE_DELAY_MS, 5_000),
-    evolutionReconnectCooldownMs: parsePositiveInteger(process.env.EVOLUTION_RECONNECT_COOLDOWN_MS, 30 * 60 * 1000),
+    evolutionReconnectCooldownMs: parsePositiveInteger(process.env.EVOLUTION_RECONNECT_COOLDOWN_MS, 60 * 60 * 1000),
+    evolutionConnectingTimeoutMs: parsePositiveInteger(process.env.EVOLUTION_CONNECTING_TIMEOUT_MS, 5 * 60 * 1000),
+    evolutionRefusedRetryDelayMs: parsePositiveInteger(process.env.EVOLUTION_REFUSED_RETRY_DELAY_MS, 10 * 60 * 1000),
+    evolutionStableOpenResetMs: parsePositiveInteger(process.env.EVOLUTION_STABLE_OPEN_RESET_MS, 2 * 60 * 1000),
     evolutionSessionDatabaseUrl: process.env.EVOLUTION_SESSION_DATABASE_URL?.trim() || undefined,
+    smtpAlertEnabled: process.env.SMTP_ALERT_ENABLED === "true",
+    smtpHost: process.env.SMTP_HOST?.trim() || undefined,
+    smtpPort: parsePositiveInteger(process.env.SMTP_PORT, 587),
+    smtpSecure: process.env.SMTP_SECURE === "true",
+    smtpUsername: process.env.SMTP_USERNAME?.trim() || undefined,
+    smtpPassword: process.env.SMTP_PASSWORD?.trim() || undefined,
+    smtpFrom: process.env.SMTP_FROM?.trim() || undefined,
+    smtpAlertRecipients: parseCsv(process.env.SMTP_ALERT_RECIPIENTS),
     openaiApiKey: readEnv("OPENAI_API_KEY"),
     openaiAssistantId: readEnv("OPENAI_ASSISTANT_ID"),
     openaiVectorStoreId: process.env.OPENAI_VECTOR_STORE_ID,
