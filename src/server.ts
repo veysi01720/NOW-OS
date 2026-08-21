@@ -43,6 +43,7 @@ import { ZipIngestionStore } from "./bridge/zipIngestion/store.js";
 import { registerReviewRoutes } from "./bridge/reviewRoutes.js";
 import { validateKnowledgeAtStartup } from "./bridge/knowledgeStartupGuard.js";
 import { InstallationVerificationReviewStore } from "./store/installationVerificationReviewStore.js";
+import { OwnerHandoffDeadlineWorker } from "./bridge/ownerHandoffDeadlineWorker.js";
 import {
   assertSingleProductionModelResponseContract,
   CANONICAL_MODEL_RESPONSE_CONTRACT,
@@ -537,6 +538,30 @@ export async function buildServer() {
         maxAttempts: env.reliableOutboxMaxAttempts,
       })
     : rawEvolutionSender;
+  const ownerHandoffDeadlineWorker = new OwnerHandoffDeadlineWorker({
+    store: humanHandoffStore,
+    sender: evolutionSender,
+    teamPhoneNumbers: env.teamEscalationPhoneNumbers,
+    logger,
+  });
+  await ownerHandoffDeadlineWorker.runOnce();
+  let ownerHandoffWorkerBusy = false;
+  const ownerHandoffInterval = setInterval(async () => {
+    if (ownerHandoffWorkerBusy) return;
+    ownerHandoffWorkerBusy = true;
+    try {
+      await ownerHandoffDeadlineWorker.runOnce();
+    } catch (error) {
+      logger.warn({
+        event_type: "OWNER_HANDOFF_DEADLINE_WORKER_FAILED",
+        error: error instanceof Error ? error.message : String(error),
+        raw_text_logged: false,
+      });
+    } finally {
+      ownerHandoffWorkerBusy = false;
+    }
+  }, 30_000);
+  ownerHandoffInterval.unref?.();
   const outboundWorker = new ReliabilityQueueWorker({
     queueName: "outbound",
     workerId: `outbound-${process.pid}`,
@@ -593,6 +618,7 @@ export async function buildServer() {
   app.addHook("onClose", async () => {
     clearInterval(outboxInterval);
     clearInterval(reachabilityInterval);
+    clearInterval(ownerHandoffInterval);
   });
   logger.info({
     event_type: "RELIABLE_OUTBOX_RUNTIME",

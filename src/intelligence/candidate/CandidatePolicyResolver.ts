@@ -31,6 +31,22 @@ function normalize(value: string): string {
   return value.toLocaleLowerCase("tr-TR").normalize("NFKD").replace(/\p{M}/gu, "").replace(/Ä±/gu, "i");
 }
 
+function meaningfulTokens(value: string): Set<string> {
+  return new Set(normalize(value)
+    .split(/[^a-z0-9]+/u)
+    .filter((token) => token.length >= 4 && !["icin", "nedir", "nasil", "hangi", "bunu", "sunu", "miydi"].includes(token)));
+}
+
+function contentMatchesRequest(content: string, request: string): boolean {
+  const requestTokens = meaningfulTokens(request);
+  if (requestTokens.size === 0) return false;
+  const contentTokens = meaningfulTokens(content);
+  return [...requestTokens].some((requestToken) => [...contentTokens].some((contentToken) => (
+    requestToken === contentToken
+    || (requestToken.length >= 5 && contentToken.length >= 5 && requestToken.slice(0, 5) === contentToken.slice(0, 5))
+  )));
+}
+
 function resolvePolicyStage(state: UserState): CandidatePolicyStage {
   if (["TRAINING_READY", "TRAINING_IN_PROGRESS", "TRAINING_DONE"].includes(state.current_state)) return "training";
   if (
@@ -130,17 +146,27 @@ export function resolveCandidatePolicy(
   intent: string | null = null,
   policySections: StructuredPolicySections | null = null,
   ownerTransferSections: OwnerTransferPolicySection[] = [],
+  requestContext: { role?: string; latestMessage?: string } = {},
 ): CandidatePolicyResolution {
   const facts: ConversationPolicyFact[] = [];
   const stage = resolvePolicyStage(state);
   const stageSections = [...STAGE_POLICY_SECTIONS[stage], ...ALWAYS_REQUIRED_CONSTRAINT_SECTIONS];
-  const availableStageSections = stageSections.filter((key, index) => stageSections.indexOf(key) === index && policySections?.[key]?.trim());
+  const isOwnerRequest = requestContext.role === "owner" || requestContext.role === "manager";
+  const ownerRelevantSections = isOwnerRequest && policySections
+    ? (Object.entries(policySections) as Array<[keyof StructuredPolicySections, string | undefined]>)
+      .filter(([, content]) => content?.trim() && contentMatchesRequest(content, requestContext.latestMessage ?? ""))
+      .map(([key]) => key)
+    : [];
+  const contextSections = [...ownerRelevantSections, ...stageSections]
+    .filter((key, index, keys) => keys.indexOf(key) === index);
+  const availableStageSections = contextSections.filter((key) => policySections?.[key]?.trim());
   const rawSectionTokens = Math.ceil(availableStageSections.reduce((total, key) => total + (policySections?.[key]?.length ?? 0), 0) / 4);
   const selectedStageSections = rawSectionTokens > 2000
     ? [
+        ...ownerRelevantSections.filter((key) => policySections?.[key]?.trim()),
         ...ALWAYS_REQUIRED_CONSTRAINT_SECTIONS.filter((key) => policySections?.[key]?.trim()),
         ...STAGE_POLICY_SECTIONS[stage].filter((key) => policySections?.[key]?.trim()),
-      ].filter((key, index, keys) => keys.indexOf(key) === index).slice(0, 4)
+      ].filter((key, index, keys) => keys.indexOf(key) === index).slice(0, isOwnerRequest ? 8 : 4)
     : availableStageSections;
   const seenSections = new Set<string>();
   for (const key of selectedStageSections) {
@@ -149,7 +175,10 @@ export function resolveCandidatePolicy(
     seenSections.add(key);
     facts.push(structuredPolicySectionFact(key, key === "routing_matrix" ? prepareRoutingSection(content, stage) : content));
   }
-  for (const section of ownerTransferSections.filter((item) => ownerTransferMatchesStage(item, stage))) facts.push(ownerTransferFact(section));
+  for (const section of ownerTransferSections.filter((item) => (
+    ownerTransferMatchesStage(item, stage)
+    || (isOwnerRequest && contentMatchesRequest(`${item.title} ${item.content}`, requestContext.latestMessage ?? ""))
+  ))) facts.push(ownerTransferFact(section));
 
   const useGeneralWorkModel = generalWorkModel !== null && (stage === "intake" || ["ask_job_definition", "work_model_disclosure", "provide_work_model_disclosure"].includes(intent ?? ""));
   if (useGeneralWorkModel) facts.push(structuredGeneralWorkModelFact(generalWorkModel));
@@ -163,6 +192,17 @@ export function resolveCandidatePolicy(
       .filter((fact) => normalize(fact.status).includes("owner_approved"))
       .map((fact) => structuredAppFactForStage(fact, stage));
     for (const fact of appCatalog) facts.push(fact);
+  }
+  if (isOwnerRequest) {
+    const latest = normalize(requestContext.latestMessage ?? "");
+    for (const fact of structuredFacts.filter((item) => (
+      normalize(item.status).includes("owner_approved")
+      && [item.app, item.android_name, item.ios_name, ...item.aliases]
+        .some((name) => latest.includes(normalize(name)))
+    ))) {
+      const policyFact = structuredAppFactForStage(fact, "installation");
+      if (!facts.some((item) => item.id === policyFact.id)) facts.push(policyFact);
+    }
   }
   if (stage === "intake" && (state.gender === "erkek" || state.gender === "male") && generalWorkModel) {
     const profilePolicy = policySections?.profile_bio_photo_rules?.trim();

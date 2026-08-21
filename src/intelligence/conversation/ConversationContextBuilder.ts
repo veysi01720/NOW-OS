@@ -136,6 +136,7 @@ export function buildConversationDecisionContext(input: {
     inferredIntent,
     input.backendContext.structured_facts?.policy_sections ?? null,
     input.backendContext.structured_facts?.owner_transfer_sections ?? [],
+    { role: input.backendContext.sender_role, latestMessage: input.message.text },
   );
   const recent: Array<{ role: "user" | "assistant"; text: string }> = [];
   const max = Math.max(

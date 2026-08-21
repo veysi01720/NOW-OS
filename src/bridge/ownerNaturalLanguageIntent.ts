@@ -21,6 +21,7 @@ export interface OwnerNaturalLanguageDecision {
   selected_section_ids: string[];
   rejected_section_ids: string[];
   apply_selection: boolean;
+  pending_handoff_related?: boolean;
   operational_query_kind?: "recent_inbound_activity" | "candidate_overview" | "pending_handoffs" | null;
   operational_time_window_minutes?: number | null;
 }
@@ -30,6 +31,13 @@ export interface OwnerNaturalLanguageIntentInput {
   activeKnowledge: string;
   pendingKnowledge: Array<{ id: string; title: string; classification: string }>;
   pendingCandidateSuffixes: string[];
+  pendingHandoffs: Array<{
+    handoff_id: string;
+    candidate_suffix: string;
+    question_sanitized: string;
+    failure_reason: string;
+    team_escalated: boolean;
+  }>;
 }
 
 export interface OwnerNaturalLanguageIntentClassifier {
@@ -49,7 +57,7 @@ const OWNER_INTENT_SCHEMA = {
     "intent", "confidence", "knowledge_text", "candidate_reference", "relay_text",
     "conflict_detected", "ambiguity_detected", "clarification_question",
     "selected_section_ids", "rejected_section_ids", "apply_selection",
-    "operational_query_kind", "operational_time_window_minutes",
+    "operational_query_kind", "operational_time_window_minutes", "pending_handoff_related",
   ],
   properties: {
     intent: { type: "string", enum: [
@@ -67,6 +75,7 @@ const OWNER_INTENT_SCHEMA = {
     selected_section_ids: { type: "array", items: { type: "string" } },
     rejected_section_ids: { type: "array", items: { type: "string" } },
     apply_selection: { type: "boolean" },
+    pending_handoff_related: { type: "boolean" },
     operational_query_kind: {
       type: ["string", "null"],
       enum: ["recent_inbound_activity", "candidate_overview", "pending_handoffs", null],
@@ -133,6 +142,8 @@ export async function createOpenAIOwnerNaturalLanguageIntentClassifier(input: {
                 "A statement is conflicting when it changes or contradicts active knowledge. Ambiguous means its intended rule cannot be stated confidently.",
                 "Never classify a question as knowledge addition. Never classify ordinary owner chat as candidate relay.",
                 "For candidate relay, preserve meaning in relay_text and extract the phone/last-four reference when present.",
+                "pending_handoff_related=true when the owner message answers, continues, clarifies, or asks about exactly one supplied pending handoff. A short follow-up such as 'kodu hatırlıyor musun' is related when the pending question supplies the missing app/topic context.",
+                "A related owner question remains normal_chat; a related declarative answer intended for the waiting candidate is candidate_relay.",
                 "For operational_query, select exactly one operational_query_kind and infer a reasonable time window from the owner's words. Use 1440 minutes when no window is stated. Do not answer from conversation memory.",
                 "For a clear knowledge addition, put the self-contained fact in knowledge_text.",
               ].join("\n") }],
@@ -144,6 +155,7 @@ export async function createOpenAIOwnerNaturalLanguageIntentClassifier(input: {
                 active_knowledge: context.activeKnowledge.slice(0, 50_000),
                 pending_knowledge: context.pendingKnowledge,
                 pending_candidate_suffixes: context.pendingCandidateSuffixes,
+                pending_handoffs: context.pendingHandoffs,
               }) }],
             },
           ],

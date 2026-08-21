@@ -14,6 +14,7 @@ import {
 } from "./ownerKnowledgeTransfer.js";
 import type {
   OwnerNaturalLanguageDecision,
+  OwnerNaturalLanguageIntentInput,
   OwnerNaturalLanguageIntentClassifier,
 } from "./ownerNaturalLanguageIntent.js";
 import type { ZipLearningCandidateRecord } from "./zipIngestion/types.js";
@@ -27,6 +28,7 @@ export interface OwnerNaturalLanguageFlowResult {
   reply?: string;
   executionSucceeded?: boolean;
   eventType?: string;
+  decisionContextText?: string;
 }
 
 export interface OwnerNaturalLanguageFlowDeps {
@@ -67,6 +69,18 @@ function pendingCandidateSuffixes(deps: OwnerNaturalLanguageFlowDeps): string[] 
     ...(deps.humanHandoffStore?.listPendingOwnerQueries().map((item) => item.owner_query?.candidate_phone.slice(-4)) ?? []),
     ...(deps.installationReviewStore?.list().filter((item) => item.decision === "pending").map((item) => item.candidate_phone_last4) ?? []),
   ].filter((value): value is string => Boolean(value)))];
+}
+
+function pendingHandoffSummaries(deps: OwnerNaturalLanguageFlowDeps): OwnerNaturalLanguageIntentInput["pendingHandoffs"] {
+  return (deps.humanHandoffStore?.listPendingOwnerQueries() ?? [])
+    .filter((item) => item.owner_query !== undefined)
+    .map((item) => ({
+      handoff_id: item.handoff_id,
+      candidate_suffix: item.owner_query!.candidate_phone.slice(-4),
+      question_sanitized: item.owner_query!.question_sanitized,
+      failure_reason: item.owner_query!.failure_reason,
+      team_escalated: item.owner_query!.team_escalated,
+    }));
 }
 
 function latestSinglePendingDirect(store: ZipIngestionStore): ZipLearningCandidateRecord | null {
@@ -215,6 +229,7 @@ export async function handleOwnerNaturalLanguage(
       selected_section_ids: [],
       rejected_section_ids: [],
       apply_selection: false,
+      pending_handoff_related: false,
     };
   } else try {
     decision = await deps.classifier.classify({
@@ -222,6 +237,7 @@ export async function handleOwnerNaturalLanguage(
       activeKnowledge: activeKnowledge(deps.knowledgeBankDir),
       pendingKnowledge: pending.map((candidate) => ({ id: candidateRef(candidate), title: candidate.section_title ?? candidateRef(candidate), classification: candidate.classification ?? "information" })),
       pendingCandidateSuffixes: pendingCandidateSuffixes(deps),
+      pendingHandoffs: pendingHandoffSummaries(deps),
     });
   } catch (error) {
     deps.logger.warn({ event_type: "OWNER_NATURAL_INTENT_CLASSIFICATION_FAILED", correlation_id: message.correlation_id, error: error instanceof Error ? error.message : String(error), raw_text_logged: false });
@@ -298,7 +314,21 @@ export async function handleOwnerNaturalLanguage(
         : "OWNER_OPERATIONAL_QUERY_UNAVAILABLE",
     };
   }
-  if (decision.intent === "normal_chat") return { handled: false };
+  if (decision.intent === "normal_chat") {
+    const pendingHandoffs = pendingHandoffSummaries(deps);
+    if (decision.pending_handoff_related === true && pendingHandoffs.length === 1) {
+      const pendingHandoff = pendingHandoffs[0];
+      return {
+        handled: false,
+        decisionContextText: [
+          `Açık owner handoff bağlamı: Aday ${pendingHandoff.candidate_suffix} şu soruyu bekliyor: ${pendingHandoff.question_sanitized}`,
+          `Yanıt verememe nedeni: ${pendingHandoff.failure_reason}.`,
+          `Owner devam mesajı: ${message.text}`,
+        ].join("\n"),
+      };
+    }
+    return { handled: false };
+  }
   if (decision.intent === "show_knowledge_details") {
     return { handled: true, reply: latestKnowledgeTechnicalDetails(deps), executionSucceeded: true, eventType: "OWNER_NATURAL_KNOWLEDGE_DETAILS_SHOWN" };
   }

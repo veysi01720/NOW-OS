@@ -139,7 +139,7 @@ export function buildDecisionPrompt(context: ConversationDecisionContext, repair
     "The following grounded policy text is present in this prompt and must be used when it answers the latest question:",
     ...context.canonical_policy_facts.map((fact) => `[${fact.id}] ${fact.content}`),
     "structured_facts is backend-owned official grounding. Copy approved app names, iPhone names, codes, and capabilities exactly; never invent or override it with model knowledge.",
-    "If a structured_facts app field is null, empty, or absent, treat it as missing official knowledge. Do not invent links, store-search instructions, APK suggestions, invite codes, or alternate routes for that missing field.",
+    "If a structured_facts app field is null, empty, or absent, do not invent that value. A missing official_url is not itself a blocker when the canonical app name and a published store-search policy or verified invite/agency code provide a grounded installation route. Never invent an APK, link, code, or alternate app name.",
     "When a missing structured app field is needed to answer the latest question, say it is not published in verified knowledge and request owner review instead of guessing.",
     "Escalate only for a concrete factual/operational question whose relevant structured_facts or policy section is truly missing. Do not escalate rhetorical, joking, teasing, philosophical, or vibe-check messages.",
     "If latest_message.inferred_intent is rhetorical_or_banter, do not request owner review and do not say you are checking with the team. Deflect warmly and naturally without promising wealth, payment, or certainty; you may say earnings depend on effort, time, process, and fit, then steer back to the next useful work step.",

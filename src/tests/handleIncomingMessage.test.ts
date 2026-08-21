@@ -1,4 +1,4 @@
-import { handleIncomingMessage } from "../bridge/handleIncomingMessage.js";
+import { candidateEscalationNeedsOwnerHandoff, handleIncomingMessage } from "../bridge/handleIncomingMessage.js";
 import { createHash } from "node:crypto";
 import { mkdtempSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -27,6 +27,7 @@ import { writeValidKnowledgeBankFixture } from "./fixtures/knowledgeBankFixture.
 import { PersistentHumanHandoffStore } from "../store/humanHandoffStore.js";
 import { vi } from "vitest";
 import type { OwnerNaturalLanguageDecision, OwnerNaturalLanguageIntentClassifier } from "../bridge/ownerNaturalLanguageIntent.js";
+import { OwnerHandoffDeadlineWorker } from "../bridge/ownerHandoffDeadlineWorker.js";
 
 function message(overrides: Partial<NormalizedIncomingMessage> = {}): NormalizedIncomingMessage {
   return {
@@ -177,6 +178,7 @@ function ownerIntent(overrides: Partial<OwnerNaturalLanguageDecision>): OwnerNat
       selected_section_ids: [],
       rejected_section_ids: [],
       apply_selection: false,
+      pending_handoff_related: false,
       ...overrides,
     }),
   };
@@ -213,6 +215,29 @@ class MutableUserStateStore implements UserStateStore {
 }
 
 describe("handleIncomingMessage", () => {
+  it.each([
+    "structured_app_field_missing",
+    "payment_policy_missing",
+    "installation_policy_missing",
+    "training_policy_missing",
+    "support_policy_missing",
+    "conversational_escalation_claim",
+  ])("routes the %s escalation reason through the same owner handoff gate", () => {
+    expect(candidateEscalationNeedsOwnerHandoff({
+      senderRole: "candidate",
+      chatType: "private",
+      inferredIntent: "ask_missing_info",
+      requiresEscalation: true,
+    })).toBe(true);
+  });
+
+  it("keeps security-complete, off-topic, owner, and group traffic out of the owner handoff gate", () => {
+    expect(candidateEscalationNeedsOwnerHandoff({ senderRole: "candidate", chatType: "private", inferredIntent: "payment_question", requiresEscalation: false })).toBe(false);
+    expect(candidateEscalationNeedsOwnerHandoff({ senderRole: "candidate", chatType: "private", inferredIntent: "off_topic", requiresEscalation: true })).toBe(false);
+    expect(candidateEscalationNeedsOwnerHandoff({ senderRole: "owner", chatType: "private", inferredIntent: "ask_missing_info", requiresEscalation: true })).toBe(false);
+    expect(candidateEscalationNeedsOwnerHandoff({ senderRole: "candidate", chatType: "group", inferredIntent: "ask_missing_info", requiresEscalation: true })).toBe(false);
+  });
+
   it("holds an unknown operational question, notifies both owners, and relays the owner answer", async () => {
     const handoffStore = new PersistentHumanHandoffStore(join(mkdtempSync(join(tmpdir(), "tmp-owner-answer-")), "handoffs.json"));
     const testDeps = { ...deps("{}"), humanHandoffStore: handoffStore, ownerNaturalLanguageIntentClassifier: ownerIntent({ intent: "candidate_relay", candidate_reference: "3333", relay_text: "Kodsuz devam edebilirsin." }) };
@@ -257,18 +282,67 @@ describe("handleIncomingMessage", () => {
     expect(handoffStore.listPendingOwnerQueries()).toHaveLength(1);
   });
 
-  it("routes an unanswered unknown operational question to the team after 15 minutes", async () => {
-    vi.useFakeTimers();
-    try {
-      const handoffStore = new PersistentHumanHandoffStore(join(mkdtempSync(join(tmpdir(), "tmp-owner-timeout-")), "handoffs.json"));
-      const testDeps = { ...deps("{}"), humanHandoffStore: handoffStore };
-      await handleIncomingMessage(message({ text: "Kurulumda ajans kodu neden gerekli?", message_id: "unknown-timeout" }), testDeps as any);
-      await vi.advanceTimersByTimeAsync(15 * 60 * 1000);
-      expect(testDeps.sender.sends.some((item) => item.message.phone_number === "905352265056")).toBe(true);
-      expect(handoffStore.list().find((item) => item.reason_code === "owner_answer_required")?.owner_query?.team_escalated).toBe(true);
-    } finally {
-      vi.useRealTimers();
-    }
+  it("persists an unanswered owner deadline across restart and keeps the team-escalated query pending", async () => {
+    const path = join(mkdtempSync(join(tmpdir(), "tmp-owner-timeout-")), "handoffs.json");
+    const firstStore = new PersistentHumanHandoffStore(path);
+    firstStore.createOwnerQuery({
+      tenant_id: "now_os",
+      conversation_key_hash: "candidate-timeout",
+      source_correlation_id: "unknown-timeout",
+      candidate_phone: "905333333333",
+      question_sanitized: "Kurulumda ajans kodu neden gerekli?",
+      failure_reason: "knowledge_missing",
+      deadline_at: "2026-07-04T00:15:00.000Z",
+    });
+    const restartedStore = new PersistentHumanHandoffStore(path);
+    const sender = new FakeSender();
+    const worker = new OwnerHandoffDeadlineWorker({
+      store: restartedStore,
+      sender,
+      teamPhoneNumbers: ["905352265056"],
+      logger: createSilentLogger(),
+    });
+
+    const result = await worker.runOnce(new Date("2026-07-04T00:15:01.000Z"));
+
+    expect(result).toEqual({ due: 1, escalated: 1, failed: 0 });
+    expect(sender.sends.some((item) => item.message.phone_number === "905352265056")).toBe(true);
+    expect(restartedStore.findPendingOwnerQuery()?.owner_query?.team_escalated).toBe(true);
+    expect(restartedStore.findPendingOwnerQuery()?.status).toBe("pending");
+    expect(restartedStore.listDueOwnerQueries(new Date("2026-07-04T00:30:00.000Z"))).toHaveLength(0);
+  });
+
+  it("binds a natural owner follow-up to the only pending handoff context", async () => {
+    const handoffStore = new PersistentHumanHandoffStore(join(mkdtempSync(join(tmpdir(), "tmp-owner-context-")), "handoffs.json"));
+    handoffStore.createOwnerQuery({
+      tenant_id: "now_os",
+      conversation_key_hash: "candidate-tanchat",
+      source_correlation_id: "candidate-question",
+      candidate_phone: "905333333333",
+      question_sanitized: "TanChat kurulum kodu nedir?",
+      failure_reason: "verified_knowledge_missing_or_unavailable",
+    });
+    const calls: ModelAdapterInput[] = [];
+    const testDeps = {
+      ...deps("{}"),
+      env: createTestEnv({ conversationDecisionV2Enabled: true, modelAdapterLayerEnabled: true }),
+      humanHandoffStore: handoffStore,
+      modelExecutionService: v3ModelExecutionService(calls),
+      ownerNaturalLanguageIntentClassifier: ownerIntent({ intent: "normal_chat", pending_handoff_related: true }),
+    };
+
+    await handleIncomingMessage(message({
+      phone_number: "905111111111",
+      sender_id: "905111111111",
+      text: "kodu hatırlıyor musun",
+      message_id: "owner-related-followup",
+    }), testDeps as any);
+
+    expect(calls).toHaveLength(1);
+    expect(calls[0]?.normalizedUserMessage).toContain("TanChat kurulum kodu nedir?");
+    const canonicalFacts = (calls[0]?.contextPayload as any)?.conversation_decision_v2?.canonical_policy_facts ?? [];
+    expect(JSON.stringify(canonicalFacts)).toContain("X3XREZ");
+    expect(handoffStore.findPendingOwnerQuery()).not.toBeNull();
   });
 
   it("does not ask owners for security boundaries or off-topic chat", async () => {

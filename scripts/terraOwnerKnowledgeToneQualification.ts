@@ -26,6 +26,7 @@ for (const message of cases) {
     activeKnowledge,
     pendingKnowledge: [],
     pendingCandidateSuffixes: [],
+    pendingHandoffs: [],
   });
   const reply = buildOwnerKnowledgeActivationReply(decision.knowledge_text ?? message);
   const pass = decision.intent === "knowledge_addition"

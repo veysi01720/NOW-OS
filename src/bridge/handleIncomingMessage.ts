@@ -372,11 +372,13 @@ async function notifyInstallationOwner(deps: HandleIncomingMessageDeps, text: st
 
 function isOperationalUnknownQuestion(message: NormalizedIncomingMessage): boolean {
   const intent = inferConversationIntent(message.text);
-  if (intent === "off_topic" || intent === "rhetorical_or_banter" || intent === "account_profile_question" || intent === "payment_question") return false;
+  if (intent === "off_topic" || intent === "rhetorical_or_banter") return false;
   const normalized = message.text.toLocaleLowerCase("tr-TR").normalize("NFKD").replace(/\p{M}/gu, "").replace(/ı/g, "i");
-  if (/(?:garanti|kesin kazanc|odeme|para|puan|kamera|goruntulu|video|profil|hesap)/u.test(normalized)) return false;
+  if (/(?:garanti|kesin kazanc|sifre|kart|kimlik|iban)/u.test(normalized)) return false;
   if (/(?:hangi|uygulamalar?\s+var)/u.test(normalized)) return false;
   return intent === "ask_missing_info"
+    || intent === "account_profile_question"
+    || intent === "payment_question"
     || /(?:uygulama|kurulum|odeme|kazanc|puan|egitim|destek|ajans|kod|vazgec|devam)/u.test(normalized);
 }
 
@@ -472,30 +474,31 @@ async function holdOperationalQuestionForOwner(
   }
   const notified = notificationCount > 0;
   deps.humanHandoffStore.markOwnerNotification(result.record.handoff_id, notified ? "sent" : "failed");
-  const timeout = setTimeout(async () => {
-    const pending = deps.humanHandoffStore?.listPendingOwnerQueries()
-      .find((item) => item.handoff_id === result.record.handoff_id);
-    if (!pending?.owner_query) return;
-    for (const phone of deps.env.teamEscalationPhoneNumbers) {
-      try {
-        const teamText = `Aday ${pending.owner_query.candidate_phone.slice(-4)} için owner yanıtı 15 dakika içinde gelmedi; ekip yönlendirmesi gerekiyor.`;
-        await deps.sender.sendText({ message: syntheticPrivateMessage(phone, teamText, message.correlation_id), text: teamText });
-      } catch (error) {
-        deps.logger.warn({ event_type: "OWNER_ANSWER_REQUIRED_TEAM_ESCALATION_FAILED", correlation_id: message.correlation_id, error: redactSecrets(error instanceof Error ? error.message : String(error)) });
-      }
-    }
-    try {
-      const candidateText = "Owner yanıtı gecikti; sorunu ilgili destek hattına yönlendirdik. Kısa süre içinde dönüş yapılacak.";
-      await deps.sender.sendText({ message: syntheticPrivateMessage(pending.owner_query.candidate_phone, "", message.correlation_id), text: candidateText });
-    } catch (error) {
-      deps.logger.warn({ event_type: "OWNER_ANSWER_REQUIRED_CANDIDATE_NOTICE_FAILED", correlation_id: message.correlation_id, error: redactSecrets(error instanceof Error ? error.message : String(error)) });
-    }
-    deps.humanHandoffStore?.markOwnerQueryTeamEscalated(result.record.handoff_id);
-    deps.logger.warn({ event_type: "OWNER_ANSWER_REQUIRED_TEAM_ESCALATED", correlation_id: message.correlation_id, candidate_last4: pending.owner_query.candidate_phone.slice(-4), raw_text_logged: false });
-  }, 15 * 60 * 1000);
-  timeout.unref?.();
   deps.logger.info({ event_type: "OWNER_ANSWER_REQUIRED", correlation_id: message.correlation_id, handoff_id: result.record.handoff_id, owner_notification_sent: notified, owner_notification_count: notificationCount, owner_count: ownerRecipients.length, candidate_last4: candidateSuffix, raw_text_logged: false });
   return true;
+}
+
+function containsDeferredPromise(reply: string): boolean {
+  const normalized = normalizeUserText(reply);
+  return /(donecegim|donus yapacagim|kisa sure icinde|bir kac dakika|birkaç dakika|kontrol ediyorum)/u.test(normalized);
+}
+
+function enforceDeferredPromiseInvariant(reply: string, handoffCreated: boolean): string {
+  if (handoffCreated || !containsDeferredPromise(reply)) return reply;
+  return "Sorunu net anlayamadım; biraz daha açık yazar mısın?";
+}
+
+export function candidateEscalationNeedsOwnerHandoff(input: {
+  senderRole: string;
+  chatType: NormalizedIncomingMessage["chat_type"];
+  inferredIntent: string | null;
+  requiresEscalation: boolean;
+}): boolean {
+  return input.senderRole === "candidate"
+    && input.chatType === "private"
+    && input.requiresEscalation
+    && input.inferredIntent !== "off_topic"
+    && input.inferredIntent !== "rhetorical_or_banter";
 }
 
 function normalizeOwnerDecisionText(value: string): string {
@@ -717,6 +720,7 @@ export async function handleIncomingMessage(
   /* 1) Evaluate backend authority once and project it downstream. */
   const authorityContext = resolveAuthorityContext(message, deps.env);
   const senderRole = authorityContext.sender_role;
+  let ownerDecisionContextText: string | undefined;
   const isCandidate = senderRole === "candidate";
   deps.eventLogStore?.recordInboundActivity?.({
     evidence_id: message.correlation_id,
@@ -893,6 +897,7 @@ export async function handleIncomingMessage(
       await sendReply(message, guarded.reply, deps, latencyTracker);
       return latencyTracker.finish({ status: "sent", correlation_id: message.correlation_id });
     }
+    ownerDecisionContextText = naturalOwnerResult.decisionContextText;
   }
   const lockedResult: HandleIncomingMessageResult = await deps.userRunLock.runExclusive(conversationKey, async () => {
     const storedState =
@@ -1151,8 +1156,11 @@ export async function handleIncomingMessage(
         report_intent: true,
       });
     }
+    const decisionMessage = ownerDecisionContextText
+      ? { ...message, text: ownerDecisionContextText }
+      : message;
     const backendContext = buildBackendContext(
-      message,
+      decisionMessage,
       deps.env,
       deps.memoryStore,
       deps.userStateStore,
@@ -1469,7 +1477,7 @@ export async function handleIncomingMessage(
       try {
         latencyTracker.markModelStart();
         const decisionResult = await executeConversationDecisionV2({
-          message,
+          message: decisionMessage,
           backendContext: budgetResult.context,
           conversationId: modelConversationKey,
           capturedFields: stateMachineResult.captured_fields ?? [],
@@ -1477,48 +1485,26 @@ export async function handleIncomingMessage(
           modelExecutionService,
           logger,
         });
-         const policyContextGap = decisionResult.decision.requires_escalation
-           && (decisionResult.context.derived_state.missing_stage_sections ?? []).length > 0
-           && decisionResult.context.structured_facts?.policy_sections !== null;
-         const conversationalEscalation = decisionResult.decision.requires_escalation
-           && decisionResult.decision.escalation_reason === "conversational_escalation_claim";
-         const rhetoricalOrBanter = decisionResult.context.latest_message.inferred_intent === "rhetorical_or_banter";
-         const structuredFieldEscalation = decisionResult.decision.requires_escalation
-           && decisionResult.decision.escalation_reason === "structured_app_field_missing";
          let ownerAnswerRequired = false;
-         if (policyContextGap) {
-           ownerAnswerRequired = await holdOperationalQuestionForOwner(deps, message);
-         }
-         if (!ownerAnswerRequired && structuredFieldEscalation) {
+         const candidateEscalationRequired = candidateEscalationNeedsOwnerHandoff({
+           senderRole: backendContext.sender_role,
+           chatType: message.chat_type,
+           inferredIntent: decisionResult.context.latest_message.inferred_intent,
+           requiresEscalation: decisionResult.decision.requires_escalation,
+         });
+         if (candidateEscalationRequired) {
+           const escalationReason = decisionResult.decision.escalation_reason?.trim()
+             || "owner_answer_required";
            if (!deps.humanHandoffStore) {
-             recordHumanHandoff(deps, message, "structured_app_field_missing");
+             recordHumanHandoff(deps, message, escalationReason);
            } else {
              ownerAnswerRequired = await holdOperationalQuestionForOwner(deps, message, {
                force: true,
-               reasonCode: "structured_app_field_missing",
-               failureReason: "structured_app_field_missing",
+               reasonCode: escalationReason,
+               failureReason: escalationReason,
              });
            }
          }
-         if (!ownerAnswerRequired && conversationalEscalation && !rhetoricalOrBanter) {
-           ownerAnswerRequired = await holdOperationalQuestionForOwner(deps, message, {
-             force: true,
-             reasonCode: "conversational_escalation_claim",
-             failureReason: "model_response_needs_owner_review",
-           });
-         }
-         if (!ownerAnswerRequired && decisionResult.origin.startsWith("deterministic_")
-           && decisionResult.decision.requires_escalation) {
-           ownerAnswerRequired = await holdOperationalQuestionForOwner(deps, message);
-         }
-         if (
-           !ownerAnswerRequired &&
-           !rhetoricalOrBanter &&
-           decisionResult.decision.requires_escalation &&
-          decisionResult.decision.escalation_reason === "conversational_escalation_claim"
-        ) {
-          recordHumanHandoff(deps, message, "conversational_escalation_claim");
-        }
         if (decisionResult.model_call_count > 0) {
           latencyTracker.markModelResult();
         } else {
@@ -1572,6 +1558,7 @@ export async function handleIncomingMessage(
          let outboundReply = ownerAnswerRequired
            ? selectOwnerAnswerPendingReply(message, deps)
            : decisionResult.finalReply;
+         outboundReply = enforceDeferredPromiseInvariant(outboundReply, ownerAnswerRequired);
          if (
            !ownerAnswerRequired &&
            (backendContext.sender_role === "owner" || backendContext.sender_role === "manager")

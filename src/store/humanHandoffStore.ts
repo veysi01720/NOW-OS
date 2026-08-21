@@ -19,6 +19,8 @@ export interface HumanHandoffRecord {
     question_sanitized: string;
     failure_reason: string;
     team_escalated: boolean;
+    deadline_at: string;
+    team_escalated_at: string | null;
   };
   created_at: string;
   updated_at: string;
@@ -38,6 +40,7 @@ type CreateOwnerQueryInput = Omit<CreateInput, "reason_code"> & {
   candidate_phone: string;
   question_sanitized: string;
   failure_reason: string;
+  deadline_at?: string;
 };
 
 export interface HumanHandoffStore {
@@ -45,6 +48,7 @@ export interface HumanHandoffStore {
   createOwnerQuery(input: CreateOwnerQueryInput): { created: boolean; record: HumanHandoffRecord };
   findPendingOwnerQuery(): HumanHandoffRecord | null;
   listPendingOwnerQueries(): HumanHandoffRecord[];
+  listDueOwnerQueries(now?: Date): HumanHandoffRecord[];
   resolveOwnerQuery(handoffId: string): boolean;
   markOwnerNotification(handoffId: string, status: "sent" | "failed"): boolean;
   markOwnerQueryTeamEscalated(handoffId: string): boolean;
@@ -65,6 +69,15 @@ export class PersistentHumanHandoffStore implements HumanHandoffStore {
     try {
       const value = JSON.parse(readFileSync(this.path, "utf8")) as unknown;
       this.records = Array.isArray(value) ? value as HumanHandoffRecord[] : [];
+      for (const record of this.records) {
+        if (!record.owner_query) continue;
+        record.owner_query.deadline_at ??= new Date(
+          new Date(record.created_at).getTime() + 15 * 60 * 1000,
+        ).toISOString();
+        record.owner_query.team_escalated_at ??= record.owner_query.team_escalated
+          ? record.updated_at
+          : null;
+      }
     } catch {
       this.records = [];
     }
@@ -113,6 +126,8 @@ export class PersistentHumanHandoffStore implements HumanHandoffStore {
       question_sanitized: input.question_sanitized,
       failure_reason: input.failure_reason,
       team_escalated: false,
+      deadline_at: input.deadline_at ?? new Date(Date.now() + 15 * 60 * 1000).toISOString(),
+      team_escalated_at: null,
     };
     result.record.updated_at = new Date().toISOString();
     this.save();
@@ -127,8 +142,16 @@ export class PersistentHumanHandoffStore implements HumanHandoffStore {
     return this.records.filter((item) => (
       item.status === "pending"
       && item.owner_query !== undefined
-      && item.owner_query.team_escalated !== true
     ));
+  }
+
+  listDueOwnerQueries(now = new Date()): HumanHandoffRecord[] {
+    const currentTime = now.getTime();
+    return this.listPendingOwnerQueries().filter((item) => {
+      if (!item.owner_query || item.owner_query.team_escalated) return false;
+      const deadline = Date.parse(item.owner_query.deadline_at);
+      return Number.isFinite(deadline) && deadline <= currentTime;
+    });
   }
 
   resolveOwnerQuery(handoffId: string): boolean {
@@ -155,7 +178,9 @@ export class PersistentHumanHandoffStore implements HumanHandoffStore {
     const record = this.records.find((item) => item.handoff_id === handoffId && item.status === "pending");
     if (!record?.owner_query) return false;
     record.owner_query.team_escalated = true;
-    record.updated_at = new Date().toISOString();
+    const now = new Date().toISOString();
+    record.owner_query.team_escalated_at = now;
+    record.updated_at = now;
     this.save();
     return true;
   }

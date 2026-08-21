@@ -99,6 +99,69 @@ describe("candidate app routing", () => {
     expect(fact?.content).toContain("NIVI");
   });
 
+  it("gives owner normal chat the relevant structured app fact", () => {
+    const result = resolveCandidatePolicy(
+      { ...defaultUserState(), current_state: "NON_CANDIDATE" },
+      [],
+      [{
+        app: "TanChat",
+        android_name: "TanChat",
+        ios_name: "TanStar",
+        invite_code: "X3XREZ",
+        agency_bind_code: null,
+        agency_code: null,
+        official_url: null,
+        status: "owner_approved",
+        aliases: [],
+        capabilities: { text_only: false, video_required: null },
+      }],
+      null,
+      null,
+      validPolicySectionsForTest(),
+      [],
+      { role: "owner", latestMessage: "TanChat kodu neydi?" },
+    );
+
+    expect(result.facts.find((fact) => fact.id === "structured_app_fact_tanchat")?.content)
+      .toContain("X3XREZ");
+  });
+
+  it("retrieves owner policy context by published content without an intent mapping", () => {
+    const policies = {
+      ...validPolicySectionsForTest(),
+      owner_training_routing: "Eğitim yönlendirmesi kurulum onayından sonra owner tarafından yapılır.",
+    };
+    const result = resolveCandidatePolicy(
+      { ...defaultUserState(), current_state: "NON_CANDIDATE" },
+      [],
+      [],
+      null,
+      null,
+      policies,
+      [],
+      { role: "owner", latestMessage: "Eğitim yönlendirmesi ne zaman yapılıyor?" },
+    );
+
+    expect(result.facts.find((fact) => fact.id === "policy_section_owner_training_routing")?.content)
+      .toContain("kurulum onayından sonra");
+  });
+
+  it("retrieves relevant owner-transfer information without a stage-specific mapping", () => {
+    const result = resolveCandidatePolicy(
+      { ...defaultUserState(), current_state: "NON_CANDIDATE" },
+      [],
+      [],
+      null,
+      null,
+      validPolicySectionsForTest(),
+      [{ section_id: "support_flow", title: "Ban desteği", content: "Ban durumunda destek ekranı kontrol edilir.", classification: "information" }],
+      { role: "owner", latestMessage: "Ban desteğinde ne yapıyoruz?" },
+    );
+
+    expect(result.facts.find((fact) => fact.id === "owner_transfer_support_flow")?.content)
+      .toContain("destek ekranı");
+  });
+
   it("projects the approved app catalog during app selection without requiring intent mappings", () => {
     const result = resolveCandidatePolicy(
       { ...defaultUserState(), current_state: "WAITING_FOR_APP" },

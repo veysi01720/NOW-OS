@@ -461,9 +461,7 @@ describe("Quality Pack 1 V2 golden skeletons", () => {
       .map((send) => send.text);
     expect(replies).toHaveLength(3);
     expect(new Set(replies).size, JSON.stringify(replies)).toBe(3);
-    expect(normalizedText(replies[0] ?? "")).toContain("bunu hemen kontrol ediyorum");
-    expect(normalizedText(replies[1] ?? "")).toContain("bunu kontrol ediyorum");
-    expect(normalizedText(replies[2] ?? "")).toContain("sorunu aldim");
+    expect(replies.every((reply) => !/donecegim|döneceğim|donus yapacagim|dönüş yapacağım/iu.test(normalizedText(reply)))).toBe(true);
     expect(deps.assistantClient.runCalls.length).toBeGreaterThanOrEqual(3);
     const traces = deps.logger.events.filter((event) => event.event_type === "CONVERSATION_DECISION_V2_TRACE");
     expect(traces).toHaveLength(3);
@@ -490,10 +488,8 @@ describe("Quality Pack 1 V2 golden skeletons", () => {
       .filter((send) => send.message.phone_number === CANDIDATE_PHONE)
       .map((send) => send.text);
     expect(replies).toHaveLength(3);
-    expect(new Set(replies).size).toBe(3);
-    expect(normalizedText(replies[0] ?? "")).toContain("bunu hemen kontrol ediyorum");
-    expect(normalizedText(replies[1] ?? "")).toContain("bunu kontrol ediyorum");
-    expect(normalizedText(replies[2] ?? "")).toContain("sorunu aldim");
+    expect(deps.humanHandoffStore.findPendingOwnerQuery()).toBeNull();
+    expect(replies.every((reply) => !/donecegim|döneceğim|donus yapacagim|dönüş yapacağım/iu.test(normalizedText(reply)))).toBe(true);
     expect(deps.assistantClient.runCalls.length).toBeGreaterThanOrEqual(3);
     const traces = deps.logger.events.filter((event) => event.event_type === "CONVERSATION_DECISION_V2_TRACE");
     expect(traces).toHaveLength(3);
@@ -719,32 +715,25 @@ describe("Quality Pack 1 V2 golden skeletons", () => {
     }
   });
 
-  it("records a handoff only when the requested structured detail is truly missing", async () => {
+  it.each([
+    ["Layla", "https://example.test/layla"],
+    ["TanChat", "X3XREZ"],
+    ["Amar", "xvrgZkf6"],
+    ["Linky", "M9W5B8"],
+    ["Soyo", "3997"],
+    ["Timo", "VVXVUD"],
+  ])("uses the published route for %s without unnecessary escalation", async (app, routeEvidence) => {
     const deps = makeDeps(["not-json", "still-not-json"], workModelAcceptanceState());
 
-    await handleIncomingMessage(candidateMessage("TanChat indirme linki nedir?", "missing-link-escalation"), deps);
+    await handleIncomingMessage(candidateMessage(`${app} indirme linki nedir?`, `published-route-${app}`), deps);
 
-    expect(deps.humanHandoffStore.list()).toHaveLength(1);
-    expect(deps.humanHandoffStore.list()[0]?.reason_code).toBe("structured_app_field_missing");
-    expect(deps.humanHandoffStore.findPendingOwnerQuery()?.notification_status).toBe("sent");
+    expect(deps.humanHandoffStore.list()).toHaveLength(0);
     const candidateReply = deps.sender.sends.find((item) => item.message.phone_number === CANDIDATE_PHONE)?.text ?? "";
-    expect(normalizedText(candidateReply)).toContain("kontrol");
-    expect(normalizedText(candidateReply)).toContain("donecegim");
-    expect(normalizedText(candidateReply)).not.toContain("ekip");
-    expect(normalizedText(candidateReply)).not.toMatch(/uydur|yasak|iddia edemem|dogrulanmis bilgi bulunmuyor/iu);
-    expect(deps.sender.sends.some((item) => item.message.phone_number === OWNER_PHONE)).toBe(true);
-    expect(deps.logger.events).toEqual(
-      expect.arrayContaining([
-        expect.objectContaining({
-          event_type: "HUMAN_HANDOFF_RECORDED",
-          reason_code: "structured_app_field_missing",
-        }),
-        expect.objectContaining({
-          event_type: "OWNER_ANSWER_REQUIRED_NOTIFICATION_SENT",
-          recipient_role: "owner",
-        }),
-      ]),
-    );
+    expect(normalizedText(candidateReply)).toContain(normalizedText(app));
+    expect(candidateReply).toContain(routeEvidence);
+    expect(normalizedText(candidateReply)).toMatch(/magaza|kurulum linki/u);
+    expect(normalizedText(candidateReply)).not.toMatch(/kontrol|donecegim|ekip/iu);
+    expect(deps.sender.sends.some((item) => item.message.phone_number === OWNER_PHONE)).toBe(false);
   });
 
   it("escalates app-like link or code questions when no structured app fact exists", async () => {
@@ -766,7 +755,7 @@ describe("Quality Pack 1 V2 golden skeletons", () => {
     const deps = makeDeps(["not-json", "still-not-json"], workModelAcceptanceState());
     const noStoreDeps: HandleIncomingMessageDeps = { ...deps, humanHandoffStore: undefined };
 
-    await handleIncomingMessage(candidateMessage("TanChat indirme linki nedir?", "missing-handoff-store"), noStoreDeps);
+    await handleIncomingMessage(candidateMessage("NovaChat indirme linki nedir?", "missing-handoff-store"), noStoreDeps);
 
     expect(deps.logger.events).toEqual(
       expect.arrayContaining([
@@ -782,6 +771,8 @@ describe("Quality Pack 1 V2 golden skeletons", () => {
         expect.objectContaining({ event_type: "HUMAN_HANDOFF_RECORDED" }),
       ]),
     );
+    const candidateReply = deps.sender.sends.find((item) => item.message.phone_number === CANDIDATE_PHONE)?.text ?? "";
+    expect(normalizedText(candidateReply)).not.toMatch(/donecegim|donus yapacagim|kontrol ediyorum|bir kac dakika/iu);
   });
 
   it("answers camera, account, and profile pressure with the deterministic V2 policy boundary", async () => {

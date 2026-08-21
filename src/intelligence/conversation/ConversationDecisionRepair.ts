@@ -439,6 +439,11 @@ export function buildMissingStructuredAppFieldDecision(context: ConversationDeci
     };
   }
 
+  const publishedCode = fact.invite_code?.trim() ?? fact.agency_bind_code?.trim() ?? fact.agency_code?.trim() ?? null;
+  if (asksLink && !fact.official_url?.trim() && publishedCode) {
+    return installationInstructionReply(context, fact);
+  }
+
   const missingFields: string[] = [];
   if (asksLink && !fact.official_url?.trim()) missingFields.push("official_url");
   if (asksCode && !fact.invite_code?.trim() && !fact.agency_bind_code?.trim() && !fact.agency_code?.trim()) {
@@ -520,10 +525,19 @@ function selectedOrRecommendedAppFact(context: ConversationDecisionContext) {
 
 function installationInstructionReply(context: ConversationDecisionContext, fact: ReturnType<typeof selectedOrRecommendedAppFact>): ConversationDecision | null {
   if (!fact) return null;
-  if (!fact.official_url?.trim()) {
+  const code = fact.invite_code?.trim() ?? fact.agency_bind_code?.trim() ?? fact.agency_code?.trim() ?? null;
+  const phoneLabel = context.candidate_state.phone_type === "ios" ? "iPhone" : "Android";
+  const storeName = context.candidate_state.phone_type === "ios" ? fact.ios_name.trim() : fact.android_name.trim();
+  const storeSearchPublished = context.canonical_policy_facts.some((policyFact) => (
+    /(magaza|store|google play|app store)/u.test(normalize(policyFact.content))
+    && /(uygulama adi|adiyla ara|arama)/u.test(normalize(policyFact.content))
+  ));
+  const officialUrl = fact.official_url?.trim() || null;
+  const hasPublishedRoute = officialUrl !== null || storeName.length > 0 && (code !== null || storeSearchPublished);
+  if (!hasPublishedRoute) {
     return {
       ...baseDecision(
-        `${fact.app} icin indirme linki henuz yayinli bilgi bankasinda net degil. Bunu kontrol listesine aliyorum; netlesince sana dogru bilgiyle donecegim.`,
+        `${fact.app} kurulumuna nereden başlanacağı yayınlı bilgilerde yer almıyor.`,
         context,
         "deterministic_safety_response",
       ),
@@ -537,30 +551,13 @@ function installationInstructionReply(context: ConversationDecisionContext, fact
       risk_flags: ["structured_app_field_missing"],
     };
   }
-  const code = fact.invite_code?.trim() ?? fact.agency_bind_code?.trim() ?? fact.agency_code?.trim() ?? null;
-  if (!code) {
-    return {
-      ...baseDecision(
-        `${fact.app} icin davet/ajans kodu henuz yayinli bilgi bankasinda net degil. Bunu kontrol listesine aliyorum; netlesince sana dogru bilgiyle donecegim.`,
-        context,
-        "deterministic_safety_response",
-      ),
-      intent: { primary: "installation_question", secondary: ["invite_code"], confidence: 1 },
-      direct_question: { present: false, question_summary: null, answered_in_reply: true },
-      chosen_actions: ["answer_user_question"],
-      policy_facts_used: context.canonical_policy_facts.map((policyFact) => policyFact.id),
-      next_action: "escalate_missing_info",
-      requires_escalation: true,
-      escalation_reason: "structured_app_field_missing",
-      risk_flags: ["structured_app_field_missing"],
-    };
-  }
-
-  const phoneLabel = context.candidate_state.phone_type === "ios" ? "iPhone" : "Android";
-  const reply =
-    `${phoneLabel} icin ${fact.app} kurulum linki: ${fact.official_url.trim()}\n\n` +
-    `Kayittan sonra Ben > Ajans > Ajansa Katil bolumune ${code} kodunu gir. ` +
-    "Ardindan profilini tamamlayip kullanici adi, Uye ID ve Ajans ekranini gosteren net gorseli gonder.";
+  const route = officialUrl
+    ? `${phoneLabel} icin ${fact.app} kurulum linki: ${officialUrl}`
+    : `${phoneLabel} mağazasında "${storeName}" adıyla arayıp uygulamayı indir.`;
+  const codeInstruction = code
+    ? ` Kayıttan sonra Ben > Ajans > Ajansa Katıl bölümüne ${code} kodunu gir.`
+    : "";
+  const reply = `${route}${codeInstruction} Ardından profilini tamamlayıp kullanıcı adı, Üye ID ve Ajans ekranını gösteren net görseli gönder.`;
   return {
     ...baseDecision(reply, context, "deterministic_safety_response"),
     intent: { primary: "installation_question", secondary: ["known_facts_complete"], confidence: 1 },
@@ -955,13 +952,20 @@ export function buildDeterministicSafetyDecision(
     return buildJobDefinitionSafetyDecision(context);
   }
 
-  const reply = selectRepeatSafeFallbackReply(context,
-    "Bunu hemen kontrol ediyorum; birkaç dakika içinde döneceğim.",
-    [
-      "Bunu kontrol ediyorum; kısa süre içinde dönüş yapacağım.",
-      "Sorunu aldım, doğrulayıp kısa süre içinde yanıtlayacağım."
-    ]);
   const escalate = shouldEscalateMissingVerifiedDetail(context, reason);
+  const reply = escalate
+    ? selectRepeatSafeFallbackReply(context,
+        "Bunu hemen kontrol ediyorum; birkaç dakika içinde döneceğim.",
+        [
+          "Bunu kontrol ediyorum; kısa süre içinde dönüş yapacağım.",
+          "Sorunu aldım, doğrulayıp kısa süre içinde yanıtlayacağım."
+        ])
+    : selectRepeatSafeFallbackReply(context,
+        "Sorunu net anlayamadım; biraz daha açık yazar mısın?",
+        [
+          "Ne demek istediğini tam çıkaramadım; bir cümleyle daha açık yazar mısın?",
+          "Bu kısmı netleştiremedim; neyi sorduğunu biraz açar mısın?"
+        ]);
   return {
     ...baseDecision(
       reply,

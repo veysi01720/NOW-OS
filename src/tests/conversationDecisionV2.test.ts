@@ -596,7 +596,7 @@ describe("Conversation Decision V2 candidate route", () => {
     expect(testDeps.sender.sends[0]?.text).not.toMatch(/sahte kimlik|izinsiz|yasak|uydur|iddia edemem/iu);
   });
 
-  it("preempts a missing structured app download link and queues owner review without model guessing", async () => {
+  it("uses the published TanChat code and store name when the official URL is missing", async () => {
     const handoffDir = mkdtempSync(join(tmpdir(), "missing-link-handoff-"));
     const handoffStore = new PersistentHumanHandoffStore(join(handoffDir, "handoffs.json"));
     const testDeps = {
@@ -626,11 +626,12 @@ describe("Conversation Decision V2 candidate route", () => {
     }
 
     expect(testDeps.assistantClient.runCalls).toHaveLength(0);
-    expect(handoffStore.list()).toHaveLength(1);
-    expect(handoffStore.list()[0]?.reason_code).toBe("structured_app_field_missing");
+    expect(handoffStore.list()).toHaveLength(0);
     const candidateReply = testDeps.sender.sends.at(-1)?.text ?? "";
-    expect(candidateReply).toMatch(/kontrol|donecegim|yanitlayacagim|dÃ¶neceÄŸim|yanÄ±tlayacaÄŸÄ±m/iu);
-    expect(candidateReply).not.toMatch(/play store|app store|apk|market/iu);
+    expect(candidateReply).toContain("X3XREZ");
+    expect(candidateReply).toMatch(/TanChat|TanStar/iu);
+    expect(candidateReply).toMatch(/mağaza|magaza|store/iu);
+    expect(candidateReply).not.toMatch(/kontrol|donecegim|döneceğim|ekip/iu);
     expect(testDeps.logger.events).toEqual(
       expect.arrayContaining([
         expect.objectContaining({
