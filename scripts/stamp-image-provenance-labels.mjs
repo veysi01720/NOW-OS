@@ -5,9 +5,9 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { sha256File } from "./provenance-lib.mjs";
 
-function argument(name, fallback) {
+function argument(name) {
   const index = process.argv.indexOf(`--${name}`);
-  return index >= 0 ? process.argv[index + 1] : fallback;
+  return index >= 0 ? process.argv[index + 1] : undefined;
 }
 
 function docker(args) {
@@ -15,12 +15,10 @@ function docker(args) {
 }
 
 const image = argument("image");
-const finalTag = argument("final-tag", image);
-const manifestPathInImage = argument("manifest-path", "/app/build/provenance/source-manifest.json");
-const sourceCommit = argument(
-  "source-commit",
-  execFileSync("git", ["rev-parse", "HEAD"], { encoding: "utf8" }).trim(),
-);
+const finalTag = argument("final-tag") ?? image;
+const manifestPathInImage = argument("manifest-path") ?? "/app/build/provenance/source-manifest.json";
+const sourceCommit = argument("source-commit")
+  ?? execFileSync("git", ["rev-parse", "HEAD"], { encoding: "utf8" }).trim();
 
 if (!image) {
   console.error("IMAGE_PROVENANCE_LABELED=NO reason=IMAGE_ARG_MISSING");
