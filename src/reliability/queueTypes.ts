@@ -36,6 +36,9 @@ export interface EnqueueReliabilityJobInput {
 
 export interface QueueBacklogSnapshot {
   inbound_queue_pending: number;
+  // In dual-write mode inbound records are observability copies. They have
+  // already completed the real webhook path and must not be drained again.
+  inbound_shadow_pending?: number;
   outbound_queue_pending: number;
   dead_letter_count: number;
   failed_count: number;

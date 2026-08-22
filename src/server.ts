@@ -440,6 +440,7 @@ export async function buildServer() {
     alarmNotifier: connectionAlarmNotifier,
     queueSnapshotProvider: () => queueBacklogSnapshot(reliabilityQueueStore, {
       workersEnabled: env.reliableOutboxEnabled,
+      inboundShadowOnly: env.webhookQueueMode === "dual_write",
     }),
     onLogout401: ({ instance }) => {
       const result = humanHandoffStore.create({
@@ -591,7 +592,10 @@ export async function buildServer() {
         const result = await outboundWorker.runOnce((job) => processOutboundJob(job, rawEvolutionSender, connectionHealthMonitor));
         if (!result.picked) break;
       }
-      const snapshot = queueBacklogSnapshot(reliabilityQueueStore, { workersEnabled: true });
+      const snapshot = queueBacklogSnapshot(reliabilityQueueStore, {
+        workersEnabled: true,
+        inboundShadowOnly: env.webhookQueueMode === "dual_write",
+      });
       emitQueueInfraAlerts(snapshot, logger);
       const alarm = snapshot.backlog_alarm || snapshot.dead_letter_alarm;
       if (alarm && !previousOutboxAlarm) {

@@ -34,6 +34,21 @@ describe("queueBacklogSnapshot workersEnabled gating (Phase 0.5)", () => {
     expect(snapshot.backlog_alarm).toBe(true);
   });
 
+  it("reports dual-write inbound copies separately without raising a backlog alarm", () => {
+    const store = new InMemoryReliabilityQueueStore({ maxEntries: 10_000 });
+    fillQueuedJobs(store, 60);
+
+    const snapshot = queueBacklogSnapshot(store, {
+      pendingThreshold: 50,
+      workersEnabled: true,
+      inboundShadowOnly: true,
+    });
+
+    expect(snapshot.inbound_queue_pending).toBe(0);
+    expect(snapshot.inbound_shadow_pending).toBe(60);
+    expect(snapshot.backlog_alarm).toBe(false);
+  });
+
   it("defaults workersEnabled to true when not specified (unchanged behavior for existing callers)", () => {
     const store = new InMemoryReliabilityQueueStore({ maxEntries: 10_000 });
     fillQueuedJobs(store, 60);

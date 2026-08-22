@@ -71,6 +71,7 @@ function input(role: "owner" | "candidate", message: string, traceId: string, fa
     channel: "whatsapp",
     sender_role: role,
     chat_type: "private",
+    allowed_apps: approvedApps.map((app) => app.app),
     user_message: { text: message },
     state: {
       current_state: role === "candidate" ? "INSTALLATION_IN_PROGRESS" : "NON_CANDIDATE",

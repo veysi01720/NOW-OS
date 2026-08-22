@@ -10,6 +10,9 @@ export interface QueueMonitorOptions {
   // be draining yet, so both alarms only evaluate when a worker is actually
   // enabled. Defaults to true so existing callers keep today's behavior.
   workersEnabled?: boolean;
+  // The legacy webhook path has already handled dual-write inbound records.
+  // Expose their count separately without treating them as actionable work.
+  inboundShadowOnly?: boolean;
 }
 
 export function queueBacklogSnapshot(
@@ -20,9 +23,14 @@ export function queueBacklogSnapshot(
   const pendingThreshold = options.pendingThreshold ?? 50;
   const deadLetterThreshold = options.deadLetterThreshold ?? 1;
   const workersEnabled = options.workersEnabled ?? true;
+  const inboundShadowOnly = options.inboundShadowOnly ?? false;
+  const inboundQueuePending = inboundShadowOnly ? 0 : snapshot.inbound_queue_pending;
+  const inboundShadowPending = inboundShadowOnly ? snapshot.inbound_queue_pending : 0;
   return {
     ...snapshot,
-    backlog_alarm: workersEnabled && snapshot.inbound_queue_pending + snapshot.outbound_queue_pending >= pendingThreshold,
+    inbound_queue_pending: inboundQueuePending,
+    inbound_shadow_pending: inboundShadowPending,
+    backlog_alarm: workersEnabled && inboundQueuePending + snapshot.outbound_queue_pending >= pendingThreshold,
     dead_letter_alarm: workersEnabled && snapshot.dead_letter_count >= deadLetterThreshold,
   };
 }
