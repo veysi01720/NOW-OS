@@ -6,7 +6,7 @@ import type {
   ZipIngestionStoreData,
   ZipLearningCandidateRecord
 } from "./types.js";
-import { inferKnowledgeSectionClassification, normalizeKnowledgeUsage } from "../../intelligence/candidate/knowledgeSectionUsage.js";
+import { inferKnowledgeSectionClassification, inferKnowledgeSectionUsage, normalizeKnowledgeUsage } from "../../intelligence/candidate/knowledgeSectionUsage.js";
 
 function emptyData(): ZipIngestionStoreData {
   return {
@@ -130,7 +130,14 @@ export class ZipIngestionStore {
         title: candidate.section_title ?? candidate.section_id ?? candidate.id,
         content: candidate.extracted_text,
       });
-      const classification = candidate.classification === "information" && inferredClassification !== "information"
+      const inferredUsage = inferKnowledgeSectionUsage({
+        title: candidate.section_title ?? candidate.section_id ?? candidate.id,
+        content: candidate.extracted_text,
+        classification: inferredClassification,
+      });
+      const classification = inferredUsage.topic === "post_training_support"
+        ? inferredClassification
+        : candidate.classification === "information" && inferredClassification !== "information"
         ? inferredClassification
         : candidate.classification ?? inferredClassification;
       const knowledgeUsage = normalizeKnowledgeUsage(candidate.knowledge_usage, {

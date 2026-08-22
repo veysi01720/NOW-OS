@@ -24,6 +24,15 @@ function includesAny(text: string, patterns: RegExp[]): boolean {
   return patterns.some((pattern) => pattern.test(text));
 }
 
+function isPostInstallationTrainingTitle(title: string): boolean {
+  const normalizedTitle = normalize(title);
+  return includesAny(normalizedTitle, [
+    /(?:^|\s)egitim(?:\s|$)/u,
+    /(?:^|\s)egitimci(?:\s|$)/u,
+    /egitim yonlendirmesi/u,
+  ]);
+}
+
 export function inferKnowledgeSectionClassification(input: {
   title: string;
   content: string;
@@ -32,6 +41,9 @@ export function inferKnowledgeSectionClassification(input: {
   if (includesAny(text, [/(legacy|arsiv|oran tablosu|eski fiyat)/u])) return "archive";
   if (includesAny(text, [/(mesaj bankasi|bio bankasi|hediye bankasi|egitim materyali|grup botu|mesaj ornek|ilk mesaj.*uret|sayhi.*uret)/u])) return "training";
   if (includesAny(text, [/(coin|elmas|diamond|bonus orani|komisyon orani|kazanc tablosu)/u])) return "rate_sensitive";
+  // Lifecycle training guidance is candidate-facing only after installation;
+  // wording such as "sadece" must not turn it into an all-stage constraint.
+  if (isPostInstallationTrainingTitle(input.title)) return "information";
   if (includesAny(text, [/(garanti|sifre|kart|iban|kimlik|18 yas|yas siniri|uygunluk|yasak)/u])) return "critical";
   if (includesAny(text, [/(kural|zorunlu|asla|sadece|reddet|eskalasyon|gizlilik|odeme|grup)/u])) return "constraint";
   return "information";
@@ -52,6 +64,9 @@ export function inferKnowledgeSectionUsage(input: {
 
   if (classification === "archive" || classification === "training" || classification === "rate_sensitive") {
     return { candidate_context: false, stages: [], topic: classification };
+  }
+  if (isPostInstallationTrainingTitle(input.title)) {
+    return { candidate_context: true, stages: ["training"], topic: "post_training_support" };
   }
   if (classification === "constraint" || classification === "critical") {
     return { candidate_context: true, stages: ALL_CANDIDATE_STAGES, topic: "safety_constraint" };
@@ -86,6 +101,10 @@ export function normalizeKnowledgeUsage(
   if (fallback.classification === "archive" || fallback.classification === "training" || fallback.classification === "rate_sensitive") {
     return inferred;
   }
+  // Older records may have been classified before lifecycle scoping existed.
+  // Recompute these so a generic constraint label cannot leak training text
+  // into intake, routing, or installation context.
+  if (inferred.topic === "post_training_support") return inferred;
   if (value === null || typeof value !== "object" || Array.isArray(value)) return inferred;
   const record = value as Record<string, unknown>;
   const stages = Array.isArray(record.stages)
