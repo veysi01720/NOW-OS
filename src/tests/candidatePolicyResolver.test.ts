@@ -214,6 +214,68 @@ describe("candidate app routing", () => {
     expect(result.facts.find((fact) => fact.id === "owner_transfer_owner_rule")?.content).toContain("kadin profil");
   });
 
+  it("makes a published app-specific owner fact reachable from the candidate's matching question", () => {
+    const result = resolveCandidatePolicy(
+      { ...defaultUserState(), current_state: "INSTALLATION_IN_PROGRESS", selected_app: "Layla" },
+      [],
+      [{
+        app: "Layla",
+        android_name: "Layla",
+        ios_name: "NIVI",
+        invite_code: null,
+        agency_bind_code: null,
+        agency_code: null,
+        official_url: null,
+        status: "owner_approved",
+        aliases: ["Leyla"],
+        capabilities: { text_only: true, video_required: false },
+      }],
+      null,
+      "installation_question",
+      validPolicySectionsForTest(),
+      [
+        {
+          section_id: "layla_sayhi",
+          title: "Layla SayHi ozelligi",
+          content: "Layla SayHi ozelligi yeni sohbet baslatmak icin kullanilir.",
+          classification: "information",
+        },
+        {
+          section_id: "training_message_bank",
+          title: "100 mesaj bankasi",
+          content: "Egitim mesaji ornekleri owner incelemesi icindir.",
+          classification: "archive",
+        },
+      ],
+      { role: "candidate", latestMessage: "SayHi ozelligi ne ise yarar?" },
+    );
+
+    expect(result.facts.find((fact) => fact.id === "owner_transfer_layla_sayhi")?.content)
+      .toContain("yeni sohbet baslatmak");
+    expect(result.facts.some((fact) => fact.id === "owner_transfer_training_message_bank")).toBe(false);
+  });
+
+  it("uses candidate question relevance when an operational fact is not covered by a stage keyword", () => {
+    const result = resolveCandidatePolicy(
+      { ...defaultUserState(), current_state: "NEW_LEAD" },
+      [],
+      [],
+      null,
+      "candidate_question",
+      validPolicySectionsForTest(),
+      [{
+        section_id: "sayhi_operation",
+        title: "SayHi ozelligi",
+        content: "SayHi, uygulamada yeni bir sohbet baslatma ozelligidir.",
+        classification: "information",
+      }],
+      { role: "candidate", latestMessage: "SayHi nasil kullanilir?" },
+    );
+
+    expect(result.facts.find((fact) => fact.id === "owner_transfer_sayhi_operation")?.content)
+      .toContain("yeni bir sohbet");
+  });
+
   it("injects owner profile rules during work model disclosure", () => {
     const result = resolveCandidatePolicy(
       { ...defaultUserState(), gender: "erkek" },

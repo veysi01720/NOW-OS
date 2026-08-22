@@ -134,6 +134,28 @@ function ownerTransferMatchesStage(section: OwnerTransferPolicySection, stage: C
   return /(kurulum|uygulama|kod|davet|ajans|destek|sorun|ekran|profil|foto|fotograf)/u.test(text);
 }
 
+function ownerTransferMatchesSelectedApp(
+  section: OwnerTransferPolicySection,
+  selectedApp: string | null,
+  structuredFacts: StructuredAppFact[],
+): boolean {
+  if (!selectedApp) return false;
+  const selectedFact = structuredFacts.find((fact) => appMatches(selectedApp, fact));
+  if (!selectedFact) return false;
+  const sectionText = normalize(`${section.title} ${section.content}`);
+  return [selectedFact.app, selectedFact.android_name, selectedFact.ios_name, ...selectedFact.aliases]
+    .map(normalize)
+    .some((name) => name.length >= 3 && sectionText.includes(name));
+}
+
+function ownerTransferMatchesCandidateRequest(
+  section: OwnerTransferPolicySection,
+  requestContext: { role?: string; latestMessage?: string },
+): boolean {
+  if (requestContext.role !== "candidate") return false;
+  return contentMatchesRequest(`${section.title} ${section.content}`, requestContext.latestMessage ?? "");
+}
+
 function ownerTransferFact(section: OwnerTransferPolicySection): ConversationPolicyFact {
   return { id: `owner_transfer_${section.section_id}`, topic: "owner_transfer_knowledge", fact: section.content, content: section.content, source: "knowledge_bank", version: "app_facts_structured.json" };
 }
@@ -177,6 +199,8 @@ export function resolveCandidatePolicy(
   }
   for (const section of ownerTransferSections.filter((item) => (
     ownerTransferMatchesStage(item, stage)
+    || ownerTransferMatchesSelectedApp(item, state.selected_app, structuredFacts)
+    || ownerTransferMatchesCandidateRequest(item, requestContext)
     || (isOwnerRequest && contentMatchesRequest(`${item.title} ${item.content}`, requestContext.latestMessage ?? ""))
   ))) facts.push(ownerTransferFact(section));
 

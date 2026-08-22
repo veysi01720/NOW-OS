@@ -163,6 +163,24 @@ describe("ConversationDecisionV3 semantic validator", () => {
     }), context({ allowed_actions: ["escalate_policy_missing"] })), "NEXT_ACTION_MISSING_INFO_ESCALATION_INCOMPATIBLE");
   });
 
+  it("treats a safe direct answer with only an escalation action-label mismatch as Layer 2 variance", () => {
+    const result = validateConversationDecisionV3Semantics(decision({
+      reply: "Odeme kurallari yayimlanan surece gore gunluk ilerler.",
+      next_action: "escalate_missing_info",
+      chosen_actions: ["answer_user_question"],
+      requires_escalation: false,
+    }), context({
+      latest_message: "Odeme ne zaman gelir?",
+      allowed_actions: ["answer_user_question"],
+      two_layer_validator_enabled: true,
+    }));
+
+    expect(result.ok).toBe(true);
+    expect(result.layer_1_result).toBe("pass");
+    expect(result.layer_2_result).toBe("accepted_with_variance");
+    expect(result.layer_2_reason_codes).toContain("NEXT_ACTION_MISSING_INFO_ESCALATION_INCOMPATIBLE");
+  });
+
   it("rejects missing, duplicate, orphan, and mismatched state patch evidence", () => {
     const missing = validateConversationDecisionV3Semantics(decision({
       next_action: "update_candidate_state",
