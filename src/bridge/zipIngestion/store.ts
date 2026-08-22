@@ -6,6 +6,7 @@ import type {
   ZipIngestionStoreData,
   ZipLearningCandidateRecord
 } from "./types.js";
+import { inferKnowledgeSectionClassification, normalizeKnowledgeUsage } from "../../intelligence/candidate/knowledgeSectionUsage.js";
 
 function emptyData(): ZipIngestionStoreData {
   return {
@@ -39,6 +40,7 @@ export class ZipIngestionStore {
   }
 
   getLearningCandidate(candidateId: string): ZipLearningCandidateRecord | undefined {
+    this.normalizeLearningCandidateMetadata();
     return this.data.learning_candidates[candidateId];
   }
 
@@ -116,8 +118,46 @@ export class ZipIngestionStore {
   }
 
   listLearningCandidates(jobId?: string): ZipLearningCandidateRecord[] {
+    this.normalizeLearningCandidateMetadata();
     const values = Object.values(this.data.learning_candidates);
     return jobId ? values.filter((candidate) => candidate.source_job_id === jobId) : values;
+  }
+
+  private normalizeLearningCandidateMetadata(): void {
+    let changed = false;
+    for (const [id, candidate] of Object.entries(this.data.learning_candidates)) {
+      const inferredClassification = inferKnowledgeSectionClassification({
+        title: candidate.section_title ?? candidate.section_id ?? candidate.id,
+        content: candidate.extracted_text,
+      });
+      const classification = candidate.classification === "information" && inferredClassification !== "information"
+        ? inferredClassification
+        : candidate.classification ?? inferredClassification;
+      const knowledgeUsage = normalizeKnowledgeUsage(candidate.knowledge_usage, {
+        title: candidate.section_title ?? candidate.section_id ?? candidate.id,
+        content: candidate.extracted_text,
+        classification,
+      });
+      const targetFile = classification === "training"
+        ? "training_content.md"
+        : classification === "archive" || classification === "rate_sensitive"
+          ? "outputs/archive/owner_review_only"
+          : candidate.target_file ?? "app_facts.md";
+      if (
+        candidate.classification !== classification
+        || candidate.target_file !== targetFile
+        || JSON.stringify(candidate.knowledge_usage) !== JSON.stringify(knowledgeUsage)
+      ) {
+        this.data.learning_candidates[id] = {
+          ...candidate,
+          classification,
+          target_file: targetFile,
+          knowledge_usage: knowledgeUsage,
+        };
+        changed = true;
+      }
+    }
+    if (changed) this.persist();
   }
 
   private load(): ZipIngestionStoreData {

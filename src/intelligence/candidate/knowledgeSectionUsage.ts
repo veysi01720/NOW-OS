@@ -15,6 +15,7 @@ function normalize(value: string): string {
     .toLocaleLowerCase("tr-TR")
     .normalize("NFKD")
     .replace(/\p{M}/gu, "")
+    .replace(/ı/gu, "i")
     .replace(/[^a-z0-9]+/gu, " ")
     .trim();
 }

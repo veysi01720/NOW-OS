@@ -137,23 +137,19 @@ describe("owner knowledge transfer chain", () => {
       const bank = join(dir, "knowledge_bank");
       knowledgeBank(bank);
       const store = new ZipIngestionStore(join(dir, "zip-store.json"));
-      seed(store, ["SayHi sonrası dönüş gelmezse profil adımları gözden geçirilir.", ...Array.from({ length: 7 }, (_, index) => `## Rejected ${index}\nRejected.`)]);
+      seed(store, ["100 mesaj bankası: Eğitim amaçlı örnek yanıtlar owner incelemesi için tutulur.", ...Array.from({ length: 7 }, (_, index) => `## Rejected ${index}\nRejected.`)]);
       const candidate = store.getLearningCandidate("section_1")!;
-      store.saveLearningCandidate({
-        ...candidate,
-        classification: "training",
-        target_file: "training_content.md",
-        knowledge_usage: { candidate_context: false, stages: [], topic: "training" },
-      });
+      expect(candidate.classification).toBe("training");
+      expect(candidate.target_file).toBe("training_content.md");
 
       const result = materializeApprovedOwnerKnowledge({ jobId: "zip_transfer_test", zipStore: store, knowledgeBankDir: bank });
 
       expect(result.status).toBe("published");
-      expect(readFileSync(resolve(bank, "training_content.md"), "utf8")).toContain("SayHi sonrası dönüş gelmezse");
+      expect(readFileSync(resolve(bank, "training_content.md"), "utf8")).toContain("100 mesaj bankası");
       const training = JSON.parse(readFileSync(resolve(bank, "training_content_structured.json"), "utf8"));
       expect(training.active_in_candidate_context).toBe(false);
-      expect(training.sections.some((section: { content: string }) => section.content.includes("SayHi sonrası dönüş gelmezse"))).toBe(true);
-      expect(readFileSync(resolve(bank, "app_facts.md"), "utf8")).not.toContain("SayHi sonrası dönüş gelmezse");
+      expect(training.sections.some((section: { content: string }) => section.content.includes("100 mesaj bankası"))).toBe(true);
+      expect(readFileSync(resolve(bank, "app_facts.md"), "utf8")).not.toContain("100 mesaj bankası");
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }
