@@ -2,6 +2,7 @@ import { createHash } from "node:crypto";
 import { existsSync, readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import type { StructuredPolicySections } from "../contracts/backendContextPayload.js";
+import { normalizeKnowledgeUsage, type KnowledgeSectionUsage } from "../intelligence/candidate/knowledgeSectionUsage.js";
 
 export interface StructuredAppFact {
   app: string;
@@ -30,7 +31,8 @@ export interface StructuredAppFactsContext {
     section_id: string;
     title: string;
     content: string;
-    classification: "information" | "constraint" | "critical" | "archive";
+    classification: "information" | "constraint" | "critical" | "training" | "rate_sensitive" | "archive";
+    knowledge_usage: KnowledgeSectionUsage;
   }>;
   errors: string[];
 }
@@ -150,10 +152,11 @@ function toOwnerTransferSections(value: unknown): StructuredAppFactsContext["own
     const sectionId = normalizeString(record.section_id);
     const title = normalizeString(record.title);
     const content = normalizeString(record.content);
-    const classification = record.classification === "constraint" || record.classification === "critical" || record.classification === "archive"
+    const classification = record.classification === "constraint" || record.classification === "critical" || record.classification === "training" || record.classification === "rate_sensitive" || record.classification === "archive"
       ? record.classification
       : "information";
-    return sectionId && title && content ? [{ section_id: sectionId, title, content, classification }] : [];
+    const knowledgeUsage = normalizeKnowledgeUsage(record.knowledge_usage, { title, content, classification });
+    return sectionId && title && content ? [{ section_id: sectionId, title, content, classification, knowledge_usage: knowledgeUsage }] : [];
   });
 }
 

@@ -135,7 +135,12 @@ export interface StructuredFactsContext {
     section_id: string;
     title: string;
     content: string;
-    classification?: "information" | "constraint" | "critical" | "archive";
+    classification?: "information" | "constraint" | "critical" | "training" | "rate_sensitive" | "archive";
+    knowledge_usage?: {
+      candidate_context: boolean;
+      stages: Array<"intake" | "app_selection" | "installation" | "training">;
+      topic: string;
+    };
   }>;
   errors: string[];
 }

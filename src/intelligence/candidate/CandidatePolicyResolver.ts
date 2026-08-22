@@ -2,8 +2,9 @@ import type { UserState } from "../../storage/types.js";
 import type { StructuredAppFact, StructuredGeneralWorkModel } from "../../bridge/structuredAppFacts.js";
 import type { StructuredPolicySections } from "../../contracts/backendContextPayload.js";
 import type { ConversationPolicyFact } from "../conversation/ConversationDecisionSchema.js";
+import { normalizeKnowledgeUsage, type CandidateKnowledgeStage, type KnowledgeSectionUsage } from "./knowledgeSectionUsage.js";
 
-export type CandidatePolicyStage = "intake" | "app_selection" | "installation" | "training";
+export type CandidatePolicyStage = CandidateKnowledgeStage;
 
 export interface CandidatePolicyResolution {
   facts: ConversationPolicyFact[];
@@ -108,7 +109,8 @@ export interface OwnerTransferPolicySection {
   section_id: string;
   title: string;
   content: string;
-  classification?: "information" | "constraint" | "critical" | "archive";
+  classification?: "information" | "constraint" | "critical" | "training" | "rate_sensitive" | "archive";
+  knowledge_usage?: KnowledgeSectionUsage;
 }
 
 function structuredPolicySectionFact(key: keyof StructuredPolicySections, content: string): ConversationPolicyFact {
@@ -125,20 +127,21 @@ function prepareRoutingSection(content: string, stage: CandidatePolicyStage): st
 }
 
 function ownerTransferMatchesStage(section: OwnerTransferPolicySection, stage: CandidatePolicyStage): boolean {
-  if (section.classification === "archive") return false;
+  const usage = normalizeKnowledgeUsage(section.knowledge_usage, section);
+  if (!usage.candidate_context) return false;
   if (section.classification === "constraint" || section.classification === "critical") return true;
-  const text = normalize(`${section.title} ${section.content}`);
-  if (/(odeme|cekim|kazanc|iban|ucret|ayril|vazgec|ara ver)/u.test(text)) return true;
-  if (stage === "intake") return /(yas|cinsiyet|uygun|profil|bio|foto|fotograf|is model|calisma)/u.test(text);
-  if (stage === "app_selection") return /(uygulama|alternatif|yonlendirme|profil|cihaz)/u.test(text);
-  return /(kurulum|uygulama|kod|davet|ajans|destek|sorun|ekran|profil|foto|fotograf)/u.test(text);
+  return usage.stages.includes(stage);
 }
 
 function ownerTransferMatchesSelectedApp(
   section: OwnerTransferPolicySection,
+  stage: CandidatePolicyStage,
   selectedApp: string | null,
   structuredFacts: StructuredAppFact[],
 ): boolean {
+  const usage = normalizeKnowledgeUsage(section.knowledge_usage, section);
+  if (!usage.candidate_context) return false;
+  if (section.classification !== "constraint" && section.classification !== "critical" && !usage.stages.includes(stage)) return false;
   if (!selectedApp) return false;
   const selectedFact = structuredFacts.find((fact) => appMatches(selectedApp, fact));
   if (!selectedFact) return false;
@@ -150,9 +153,12 @@ function ownerTransferMatchesSelectedApp(
 
 function ownerTransferMatchesCandidateRequest(
   section: OwnerTransferPolicySection,
+  stage: CandidatePolicyStage,
   requestContext: { role?: string; latestMessage?: string },
 ): boolean {
   if (requestContext.role !== "candidate") return false;
+  const usage = normalizeKnowledgeUsage(section.knowledge_usage, section);
+  if (!usage.candidate_context || !usage.stages.includes(stage)) return false;
   return contentMatchesRequest(`${section.title} ${section.content}`, requestContext.latestMessage ?? "");
 }
 
@@ -199,8 +205,8 @@ export function resolveCandidatePolicy(
   }
   for (const section of ownerTransferSections.filter((item) => (
     ownerTransferMatchesStage(item, stage)
-    || ownerTransferMatchesSelectedApp(item, state.selected_app, structuredFacts)
-    || ownerTransferMatchesCandidateRequest(item, requestContext)
+    || ownerTransferMatchesSelectedApp(item, stage, state.selected_app, structuredFacts)
+    || ownerTransferMatchesCandidateRequest(item, stage, requestContext)
     || (isOwnerRequest && contentMatchesRequest(`${item.title} ${item.content}`, requestContext.latestMessage ?? ""))
   ))) facts.push(ownerTransferFact(section));
 

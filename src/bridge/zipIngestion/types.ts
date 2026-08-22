@@ -17,7 +17,7 @@ export type ZipLearningCandidateType =
   | "raw_reference"
   | "unknown";
 
-export type OwnerKnowledgeClassification = "information" | "constraint" | "critical" | "archive";
+export type OwnerKnowledgeClassification = "information" | "constraint" | "critical" | "training" | "rate_sensitive" | "archive";
 
 export interface ZipIngestionLimits {
   maxZipBytes: number;
@@ -91,6 +91,11 @@ export interface ZipLearningCandidateRecord {
   target_file?: string;
   source_hash?: string;
   section_hash?: string;
+  knowledge_usage?: {
+    candidate_context: boolean;
+    stages: Array<"intake" | "app_selection" | "installation" | "training">;
+    topic: string;
+  };
 }
 
 export interface ZipIngestionManifest {

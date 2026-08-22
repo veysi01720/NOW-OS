@@ -8,6 +8,7 @@ import type { Logger } from "../../observability/logger.js";
 import type { PersistentIngestionStore } from "../../storage/ingestionStore.js";
 import type { IngestionClass } from "../../storage/ingestionTypes.js";
 import { redactSecrets } from "../../utils/redaction.js";
+import { inferKnowledgeSectionClassification, inferKnowledgeSectionUsage } from "../../intelligence/candidate/knowledgeSectionUsage.js";
 import type { NormalizedIncomingMessage } from "../normalizeEvolutionMessage.js";
 import { downloadEvolutionMedia } from "./mediaDownloader.js";
 import { ZipIngestionStore } from "./store.js";
@@ -48,20 +49,25 @@ function safePreview(text: string, maxLength = 500): string {
   return redactSecrets(text).replace(/<[^>]*>?/gm, "").replace(/\s+/g, " ").trim().slice(0, maxLength);
 }
 
-export function sectionMetadata(text: string, originalPath: string, candidateType: ZipLearningCandidateType, sectionHash: string): { section_id: string; section_title: string; classification: OwnerKnowledgeClassification; target_file: string; source_hash: string; section_hash: string; recommended_action: string } {
+export function sectionMetadata(text: string, originalPath: string, candidateType: ZipLearningCandidateType, sectionHash: string): { section_id: string; section_title: string; classification: OwnerKnowledgeClassification; target_file: string; source_hash: string; section_hash: string; recommended_action: string; knowledge_usage: ReturnType<typeof inferKnowledgeSectionUsage> } {
   const heading = text.match(/^#{1,3}\s+([^\r\n]+)/m)?.[1]?.trim();
   const sectionTitle = heading || basename(originalPath, extname(originalPath)).replace(/[._-]+/g, " ").trim();
   const sectionId = `section_${sectionTitle.toLocaleLowerCase("tr-TR").normalize("NFKD").replace(/\p{M}/gu, "").replace(/[^a-z0-9]+/gi, "_").replace(/^_|_$/g, "").slice(0, 80) || "untitled"}`;
-  const lower = text.toLocaleLowerCase("tr-TR");
-  const classification = /legacy|arsiv|arşiv|oran tablosu|eski fiyat/i.test(lower)
-    ? "archive"
-    : /garanti|şifre|sifre|kart|iban|kimlik|18 yaş|yaş sınırı|uygunluk|yasak/i.test(lower)
-      ? "critical"
-      : /kural|zorunlu|asla|sadece|reddet|eskalasyon|gizlilik|ödeme|ödeme|grup/i.test(lower)
-        ? "constraint"
-        : "information";
-  const targetFile = classification === "archive" ? "outputs/archive/owner_review_only" : "app_facts.md";
-  return { section_id: sectionId, section_title: sectionTitle, classification, target_file: targetFile, source_hash: sectionHash, section_hash: sectionHash, recommended_action: classification === "archive" ? "archive_only" : "owner_review_required" };
+  const classification = inferKnowledgeSectionClassification({ title: sectionTitle, content: text });
+  const targetFile = classification === "archive" || classification === "training" || classification === "rate_sensitive"
+    ? "outputs/archive/owner_review_only"
+    : "app_facts.md";
+  const knowledgeUsage = inferKnowledgeSectionUsage({ title: sectionTitle, content: text, classification });
+  return {
+    section_id: sectionId,
+    section_title: sectionTitle,
+    classification,
+    target_file: targetFile,
+    source_hash: sectionHash,
+    section_hash: sectionHash,
+    recommended_action: "owner_review_required",
+    knowledge_usage: knowledgeUsage,
+  };
 }
 
 export function classifyText(text: string): { candidateType: ZipLearningCandidateType; suggestionClass: IngestionClass; proposedType: string; confidence: number } {

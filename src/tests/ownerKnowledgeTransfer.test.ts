@@ -131,6 +131,34 @@ describe("owner knowledge transfer chain", () => {
     }
   });
 
+  it("keeps approved training material in its isolated training projection", () => {
+    const dir = mkdtempSync(join(tmpdir(), "owner-training-transfer-"));
+    try {
+      const bank = join(dir, "knowledge_bank");
+      knowledgeBank(bank);
+      const store = new ZipIngestionStore(join(dir, "zip-store.json"));
+      seed(store, ["SayHi sonrası dönüş gelmezse profil adımları gözden geçirilir.", ...Array.from({ length: 7 }, (_, index) => `## Rejected ${index}\nRejected.`)]);
+      const candidate = store.getLearningCandidate("section_1")!;
+      store.saveLearningCandidate({
+        ...candidate,
+        classification: "training",
+        target_file: "training_content.md",
+        knowledge_usage: { candidate_context: false, stages: [], topic: "training" },
+      });
+
+      const result = materializeApprovedOwnerKnowledge({ jobId: "zip_transfer_test", zipStore: store, knowledgeBankDir: bank });
+
+      expect(result.status).toBe("published");
+      expect(readFileSync(resolve(bank, "training_content.md"), "utf8")).toContain("SayHi sonrası dönüş gelmezse");
+      const training = JSON.parse(readFileSync(resolve(bank, "training_content_structured.json"), "utf8"));
+      expect(training.active_in_candidate_context).toBe(false);
+      expect(training.sections.some((section: { content: string }) => section.content.includes("SayHi sonrası dönüş gelmezse"))).toBe(true);
+      expect(readFileSync(resolve(bank, "app_facts.md"), "utf8")).not.toContain("SayHi sonrası dönüş gelmezse");
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
   it("does not claim success when structured verification cannot find the approved section", () => {
     const dir = mkdtempSync(join(tmpdir(), "owner-transfer-verify-"));
     try {

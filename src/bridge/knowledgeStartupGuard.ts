@@ -22,6 +22,8 @@ export interface KnowledgeStartupValidation {
   training_knowledge_valid: boolean;
   training_candidate_context_isolated: boolean;
   training_section_count: number;
+  owner_transfer_candidate_section_count: number;
+  owner_transfer_usage_warning_codes: string[];
   error_codes: string[];
   fallback_policy_warning_codes: string[];
 }
@@ -77,6 +79,14 @@ function stagePolicyPresence(facts: StructuredAppFactsContext): Record<"intake" 
   };
 }
 
+function ownerTransferUsageWarnings(facts: StructuredAppFactsContext): string[] {
+  return facts.owner_transfer_sections.flatMap((section) => {
+    if (!section.knowledge_usage.candidate_context) return [];
+    if (section.knowledge_usage.stages.length > 0) return [];
+    return [`OWNER_TRANSFER_USAGE_STAGE_MISSING_${section.section_id}`];
+  });
+}
+
 export function validateKnowledgeAtStartup(knowledgeBankDir?: string): KnowledgeStartupValidation {
   const dir = knowledgeBankDir ?? process.env.KNOWLEDGE_BANK_DIR ?? resolve(process.cwd(), "data", "knowledge_bank");
   const runtime = inspectRuntimeKnowledgeState(dir);
@@ -99,6 +109,7 @@ export function validateKnowledgeAtStartup(knowledgeBankDir?: string): Knowledge
   const paymentValid = facts.source_status === "loaded" && hasPaymentInvariant(facts);
   const fallbackWarnings = fallbackPolicyWarnings(facts);
   const stagePresence = stagePolicyPresence(facts);
+  const ownerTransferWarnings = ownerTransferUsageWarnings(facts);
   const stageWarnings = Object.entries(stagePresence)
     .filter(([, present]) => !present)
     .map(([stage]) => `STAGE_POLICY_SECTIONS_MISSING_${stage.toUpperCase()}`);
@@ -124,6 +135,8 @@ export function validateKnowledgeAtStartup(knowledgeBankDir?: string): Knowledge
     training_knowledge_valid: training.valid,
     training_candidate_context_isolated: training.candidate_context_isolated,
     training_section_count: training.section_count,
+    owner_transfer_candidate_section_count: facts.owner_transfer_sections.filter((section) => section.knowledge_usage.candidate_context).length,
+    owner_transfer_usage_warning_codes: ownerTransferWarnings,
     error_codes: [...new Set(errors)],
     fallback_policy_warning_codes: fallbackWarnings,
   };

@@ -8,6 +8,8 @@ import { publishStructuredKnowledgeSources } from "./structuredKnowledgePublish.
 import { loadStructuredAppFacts } from "./structuredAppFacts.js";
 import { defaultUserState } from "../storage/types.js";
 import { resolveCandidatePolicy } from "../intelligence/candidate/CandidatePolicyResolver.js";
+import { inspectTrainingKnowledgeIntegrity, publishTrainingKnowledgeSources } from "./trainingKnowledgeIntegrity.js";
+import { inferKnowledgeSectionClassification } from "../intelligence/candidate/knowledgeSectionUsage.js";
 
 export interface OwnerKnowledgeReviewSummary {
   job_id: string;
@@ -168,8 +170,21 @@ export function materializeApprovedOwnerKnowledge(input: {
 }): OwnerKnowledgeMaterializationResult {
   const job = input.zipStore.getJob(input.jobId);
   if (!job) return { status: "failed", job_id: input.jobId, approved_section_ids: [], rejected_section_ids: [], active_version_hash_masked: null, fact_count: 0, activation_status: "failed_previous_version_preserved", rollback_pointer: null, error_code: "JOB_NOT_FOUND" };
-  const candidates = input.zipStore.listLearningCandidates(input.jobId);
-  const approved = candidates.filter((candidate) => candidate.status === "approved_for_bundle" && candidate.classification !== "archive");
+  const candidates = input.zipStore.listLearningCandidates(input.jobId).map((candidate) => {
+    const inferredClassification = inferKnowledgeSectionClassification({
+      title: candidate.section_title ?? candidate.section_id ?? candidate.id,
+      content: candidate.extracted_text,
+    });
+    if (candidate.classification !== "information" || inferredClassification === "information") return candidate;
+    const reclassified = { ...candidate, classification: inferredClassification };
+    input.zipStore.saveLearningCandidate(reclassified);
+    return reclassified;
+  });
+  const approved = candidates.filter((candidate) => (
+    candidate.status === "approved_for_bundle"
+    && candidate.classification !== "archive"
+    && candidate.classification !== "rate_sensitive"
+  ));
   const rejected = candidates.filter((candidate) => candidate.status === "rejected" || candidate.classification === "archive").map((candidate) => candidate.section_id ?? candidate.id);
   if (approved.length === 0) return { status: "no_approved_sections", job_id: input.jobId, approved_section_ids: [], rejected_section_ids: rejected, active_version_hash_masked: null, fact_count: 0, activation_status: "not_started", rollback_pointer: null };
 
@@ -179,9 +194,15 @@ export function materializeApprovedOwnerKnowledge(input: {
   const structuredPath = resolve(dir, "app_facts_structured.json");
   const manifestPath = resolve(dir, "structured_knowledge_manifest.json");
   const routingPath = resolve(dir, "app_routing_rules.md");
+  const trainingPath = resolve(dir, "training_content.md");
+  const trainingStructuredPath = resolve(dir, "training_content_structured.json");
+  const trainingManifestPath = resolve(dir, "training_knowledge_manifest.json");
   const previousStructured = existsSync(structuredPath) ? readFileSync(structuredPath, "utf8") : null;
   const previousManifest = existsSync(manifestPath) ? readFileSync(manifestPath, "utf8") : null;
   const previousRouting = existsSync(routingPath) ? readFileSync(routingPath, "utf8") : null;
+  const previousTraining = existsSync(trainingPath) ? readFileSync(trainingPath, "utf8") : null;
+  const previousTrainingStructured = existsSync(trainingStructuredPath) ? readFileSync(trainingStructuredPath, "utf8") : null;
+  const previousTrainingManifest = existsSync(trainingManifestPath) ? readFileSync(trainingManifestPath, "utf8") : null;
   const previousHash = sha256(previous);
   const timestamp = Date.now();
   const backupPath = `${appFactsPath}.backup-owner-transfer-${timestamp}`;
@@ -196,20 +217,54 @@ export function materializeApprovedOwnerKnowledge(input: {
     });
     mkdirSync(dirname(backupPath), { recursive: true });
     writeFileSync(backupPath, previous, { encoding: "utf8", mode: 0o600 });
-    const additions = approved
+    const activeApproved = approved.filter((candidate) => candidate.classification !== "training");
+    const trainingApproved = approved.filter((candidate) => candidate.classification === "training");
+    const additions = activeApproved
       .filter((candidate) => !previous.includes(candidate.extracted_text.trim()))
-      .map((candidate) => `\n\n## Owner Transfer [${candidate.classification ?? "information"}]: ${candidate.section_title ?? candidate.section_id ?? candidate.id}\n\n${candidate.extracted_text.trim()}\n`)
+      .map((candidate) => {
+        const stages = candidate.knowledge_usage?.stages?.join(",") ?? "";
+        const usage = stages ? `; stages=${stages}` : "";
+        return `\n\n## Owner Transfer [${candidate.classification ?? "information"}${usage}]: ${candidate.section_title ?? candidate.section_id ?? candidate.id}\n\n${candidate.extracted_text.trim()}\n`;
+      })
       .join("");
     atomicWrite(appFactsPath, `${previous.trimEnd()}${additions}\n`);
+    if (trainingApproved.length > 0) {
+      const trainingSource = previousTraining ?? "# Training Content (Owner Review Only)\n\nThis source is excluded from normal candidate context.\n";
+      const trainingAdditions = trainingApproved
+        .filter((candidate) => !trainingSource.includes(candidate.extracted_text.trim()))
+        .map((candidate) => `\n\n## ${candidate.section_title ?? candidate.section_id ?? candidate.id}\n\n${candidate.extracted_text.trim()}\n`)
+        .join("");
+      atomicWrite(trainingPath, `${trainingSource.trimEnd()}${trainingAdditions}\n`);
+      publishTrainingKnowledgeSources(dir);
+    }
     const publish = publishStructuredKnowledgeSources({ knowledgeBankDir: dir, mode: "activate", ownerApproval: true });
     if (publish.status !== "published") throw new Error(`OWNER_TRANSFER_PUBLISH_${publish.status.toUpperCase()}`);
     const previouslyPublished = input.zipStore.listLearningCandidates()
-      .filter((candidate) => candidate.status === "published" && candidate.target_file === "app_facts.md" && candidate.classification !== "archive");
-    const verificationCandidates = [...previouslyPublished, ...approved]
+      .filter((candidate) => candidate.status === "published" && candidate.target_file === "app_facts.md" && candidate.classification !== "archive" && candidate.classification !== "training" && candidate.classification !== "rate_sensitive");
+    const verificationCandidates = [...previouslyPublished, ...activeApproved]
       .filter((candidate, index, candidates) => candidates.findIndex((item) => item.id === candidate.id) === index);
     const verification = verifyMaterializedKnowledge(appFactsPath, structuredPath, verificationCandidates, input.forceStructuredVerificationFailure);
-    if (!verification || verification.failures.length > 0) throw new Error(`OWNER_TRANSFER_VERIFY_${verification?.failures.join(",") ?? "MISSING"}`);
-    const rollback = { previous_source_hash: previousHash, backup_path: backupPath, created_at: new Date().toISOString(), source_archive_hash: job.zip_sha256, section_hashes: sourceHashes };
+    if (!verification) throw new Error("OWNER_TRANSFER_VERIFY_MISSING");
+    if (trainingApproved.length > 0) {
+      const trainingIntegrity = inspectTrainingKnowledgeIntegrity(dir);
+      if (!trainingIntegrity.valid || !trainingIntegrity.candidate_context_isolated || trainingApproved.some((candidate) => !(readFileSync(trainingPath, "utf8").includes(candidate.extracted_text.trim())))) {
+        verification.failures.push("TRAINING_MATERIALIZATION_INVALID");
+      } else {
+        verification.structured_fields.push("training_content_structured.sections");
+        verification.context_paths.push("training_content.candidate_context_isolated");
+      }
+    }
+    if (verification.failures.length > 0) throw new Error(`OWNER_TRANSFER_VERIFY_${verification.failures.join(",")}`);
+    const rollback = {
+      previous_source_hash: previousHash,
+      backup_path: backupPath,
+      training_backup_content: previousTraining,
+      training_structured_backup_content: previousTrainingStructured,
+      training_manifest_backup_content: previousTrainingManifest,
+      created_at: new Date().toISOString(),
+      source_archive_hash: job.zip_sha256,
+      section_hashes: sourceHashes,
+    };
     atomicWrite(rollbackPath, `${JSON.stringify(rollback, null, 2)}\n`);
     const result: OwnerKnowledgeMaterializationResult = { status: "published", job_id: job.id, approved_section_ids: sourceHashes.map((item) => item.section_id), rejected_section_ids: rejected, active_version_hash_masked: maskHash(publish.structured_hash), fact_count: publish.app_fact_count, activation_status: "published_active", rollback_pointer: backupPath, verification };
     input.zipStore.markLearningCandidatesPublished(approved.map((candidate) => candidate.id));
@@ -219,7 +274,7 @@ export function materializeApprovedOwnerKnowledge(input: {
     return result;
   } catch (error) {
     atomicWrite(appFactsPath, previous);
-    for (const [path, content] of [[structuredPath, previousStructured], [manifestPath, previousManifest], [routingPath, previousRouting]] as Array<[string, string | null]>) {
+    for (const [path, content] of [[structuredPath, previousStructured], [manifestPath, previousManifest], [routingPath, previousRouting], [trainingPath, previousTraining], [trainingStructuredPath, previousTrainingStructured], [trainingManifestPath, previousTrainingManifest]] as Array<[string, string | null]>) {
       if (content === null) {
         if (existsSync(path)) unlinkSync(path);
       } else {
@@ -250,11 +305,20 @@ export function rollbackLastOwnerKnowledge(input: {
   const structuredPath = resolve(dir, "app_facts_structured.json");
   const manifestPath = resolve(dir, "structured_knowledge_manifest.json");
   const routingPath = resolve(dir, "app_routing_rules.md");
+  const trainingPath = resolve(dir, "training_content.md");
+  const trainingStructuredPath = resolve(dir, "training_content_structured.json");
+  const trainingManifestPath = resolve(dir, "training_knowledge_manifest.json");
   const artifactSnapshot = new Map<string, string | null>();
-  for (const path of [structuredPath, manifestPath, routingPath]) {
+  for (const path of [structuredPath, manifestPath, routingPath, trainingPath, trainingStructuredPath, trainingManifestPath]) {
     artifactSnapshot.set(path, existsSync(path) ? readFileSync(path, "utf8") : null);
   }
-  let rollback: { backup_path?: string; section_hashes?: Array<{ section_id: string; section_hash: string }> } = {};
+  let rollback: {
+    backup_path?: string;
+    section_hashes?: Array<{ section_id: string; section_hash: string }>;
+    training_backup_content?: string | null;
+    training_structured_backup_content?: string | null;
+    training_manifest_backup_content?: string | null;
+  } = {};
   try {
     rollback = JSON.parse(readFileSync(rollbackPath, "utf8")) as typeof rollback;
     if (!rollback.backup_path || !existsSync(rollback.backup_path)) throw new Error("ROLLBACK_BACKUP_MISSING");
@@ -263,6 +327,17 @@ export function rollbackLastOwnerKnowledge(input: {
     const redoBackup = `${appFactsPath}.backup-before-rollback-${Date.now()}`;
     writeFileSync(redoBackup, current, { encoding: "utf8", mode: 0o600 });
     atomicWrite(appFactsPath, previous);
+    for (const [path, content] of [
+      [trainingPath, rollback.training_backup_content],
+      [trainingStructuredPath, rollback.training_structured_backup_content],
+      [trainingManifestPath, rollback.training_manifest_backup_content],
+    ] as Array<[string, string | null | undefined]>) {
+      if (content === null || content === undefined) {
+        if (existsSync(path)) unlinkSync(path);
+      } else {
+        atomicWrite(path, content);
+      }
+    }
     const publish = publishStructuredKnowledgeSources({ knowledgeBankDir: dir, mode: "activate", ownerApproval: true });
     if (publish.status !== "published") throw new Error(`ROLLBACK_PUBLISH_${publish.status.toUpperCase()}`);
     const rolledBackIds = input.zipStore.listLearningCandidates()

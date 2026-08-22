@@ -235,9 +235,9 @@ describe("candidate app routing", () => {
       validPolicySectionsForTest(),
       [
         {
-          section_id: "layla_sayhi",
-          title: "Layla SayHi ozelligi",
-          content: "Layla SayHi ozelligi yeni sohbet baslatmak icin kullanilir.",
+          section_id: "layla_installation_code",
+          title: "Layla davet kodu",
+          content: "Layla kurulumunda davet kodu uygulama içinden girilir.",
           classification: "information",
         },
         {
@@ -247,17 +247,17 @@ describe("candidate app routing", () => {
           classification: "archive",
         },
       ],
-      { role: "candidate", latestMessage: "SayHi ozelligi ne ise yarar?" },
+      { role: "candidate", latestMessage: "Layla davet kodunu nereye gireceğim?" },
     );
 
-    expect(result.facts.find((fact) => fact.id === "owner_transfer_layla_sayhi")?.content)
-      .toContain("yeni sohbet baslatmak");
+    expect(result.facts.find((fact) => fact.id === "owner_transfer_layla_installation_code")?.content)
+      .toContain("davet kodu");
     expect(result.facts.some((fact) => fact.id === "owner_transfer_training_message_bank")).toBe(false);
   });
 
   it("uses candidate question relevance when an operational fact is not covered by a stage keyword", () => {
     const result = resolveCandidatePolicy(
-      { ...defaultUserState(), current_state: "NEW_LEAD" },
+      { ...defaultUserState(), current_state: "TRAINING_READY" },
       [],
       [],
       null,
@@ -345,6 +345,56 @@ describe("candidate app routing", () => {
     );
 
     expect(result.facts.some((fact) => fact.id === "owner_transfer_legacy_rule")).toBe(false);
+  });
+
+  it("uses approved post-training operational knowledge only in the training stage", () => {
+    const section = {
+      section_id: "sayhi_support",
+      title: "SayHi aktiflik desteği",
+      content: "SayHi attıktan sonra dönüş gelmezse profil ve SayHi ayarları kontrol edilir.",
+      classification: "information" as const,
+      knowledge_usage: { candidate_context: true, stages: ["training" as const], topic: "post_training_support" },
+    };
+    const intake = resolveCandidatePolicy(defaultUserState(), [], [], null, "candidate_question", validPolicySectionsForTest(), [section], { role: "candidate", latestMessage: "SayHi neden dönüş vermiyor?" });
+    const training = resolveCandidatePolicy({ ...defaultUserState(), current_state: "TRAINING_READY" }, [], [], null, "candidate_question", validPolicySectionsForTest(), [section], { role: "candidate", latestMessage: "SayHi neden dönüş vermiyor?" });
+
+    expect(intake.facts.some((fact) => fact.id === "owner_transfer_sayhi_support")).toBe(false);
+    expect(training.facts.find((fact) => fact.id === "owner_transfer_sayhi_support")?.content).toContain("dönüş gelmezse");
+  });
+
+  it("does not leak post-training knowledge through a selected app before training", () => {
+    const result = resolveCandidatePolicy(
+      { ...defaultUserState(), current_state: "INSTALLATION_IN_PROGRESS", selected_app: "Layla" },
+      ["Layla"],
+      [{ app: "Layla", android_name: "Layla", ios_name: "NIVI", invite_code: null, agency_bind_code: null, agency_code: null, official_url: null, status: "owner_approved", aliases: [], capabilities: { text_only: true, video_required: false } }],
+      null,
+      "candidate_question",
+      validPolicySectionsForTest(),
+      [{
+        section_id: "sayhi_support",
+        title: "Layla SayHi aktiflik desteği",
+        content: "SayHi attıktan sonra dönüş gelmezse profil ve SayHi ayarları kontrol edilir.",
+        classification: "information",
+        knowledge_usage: { candidate_context: true, stages: ["training"], topic: "post_training_support" },
+      }],
+      { role: "candidate", latestMessage: "Kurulum tamam mı?" },
+    );
+
+    expect(result.facts.some((fact) => fact.id === "owner_transfer_sayhi_support")).toBe(false);
+  });
+
+  it("never exposes training or rate-sensitive owner sections to candidate context", () => {
+    const result = resolveCandidatePolicy(
+      { ...defaultUserState(), current_state: "TRAINING_READY" },
+      [], [], null, "candidate_question", validPolicySectionsForTest(),
+      [
+        { section_id: "message_bank", title: "Mesaj bankası", content: "Örnek mesajlar.", classification: "training" },
+        { section_id: "coin_rate", title: "Coin oranı", content: "Güncel coin oranı.", classification: "rate_sensitive" },
+      ],
+      { role: "candidate", latestMessage: "SayHi için örnek ver" },
+    );
+    expect(result.facts.some((fact) => fact.id === "owner_transfer_message_bank")).toBe(false);
+    expect(result.facts.some((fact) => fact.id === "owner_transfer_coin_rate")).toBe(false);
   });
 
   it("includes memory rules in every candidate intent context", () => {

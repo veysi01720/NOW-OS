@@ -4,6 +4,7 @@ import { dirname, resolve } from "node:path";
 import type { StructuredPolicySections } from "../contracts/backendContextPayload.js";
 import type { OwnerKnowledgeClassification } from "./zipIngestion/types.js";
 import type { StructuredAppFact, StructuredGeneralWorkModel } from "./structuredAppFacts.js";
+import { inferKnowledgeSectionUsage, normalizeKnowledgeUsage, type KnowledgeSectionUsage } from "../intelligence/candidate/knowledgeSectionUsage.js";
 
 export interface StructuredKnowledgePublishResult {
   status: "published" | "dry_run" | "blocked_no_owner_approval" | "skipped_missing_app_facts" | "skipped_no_valid_rows";
@@ -126,7 +127,7 @@ function buildStructuredJson(
   facts: StructuredAppFact[],
   generalWorkModel: StructuredGeneralWorkModel,
   policySections: StructuredPolicySections,
-  ownerTransferSections: Array<{ section_id: string; title: string; content: string; classification: OwnerKnowledgeClassification }>,
+  ownerTransferSections: Array<{ section_id: string; title: string; content: string; classification: OwnerKnowledgeClassification; knowledge_usage: KnowledgeSectionUsage }>,
 ): string {
   return `${JSON.stringify({
     version: "1.0",
@@ -370,13 +371,14 @@ export function parsePolicySectionsFromMarkdown(markdown: string): StructuredPol
   return result;
 }
 
-export function parseOwnerTransferSectionsFromMarkdown(markdown: string): Array<{ section_id: string; title: string; content: string; classification: OwnerKnowledgeClassification }> {
-  const sections: Array<{ section_id: string; title: string; content: string; classification: OwnerKnowledgeClassification }> = [];
+export function parseOwnerTransferSectionsFromMarkdown(markdown: string): Array<{ section_id: string; title: string; content: string; classification: OwnerKnowledgeClassification; knowledge_usage: KnowledgeSectionUsage }> {
+  const sections: Array<{ section_id: string; title: string; content: string; classification: OwnerKnowledgeClassification; knowledge_usage: KnowledgeSectionUsage }> = [];
   const seenContentHashes = new Set<string>();
-  const matches = [...markdown.matchAll(/^##\s+Owner Transfer(?:\s+\[(information|constraint|critical|archive)\])?:\s*(.+?)\s*$/gmu)];
+  const matches = [...markdown.matchAll(/^##\s+Owner Transfer(?:\s+\[(information|constraint|critical|training|rate_sensitive|archive)(?:;\s*stages=([a-z_,]+))?\])?:\s*(.+?)\s*$/gmu)];
   for (const [index, match] of matches.entries()) {
     const classification = (match[1] as OwnerKnowledgeClassification | undefined) ?? "information";
-    const title = match[2].trim();
+    const declaredStages = match[2]?.split(",").map((value) => value.trim()).filter(Boolean) ?? [];
+    const title = match[3].trim();
     const start = (match.index ?? 0) + match[0].length;
     const end = matches[index + 1]?.index ?? markdown.length;
     const content = markdown.slice(start, end).trim();
@@ -386,7 +388,12 @@ export function parseOwnerTransferSectionsFromMarkdown(markdown: string): Array<
     seenContentHashes.add(contentHash);
     const titleSlug = normalizeHeading(title).replace(/[^a-z0-9]+/g, "_").replace(/^_|_$/g, "") || "untitled";
     const sectionId = `${titleSlug}_${contentHash.slice(0, 12)}`;
-    sections.push({ section_id: sectionId, title, content, classification });
+    const inferred = inferKnowledgeSectionUsage({ title, content, classification });
+    const knowledgeUsage = normalizeKnowledgeUsage(
+      declaredStages.length > 0 ? { ...inferred, stages: declaredStages } : inferred,
+      { title, content, classification },
+    );
+    sections.push({ section_id: sectionId, title, content, classification, knowledge_usage: knowledgeUsage });
   }
   return sections;
 }

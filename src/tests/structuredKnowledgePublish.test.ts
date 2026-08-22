@@ -176,6 +176,16 @@ describe("structured knowledge publish", () => {
     expect(structured.owner_transfer_sections).toHaveLength(1);
   });
 
+  it("projects owner knowledge usage metadata into structured facts", () => {
+    const markdown = [
+      "## Owner Transfer [information; stages=training]: SayHi desteği",
+      "",
+      "SayHi sonrası dönüş gelmezse profil ve aktiflik adımları kontrol edilir.",
+    ].join("\n");
+    const section = parseOwnerTransferSectionsFromMarkdown(markdown)[0];
+    expect(section.knowledge_usage).toEqual({ candidate_context: true, stages: ["training"], topic: "post_training_support" });
+  });
+
   it("gives same-title owner transfer records distinct stable ids from their content hashes", () => {
     const markdown = [
       "## Owner Transfer [information]: Owner direct bilgi",
